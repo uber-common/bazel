@@ -69,6 +69,7 @@ public final class PyCommon {
 
   /** Name of the version attribute. */
   public static final String PYTHON_VERSION_ATTRIBUTE = "python_version";
+  public static final String PYTHON_DISABLE_PACKAGE_DASH_CHECK = "python_disable_package_dash_check";
 
   /**
    * Returns the Python version based on the {@code python_version} attribute of the given {@code
@@ -268,11 +269,12 @@ public final class PyCommon {
   private static List<Artifact> initAndMaybeValidateDirectPythonSources(
       RuleContext ruleContext, PythonSemantics semantics, boolean validate) {
     List<Artifact> sourceFiles = new ArrayList<>();
+    boolean skipPythonTargetDashCheck = ruleContext.getFeatures().contains(PYTHON_DISABLE_PACKAGE_DASH_CHECK);
     // TODO(bazel-team): Need to get the transitive deps closure, not just the sources of the rule.
     for (TransitiveInfoCollection src :
         ruleContext.getPrerequisitesIf("srcs", FileProvider.class)) {
       // Make sure that none of the sources contain hyphens.
-      if (validate
+      if (!skipPythonTargetDashCheck && validate
           && semantics.prohibitHyphensInPackagePaths()
           && Util.containsHyphen(src.getLabel().getPackageFragment())) {
         ruleContext.attributeError(
