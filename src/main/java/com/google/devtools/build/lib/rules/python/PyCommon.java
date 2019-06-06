@@ -69,6 +69,7 @@ public final class PyCommon {
 
   public static final String DEFAULT_PYTHON_VERSION_ATTRIBUTE = "default_python_version";
   public static final String PYTHON_VERSION_ATTRIBUTE = "python_version";
+  public static final String PYTHON_DISABLE_PACKAGE_DASH_CHECK = "python_disable_package_dash_check";
 
   /**
    * Returns the Python version based on the {@code python_version} and {@code
@@ -796,9 +797,11 @@ public final class PyCommon {
     for (TransitiveInfoCollection src :
         ruleContext.getPrerequisitesIf("srcs", Mode.TARGET, FileProvider.class)) {
       // Make sure that none of the sources contain hyphens.
-      if (Util.containsHyphen(src.getLabel().getPackageFragment())) {
-        ruleContext.attributeError("srcs",
-            src.getLabel() + ": paths to Python packages may not contain '-'");
+      if (!ruleContext.getFeatures().contains(PYTHON_DISABLE_PACKAGE_DASH_CHECK)) {
+        if (Util.containsHyphen(src.getLabel().getPackageFragment())) {
+          ruleContext.attributeError("srcs",
+              src.getLabel() + ": paths to Python packages may not contain '-'");
+        }
       }
       Iterable<Artifact> pySrcs =
           FileType.filter(
@@ -819,6 +822,9 @@ public final class PyCommon {
    * Checks that the package name of this Python rule does not contain a '-'.
    */
   void validatePackageName() {
+    if (ruleContext.getFeatures().contains(PYTHON_DISABLE_PACKAGE_DASH_CHECK)) {
+      return;
+    }
     if (Util.containsHyphen(ruleContext.getLabel().getPackageFragment())) {
       ruleContext.ruleError("paths to Python packages may not contain '-'");
     }
