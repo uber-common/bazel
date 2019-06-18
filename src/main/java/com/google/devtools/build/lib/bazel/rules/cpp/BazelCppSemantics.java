@@ -92,7 +92,7 @@ public class BazelCppSemantics implements AspectLegalCppSemantics {
 
   @Override
   public boolean needsIncludeValidation() {
-    return true;
+    return false;
   }
 
   @Override
