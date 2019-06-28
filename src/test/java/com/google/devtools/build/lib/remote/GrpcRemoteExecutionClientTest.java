@@ -260,7 +260,8 @@ public class GrpcRemoteExecutionClientTest {
             retryService,
             DIGEST_UTIL,
             logDir,
-            /* filesToDownload= */ ImmutableSet.of());
+            /* filesToDownload= */ ImmutableSet.of(),
+            null);
 
     inputDigest =
         fakeFileCache.createScratchInput(simpleSpawn.getInputFiles().getSingleton(), "xyz");
