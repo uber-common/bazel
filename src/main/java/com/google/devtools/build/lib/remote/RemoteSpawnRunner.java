@@ -51,8 +51,10 @@ import com.google.devtools.build.lib.analysis.platform.PlatformUtils;
 import com.google.devtools.build.lib.concurrent.ThreadSafety.ThreadSafe;
 import com.google.devtools.build.lib.events.Event;
 import com.google.devtools.build.lib.events.Reporter;
+import com.google.devtools.build.lib.exec.BinTools;
 import com.google.devtools.build.lib.exec.ExecutionOptions;
 import com.google.devtools.build.lib.exec.SpawnRunner;
+import com.google.devtools.build.lib.exec.local.LocalEnvProvider;
 import com.google.devtools.build.lib.profiler.Profiler;
 import com.google.devtools.build.lib.profiler.ProfilerTask;
 import com.google.devtools.build.lib.profiler.SilentCloseable;
@@ -114,6 +116,7 @@ public class RemoteSpawnRunner implements SpawnRunner {
 
   // Used to ensure that a warning is reported only once.
   private final AtomicBoolean warningReported = new AtomicBoolean();
+  private final BinTools binTools;
 
   RemoteSpawnRunner(
       Path execRoot,
@@ -129,7 +132,8 @@ public class RemoteSpawnRunner implements SpawnRunner {
       @Nullable RemoteRetrier retrier,
       DigestUtil digestUtil,
       Path logDir,
-      ImmutableSet<ActionInput> filesToDownload) {
+      ImmutableSet<ActionInput> filesToDownload,
+      @Nullable BinTools binTools) {
     this.execRoot = execRoot;
     this.remoteOptions = remoteOptions;
     this.executionOptions = executionOptions;
@@ -144,6 +148,7 @@ public class RemoteSpawnRunner implements SpawnRunner {
     this.digestUtil = digestUtil;
     this.logDir = logDir;
     this.filesToDownload = Preconditions.checkNotNull(filesToDownload, "filesToDownload");
+    this.binTools = binTools;
   }
 
   @Override
@@ -169,9 +174,18 @@ public class RemoteSpawnRunner implements SpawnRunner {
     // Get the remote platform properties.
     Platform platform = PlatformUtils.getPlatformProto(spawn, remoteOptions);
 
+    ImmutableMap<String, String> env;
+    if (binTools == null) {
+        env = spawn.getEnvironment();
+    }
+    else {
+        LocalEnvProvider envProvider = LocalEnvProvider.forCurrentOs(spawn.getEnvironment());
+        env = ImmutableMap.copyOf(envProvider.rewriteLocalEnv(spawn.getEnvironment(), binTools, "/tmp"));
+    }
+
     Command command =
         buildCommand(
-            spawn.getOutputFiles(), spawn.getArguments(), spawn.getEnvironment(), platform);
+            spawn.getOutputFiles(), spawn.getArguments(), env, platform);
     Digest commandHash = digestUtil.compute(command);
     Action action =
         buildAction(

@@ -820,7 +820,8 @@ public class RemoteSpawnRunnerTest {
             retrier,
             digestUtil,
             logDir,
-            /* filesToDownload= */ ImmutableSet.of());
+            /* filesToDownload= */ ImmutableSet.of(),
+            null);
 
     ExecuteResponse succeeded =
         ExecuteResponse.newBuilder()
@@ -1017,6 +1018,7 @@ public class RemoteSpawnRunnerTest {
         retrier,
         digestUtil,
         logDir,
-        topLevelOutputs);
+        topLevelOutputs,
+        null);
   }
 }
