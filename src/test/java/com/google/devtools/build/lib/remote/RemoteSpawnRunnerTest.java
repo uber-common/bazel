@@ -775,7 +775,8 @@ public class RemoteSpawnRunnerTest {
             retrier,
             digestUtil,
             logDir,
-            /* topLevelOutputs= */ ImmutableSet.of());
+            /* topLevelOutputs= */ ImmutableSet.of(),
+            null);
 
     ExecuteResponse succeeded =
         ExecuteResponse.newBuilder()
@@ -974,7 +975,8 @@ public class RemoteSpawnRunnerTest {
         retrier,
         digestUtil,
         logDir,
-        topLevelOutputs);
+        topLevelOutputs,
+        null);
   }
 
   private RemoteSpawnRunner newSpawnRunnerWithoutExecutor() {
