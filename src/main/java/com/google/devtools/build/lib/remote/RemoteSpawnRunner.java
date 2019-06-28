@@ -54,9 +54,14 @@ import com.google.devtools.build.lib.analysis.platform.PlatformInfo;
 import com.google.devtools.build.lib.concurrent.ThreadSafety.ThreadSafe;
 import com.google.devtools.build.lib.events.Event;
 import com.google.devtools.build.lib.events.Reporter;
+import com.google.devtools.build.lib.exec.BinTools;
 import com.google.devtools.build.lib.exec.ExecutionOptions;
 import com.google.devtools.build.lib.exec.SpawnExecException;
 import com.google.devtools.build.lib.exec.SpawnRunner;
+import com.google.devtools.build.lib.exec.apple.XcodeLocalEnvProvider;
+import com.google.devtools.build.lib.exec.local.LocalEnvProvider;
+import com.google.devtools.build.lib.exec.local.PosixLocalEnvProvider;
+import com.google.devtools.build.lib.exec.local.WindowsLocalEnvProvider;
 import com.google.devtools.build.lib.profiler.Profiler;
 import com.google.devtools.build.lib.profiler.ProfilerTask;
 import com.google.devtools.build.lib.profiler.SilentCloseable;
@@ -68,6 +73,7 @@ import com.google.devtools.build.lib.remote.util.DigestUtil.ActionKey;
 import com.google.devtools.build.lib.remote.util.TracingMetadataUtils;
 import com.google.devtools.build.lib.remote.util.Utils.InMemoryOutput;
 import com.google.devtools.build.lib.util.ExitCode;
+import com.google.devtools.build.lib.util.OS;
 import com.google.devtools.build.lib.util.io.FileOutErr;
 import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.build.lib.vfs.PathFragment;
@@ -122,6 +128,7 @@ public class RemoteSpawnRunner implements SpawnRunner {
 
   // Used to ensure that a warning is reported only once.
   private final AtomicBoolean warningReported = new AtomicBoolean();
+  private final BinTools binTools;
 
   RemoteSpawnRunner(
       Path execRoot,
@@ -137,7 +144,8 @@ public class RemoteSpawnRunner implements SpawnRunner {
       @Nullable RemoteRetrier retrier,
       DigestUtil digestUtil,
       Path logDir,
-      ImmutableSet<Artifact> topLevelOutputs) {
+      ImmutableSet<Artifact> topLevelOutputs,
+      @Nullable BinTools binTools) {
     this.execRoot = execRoot;
     this.remoteOptions = remoteOptions;
     this.executionOptions = executionOptions;
@@ -152,11 +160,20 @@ public class RemoteSpawnRunner implements SpawnRunner {
     this.digestUtil = digestUtil;
     this.logDir = logDir;
     this.topLevelOutputs = Preconditions.checkNotNull(topLevelOutputs, "topLevelOutputs");
+    this.binTools = binTools;
   }
 
   @Override
   public String getName() {
     return "remote";
+  }
+
+  private static LocalEnvProvider createLocalEnvProvider(ImmutableMap<String, String> env) {
+    return OS.getCurrent() == OS.DARWIN
+        ? new XcodeLocalEnvProvider(env)
+        : (OS.getCurrent() == OS.WINDOWS
+            ? new WindowsLocalEnvProvider(env)
+            : new PosixLocalEnvProvider(env));
   }
 
   @Override
@@ -177,10 +194,19 @@ public class RemoteSpawnRunner implements SpawnRunner {
     // Get the remote platform properties.
     Platform platform =
         parsePlatform(spawn.getExecutionPlatform(), remoteOptions.remoteDefaultPlatformProperties);
+ 
+    ImmutableMap<String, String> env;
+    if (binTools == null) {
+        env = spawn.getEnvironment();
+    }
+    else {
+        LocalEnvProvider envProvider = createLocalEnvProvider(spawn.getEnvironment());
+        env = ImmutableMap.copyOf(envProvider.rewriteLocalEnv(spawn.getEnvironment(), binTools, "/tmp"));
+    }
 
     Command command =
         buildCommand(
-            spawn.getOutputFiles(), spawn.getArguments(), spawn.getEnvironment(), platform);
+            spawn.getOutputFiles(), spawn.getArguments(), env, platform);
     Digest commandHash = digestUtil.compute(command);
     Action action =
         buildAction(
