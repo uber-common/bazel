@@ -115,7 +115,8 @@ final class RemoteActionContextProvider implements ExecutorLifecycleListener {
               retryScheduler,
               digestUtil,
               logDir,
-              filesToDownload);
+              filesToDownload,
+              env.getBlazeWorkspace().getBinTools());
       executorBuilder.addActionContext(
           SpawnStrategy.class, new RemoteSpawnStrategy(env.getExecRoot(), spawnRunner), "remote");
     }
