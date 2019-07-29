@@ -148,7 +148,7 @@ public class BazelPythonSemantics implements PythonSemantics {
       throws InterruptedException {
     PythonConfiguration config = ruleContext.getFragment(PythonConfiguration.class);
     BazelPythonConfiguration bazelConfig = ruleContext.getFragment(BazelPythonConfiguration.class);
-    boolean buildPythonZip = config.buildPythonZip();
+    boolean buildPythonZip = config.buildPythonZip() || ruleContext.getFeatures().contains(PyCommon.PYTHON_BUILD_EXECUTABLE_ZIP);
 
     /*
      * Python executable targets are launched in two stages. The first stage is the stub script that
@@ -286,7 +286,8 @@ public class BazelPythonSemantics implements PythonSemantics {
   @Override
   public void postInitExecutable(
       RuleContext ruleContext, RunfilesSupport runfilesSupport, PyCommon common) {
-    if (ruleContext.getFragment(PythonConfiguration.class).buildPythonZip()) {
+    if (ruleContext.getFragment(PythonConfiguration.class).buildPythonZip() ||
+        ruleContext.getFeatures().contains(PyCommon.PYTHON_BUILD_EXECUTABLE_ZIP)) {
       FilesToRunProvider zipper = ruleContext.getExecutablePrerequisite("$zipper", Mode.HOST);
       Artifact executable = common.getExecutable();
       if (!ruleContext.hasErrors()) {
