@@ -34,6 +34,7 @@ import java.io.OutputStream;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /** An output formatter that prints the result as Json. */
@@ -112,6 +113,13 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
       while (it.hasNext()){
         Object currentVal = it.next();
         result.add(gson.toJsonTree(currentVal.toString()));
+      }
+      return result;
+    }
+    else if (val instanceof Map) {
+      JsonObject result = new JsonObject();
+      for(Object key : ((Map) val).keySet()) {
+        result.add(key.toString(), getJsonFromValue(((Map) val).get(key)));
       }
       return result;
     }
