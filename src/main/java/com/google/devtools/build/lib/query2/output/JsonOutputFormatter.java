@@ -28,14 +28,11 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /** An output formatter that prints the result as Json. */
 class JsonOutputFormatter extends AbstractUnorderedFormatter {
@@ -66,9 +63,6 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
 
       private JsonObject result = new JsonObject();
       private Gson gson = new GsonBuilder().setPrettyPrinting().create();
-
-      @Override
-      public void start() {}
 
       @Override
       public void processOutput(Iterable<Target> partialResult)
@@ -105,21 +99,20 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
     return result;
   }
 
-  private static  JsonElement getJsonFromValue(Object val) {
+  private static JsonElement getJsonFromValue(Object val) {
     Gson gson = new Gson();
     if (val instanceof List) {
       Iterator<Object> it = ((List) val).iterator();
       JsonArray result = new JsonArray();
-      while (it.hasNext()){
+      while (it.hasNext()) {
         Object currentVal = it.next();
         result.add(gson.toJsonTree(currentVal.toString()));
       }
       return result;
-    }
-    else if (val instanceof Map) {
+    } else if (val instanceof Map) {
       JsonObject result = new JsonObject();
       Map<Object, Object> valMap = (Map) val;
-      for(Object key : valMap.keySet()) {
+      for (Object key : valMap.keySet()) {
         result.add(key.toString(), getJsonFromValue(valMap.get(key)));
       }
       return result;
