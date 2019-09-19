@@ -25,11 +25,15 @@ import com.google.devtools.build.lib.query2.engine.ThreadSafeOutputFormatterCall
 import com.google.devtools.build.lib.query2.output.OutputFormatter.AbstractUnorderedFormatter;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 
 /** An output formatter that prints the result as Json. */
@@ -68,9 +72,8 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
       @Override
       public void processOutput(Iterable<Target> partialResult)
           throws IOException, InterruptedException {
-        Set<String> hash_Set = new HashSet<>();
         for (Target target : partialResult) {
-          result.add(target.getLabel().toString(), createTargetJsonObject(target, hash_Set));
+          result.add(target.getLabel().toString(), createTargetJsonObject(target));
         }
       }
 
@@ -83,9 +86,8 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
     };
   }
 
-  private static JsonObject createTargetJsonObject(Target target, Set<String> hash_Set) {
+  private static JsonObject createTargetJsonObject(Target target) {
     JsonObject result = new JsonObject();
-    Gson gson = new Gson();
     if (target instanceof Rule) {
       Rule rule = (Rule) target;
       for (Attribute attr : rule.getAttributes()) {
@@ -93,13 +95,26 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
         if (values.source == AttributeValueSource.RULE) {
           Iterator<Object> it = values.iterator();
           while (it.hasNext()) {
-            Object el = it.next();
-            hash_Set.add(el.getClass().getTypeName());
-            result.add(attr.getName(), gson.toJsonTree(el.toString()));
+            Object val = it.next();
+            result.add(attr.getName(), getJsonFromValue(val));
           }
         }
       }
     }
     return result;
+  }
+
+  private static  JsonElement getJsonFromValue(Object val) {
+    Gson gson = new Gson();
+    if (val instanceof List) {
+      Iterator<Object> it = ((List) val).iterator();
+      JsonArray result = new JsonArray();
+      while (it.hasNext()){
+        Object currentVal = it.next();
+        result.add(gson.toJsonTree(currentVal.toString()));
+      }
+      return result;
+    }
+    return gson.toJsonTree(val.toString());
   }
 }
