@@ -106,7 +106,7 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
       JsonArray result = new JsonArray();
       while (it.hasNext()) {
         Object currentVal = it.next();
-        result.add(gson.toJsonTree(currentVal.toString()));
+        result.add(getJsonFromValue(currentVal));
       }
       return result;
     } else if (val instanceof Map) {
