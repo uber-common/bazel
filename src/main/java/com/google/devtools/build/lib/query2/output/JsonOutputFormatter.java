@@ -118,8 +118,9 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
     }
     else if (val instanceof Map) {
       JsonObject result = new JsonObject();
-      for(Object key : ((Map) val).keySet()) {
-        result.add(key.toString(), getJsonFromValue(((Map) val).get(key)));
+      Map<Object, Object> valMap = (Map) val;
+      for(Object key : valMap.keySet()) {
+        result.add(key.toString(), getJsonFromValue(valMap.get(key)));
       }
       return result;
     }
