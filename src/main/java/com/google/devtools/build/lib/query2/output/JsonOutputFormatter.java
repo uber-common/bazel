@@ -86,6 +86,7 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
     result.addProperty("fully_qualified_name", target.getLabel().getCanonicalForm());
     if (target instanceof Rule) {
       Rule rule = (Rule) target;
+      result.addProperty("class", rule.getRuleClass());
       for (Attribute attr : rule.getAttributes()) {
         PossibleAttributeValues values = getPossibleAttributeValues(rule, attr);
         if (values.source == AttributeValueSource.RULE) {
