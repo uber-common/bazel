@@ -74,6 +74,7 @@ java_library(
         "//src/main/java/com/google/devtools/build/lib/graph",
         "//src/main/java/com/google/devtools/common/options",
         "//src/main/protobuf:build_java_proto",
+        "//third_party:gson",
         "//third_party:guava",
         "//third_party:jsr305",
     ],
