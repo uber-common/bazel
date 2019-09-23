@@ -114,6 +114,7 @@ public abstract class OutputFormatter implements Serializable {
         new PackageOutputFormatter(),
         new LocationOutputFormatter(),
         new GraphOutputFormatter(),
+        new JsonOutputFormatter(),
         new XmlOutputFormatter(),
         new ProtoOutputFormatter(),
         new StreamedProtoOutputFormatter());
