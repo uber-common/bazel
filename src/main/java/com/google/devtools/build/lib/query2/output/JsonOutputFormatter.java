@@ -84,6 +84,7 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
   private static JsonObject createTargetJsonObject(Target target) {
     JsonObject result = new JsonObject();
     result.addProperty("fully_qualified_name", target.getLabel().getCanonicalForm());
+    result.addProperty("base_path", target.getLabel().getPackageName());
     if (target instanceof Rule) {
       Rule rule = (Rule) target;
       result.addProperty("class", rule.getRuleClass());
