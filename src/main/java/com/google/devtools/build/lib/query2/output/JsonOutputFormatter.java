@@ -28,6 +28,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.sun.org.apache.xpath.internal.operations.Bool;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Iterator;
@@ -120,6 +121,8 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
       }
       return result;
     }
+    else if (val instanceof Boolean)
+      return gson.toJsonTree(val);
     return gson.toJsonTree(val.toString());
   }
 }
