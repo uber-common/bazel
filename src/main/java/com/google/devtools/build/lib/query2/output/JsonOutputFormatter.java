@@ -68,7 +68,7 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
       public void processOutput(Iterable<Target> partialResult)
           throws IOException, InterruptedException {
         for (Target target : partialResult) {
-          result.add(target.getLabel().toString(), createTargetJsonObject(target));
+          result.add(target.getLabel().getCanonicalForm(), createTargetJsonObject(target));
         }
       }
 
@@ -83,6 +83,7 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
 
   private static JsonObject createTargetJsonObject(Target target) {
     JsonObject result = new JsonObject();
+    result.addProperty("fully_qualified_name", target.getLabel().getCanonicalForm());
     if (target instanceof Rule) {
       Rule rule = (Rule) target;
       for (Attribute attr : rule.getAttributes()) {
