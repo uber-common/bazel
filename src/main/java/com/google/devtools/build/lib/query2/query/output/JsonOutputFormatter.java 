@@ -28,7 +28,6 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.sun.org.apache.xpath.internal.operations.Bool;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Iterator;
@@ -63,7 +62,7 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
     return new OutputFormatterCallback<Target>() {
 
       private JsonObject result = new JsonObject();
-      private Gson gson = new GsonBuilder().setPrettyPrinting().create();
+      private Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
       @Override
       public void processOutput(Iterable<Target> partialResult)
@@ -104,7 +103,7 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
   }
 
   private static JsonElement getJsonFromValue(Object val) {
-    Gson gson = new Gson();
+    Gson gson = new GsonBuilder().disableHtmlEscaping().create();
     if (val instanceof List) {
       Iterator<Object> it = ((List) val).iterator();
       JsonArray result = new JsonArray();
