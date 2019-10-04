@@ -65,11 +65,14 @@ import com.google.rpc.PreconditionFailure.Violation;
 import io.grpc.CallCredentials;
 import io.grpc.ClientInterceptor;
 import io.grpc.Context;
+import io.grpc.Metadata;
 import io.grpc.Status.Code;
 import io.grpc.protobuf.StatusProto;
+import io.grpc.stub.MetadataUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.concurrent.Executors;
 import java.util.function.Predicate;
 import java.util.logging.Level;
@@ -184,6 +187,9 @@ public final class RemoteModule extends BlazeModule {
             new AsynchronousFileOutputStream(
                 env.getWorkingDirectory().getRelative(remoteOptions.experimentalRemoteGrpcLog));
         interceptors.add(new LoggingInterceptor(rpcLogFile, env.getRuntime().getClock()));
+      }
+      if (remoteOptions.remoteHeaders.size() > 0){
+        interceptors.add(createExtraHeadersClientInterceptor(remoteOptions.remoteHeaders));
       }
 
       ReferenceCountedChannel cacheChannel = null;
@@ -362,6 +368,16 @@ public final class RemoteModule extends BlazeModule {
       return TargetUtils.isTestRuleName(ruleConfiguredTarget.getRuleClassString());
     }
     return false;
+  }
+
+  private static ClientInterceptor createExtraHeadersClientInterceptor(
+      List<Entry<String, String>> extraHeaders){
+    Metadata metadata = new Metadata();
+    for (Entry<String, String> header: extraHeaders){
+      Metadata.Key key = Metadata.Key.of(header.getKey(), Metadata.ASCII_STRING_MARSHALLER);
+      metadata.put(key, header.getValue());
+    }
+    return MetadataUtils.newAttachHeadersInterceptor(metadata);
   }
 
   private static void cleanAndCreateRemoteLogsDir(Path logDir) throws AbruptExitException {
