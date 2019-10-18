@@ -331,7 +331,10 @@ public class BaseRuleClasses {
                     "special logic for constraints and select: see ConstraintSemantics"))
         .add(
             attr(RuleClass.CONFIG_SETTING_DEPS_ATTRIBUTE, LABEL_LIST)
-                .nonconfigurable("stores configurability keys"));
+                .nonconfigurable("stores configurability keys"))
+        .add(
+            attr("test_targets", NODEP_LABEL_LIST)
+                .orderIndependent());
   }
 
   public static RuleClass.Builder nameAttribute(RuleClass.Builder builder) {
