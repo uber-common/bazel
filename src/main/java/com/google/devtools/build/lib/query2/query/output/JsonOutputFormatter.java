@@ -16,6 +16,9 @@ package com.google.devtools.build.lib.query2.query.output;
 import com.google.common.base.Preconditions;
 import com.google.devtools.build.lib.packages.Attribute;
 import com.google.devtools.build.lib.packages.BuildType;
+import com.google.devtools.build.lib.packages.InputFile;
+import com.google.devtools.build.lib.packages.OutputFile;
+import com.google.devtools.build.lib.packages.PackageGroup;
 import com.google.devtools.build.lib.packages.RawAttributeMapper;
 import com.google.devtools.build.lib.packages.Rule;
 import com.google.devtools.build.lib.packages.Target;
@@ -111,6 +114,26 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
           }
         }
       }
+    } else if (target instanceof InputFile) {
+      InputFile file = (InputFile) target;
+      result.addProperty("class", target.getTargetKind());
+      result.addProperty("name", file.getName());
+      result.addProperty("path", file.getPath().toString());
+      // FIXME - set current value for siblingRepositoryLayout or remove it all together
+      result.addProperty("execpath", file.getExecPath(false).toString());
+    } else if (target instanceof OutputFile) {
+      OutputFile file = (OutputFile) target;
+      result.addProperty("class", target.getTargetKind());
+      result.addProperty("name", file.getName());
+      result.addProperty("owner", file.getGeneratingRule().getLabel().toString());
+    } else if (target instanceof PackageGroup) {
+      PackageGroup group = (PackageGroup) target;
+      result.addProperty("class", target.getTargetKind());
+      result.addProperty("name", group.getName());
+      result.add("packages", getJsonFromValue(group.getContainedPackages()));
+      result.add("includes", getJsonFromValue(group.getIncludes()));
+    } else {
+      result.addProperty("class", target.getTargetKind());
     }
     return result;
   }
