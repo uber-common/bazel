@@ -15,6 +15,8 @@ package com.google.devtools.build.lib.query2.query.output;
 
 import com.google.common.base.Preconditions;
 import com.google.devtools.build.lib.packages.Attribute;
+import com.google.devtools.build.lib.packages.BuildType;
+import com.google.devtools.build.lib.packages.RawAttributeMapper;
 import com.google.devtools.build.lib.packages.Rule;
 import com.google.devtools.build.lib.packages.Target;
 import com.google.devtools.build.lib.query2.common.CommonQueryOptions;
@@ -83,14 +85,25 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
 
   private static JsonObject createTargetJsonObject(Target target) {
     JsonObject result = new JsonObject();
-    result.addProperty("fully_qualified_name", target.getLabel().getCanonicalForm());
-    result.addProperty("base_path", target.getLabel().getPackageName());
+
     if (target instanceof Rule) {
-      Rule rule = (Rule) target;
+      Rule rule = target.getAssociatedRule();
+      result.addProperty("fully_qualified_name", target.getLabel().getCanonicalForm());
+      result.addProperty("base_path", target.getLabel().getPackageName());
       result.addProperty("class", rule.getRuleClass());
       for (Attribute attr : rule.getAttributes()) {
-        PossibleAttributeValues values = PossibleAttributeValues.forRuleAndAttribute(rule, attr);
-        if (values.getSource() == AttributeValueSource.RULE) {
+        if (rule.isConfigurableAttribute(attr.getName())) {
+          BuildType.SelectorList<?> selectors =
+              RawAttributeMapper.of(rule).getSelectorList(attr.getName(), attr.getType());
+          for (BuildType.Selector<?> selector : selectors.getSelectors()) {
+            // TODO - This assumes that only one selector is present
+            result.add(attr.getName(), getJsonFromValue(selector.getEntries()));
+          }
+        } else {
+          PossibleAttributeValues values = PossibleAttributeValues.forRuleAndAttribute(rule, attr);
+          if (values.getSource() == AttributeValueSource.DEFAULT) {
+            continue;
+          }
           Iterator<Object> it = values.iterator();
           while (it.hasNext()) {
             Object val = it.next();
