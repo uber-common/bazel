@@ -1395,6 +1395,7 @@ public final class CcCompilationHelper {
             /* isUsingFission= */ false,
             /* dwoFile= */ null,
             /* ltoIndexingFile= */ null,
+            null,
             /* additionalBuildVariables= */ ImmutableMap.of()));
     semantics.finalizeCompileActionBuilder(configuration, featureConfiguration, builder);
     // Make sure this builder doesn't reference ruleContext outside of analysis phase.
@@ -1464,6 +1465,7 @@ public final class CcCompilationHelper {
       boolean isUsingFission,
       Artifact dwoFile,
       Artifact ltoIndexingFile,
+      Artifact indexStorePath,
       ImmutableMap<String, String> additionalBuildVariables) {
     Artifact sourceFile = builder.getSourceFile();
     String dotdFileExecPath = null;
@@ -1541,6 +1543,7 @@ public final class CcCompilationHelper {
         toPathString(builder.getOutputFile()),
         toPathString(gcnoFile),
         toPathString(dwoFile),
+        toPathString(indexStorePath),
         isUsingFission,
         toPathString(ltoIndexingFile),
         getCopts(builder.getSourceFile(), sourceLabel),
@@ -1630,6 +1633,7 @@ public final class CcCompilationHelper {
             generateDwo,
             dwoFile,
             /* ltoIndexingFile= */ null,
+            null,
             /* additionalBuildVariables= */ ImmutableMap.of()));
 
     builder.setGcnoFile(gcnoFile);
@@ -1684,6 +1688,7 @@ public final class CcCompilationHelper {
             /* isUsingFission= */ false,
             /* dwoFile= */ null,
             /* ltoIndexingFile= */ null,
+            null,
             /* additionalBuildVariables= */ ImmutableMap.of()));
     semantics.finalizeCompileActionBuilder(configuration, featureConfiguration, builder);
     CppCompileAction compileAction = builder.buildOrThrowRuleError(ruleErrorConsumer);
@@ -1767,6 +1772,11 @@ public final class CcCompilationHelper {
         Artifact ltoIndexingFile =
             bitcodeOutput ? getLtoIndexingFile(picBuilder.getOutputFile()) : null;
 
+        // TODO: guard this with a feature
+        Artifact indexStore = actionConstructionContext.getTreeArtifact(
+                picBuilder.getOutputFile().getRootRelativePath().replaceName(outputName + ".indexstore"),
+                actionConstructionContext.getBinOrGenfilesDirectory());
+
         picBuilder.setVariables(
             setupCompileBuildVariables(
                 picBuilder,
@@ -1778,6 +1788,7 @@ public final class CcCompilationHelper {
                 generateDwo,
                 dwoFile,
                 ltoIndexingFile,
+                indexStore,
                 /* additionalBuildVariables= */ ImmutableMap.of()));
 
         result.addTemps(
@@ -1842,6 +1853,11 @@ public final class CcCompilationHelper {
         Artifact ltoIndexingFile =
             bitcodeOutput ? getLtoIndexingFile(builder.getOutputFile()) : null;
 
+        // TODO: guard this with a feature
+        Artifact indexStore = actionConstructionContext.getTreeArtifact(
+                noPicOutputFile.getRootRelativePath().replaceName(outputName + ".indexstore"),
+                actionConstructionContext.getBinOrGenfilesDirectory());
+
         builder.setVariables(
             setupCompileBuildVariables(
                 builder,
@@ -1853,6 +1869,7 @@ public final class CcCompilationHelper {
                 generateDwo,
                 noPicDwoFile,
                 ltoIndexingFile,
+                indexStore,
                 /* additionalBuildVariables= */ ImmutableMap.of()));
 
         result.addTemps(
@@ -1868,6 +1885,7 @@ public final class CcCompilationHelper {
         builder.setGcnoFile(gcnoFile);
         builder.setDwoFile(noPicDwoFile);
         builder.setLtoIndexingFile(ltoIndexingFile);
+        builder.setIndexStore(indexStore);
 
         semantics.finalizeCompileActionBuilder(configuration, featureConfiguration, builder);
         CppCompileAction compileAction = builder.buildOrThrowRuleError(ruleErrorConsumer);
@@ -1966,6 +1984,7 @@ public final class CcCompilationHelper {
             /* isUsingFission= */ false,
             /* dwoFile= */ null,
             /* ltoIndexingFile= */ null,
+            null,
             /* additionalBuildVariables= */ ImmutableMap.of()));
     semantics.finalizeCompileActionBuilder(configuration, featureConfiguration, builder);
     CppCompileAction action = builder.buildOrThrowRuleError(ruleErrorConsumer);
@@ -2082,6 +2101,7 @@ public final class CcCompilationHelper {
             /* isUsingFission= */ false,
             /* dwoFile= */ null,
             /* ltoIndexingFile= */ null,
+            null,
             ImmutableMap.of(
                 CompileBuildVariables.OUTPUT_PREPROCESS_FILE.getVariableName(),
                 dBuilder.getRealOutputFilePath().getSafePathString())));
@@ -2108,6 +2128,7 @@ public final class CcCompilationHelper {
             /* isUsingFission= */ false,
             /* dwoFile= */ null,
             /* ltoIndexingFile= */ null,
+            null,
             ImmutableMap.of(
                 CompileBuildVariables.OUTPUT_ASSEMBLY_FILE.getVariableName(),
                 sdBuilder.getRealOutputFilePath().getSafePathString())));
