@@ -5268,8 +5268,8 @@ def _impl(ctx):
         provides = ["profile"],
     )
 
-    index_store_feature = feature(
-            name = "index_store",
+    index_while_building_feature = feature(
+            name = "index_while_building",
             enabled = True,
             flag_sets = [
                 flag_set(
@@ -5475,7 +5475,7 @@ def _impl(ctx):
             include_paths_feature,
             sysroot_feature,
             dependency_file_feature,
-            index_store_feature,
+            index_while_building_feature,
             pic_feature,
             per_object_debug_info_feature,
             preprocessor_defines_feature,
