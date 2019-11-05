@@ -1399,7 +1399,7 @@ public final class CcCompilationHelper {
             /* isUsingFission= */ false,
             /* dwoFile= */ null,
             /* ltoIndexingFile= */ null,
-            null,
+            /* indexStorePath= */ null,
             /* additionalBuildVariables= */ ImmutableMap.of()));
     semantics.finalizeCompileActionBuilder(configuration, featureConfiguration, builder);
     // Make sure this builder doesn't reference ruleContext outside of analysis phase.
@@ -1637,7 +1637,7 @@ public final class CcCompilationHelper {
             generateDwo,
             dwoFile,
             /* ltoIndexingFile= */ null,
-            null,
+            /* indexStorePath= */null,
             /* additionalBuildVariables= */ ImmutableMap.of()));
 
     builder.setGcnoFile(gcnoFile);
@@ -1692,7 +1692,7 @@ public final class CcCompilationHelper {
             /* isUsingFission= */ false,
             /* dwoFile= */ null,
             /* ltoIndexingFile= */ null,
-            null,
+            /* indexStorePath= */null,
             /* additionalBuildVariables= */ ImmutableMap.of()));
     semantics.finalizeCompileActionBuilder(configuration, featureConfiguration, builder);
     CppCompileAction compileAction = builder.buildOrThrowRuleError(ruleErrorConsumer);
@@ -1983,7 +1983,7 @@ public final class CcCompilationHelper {
             /* isUsingFission= */ false,
             /* dwoFile= */ null,
             /* ltoIndexingFile= */ null,
-            null,
+            /* indexStorePath= */null,
             /* additionalBuildVariables= */ ImmutableMap.of()));
     semantics.finalizeCompileActionBuilder(configuration, featureConfiguration, builder);
     CppCompileAction action = builder.buildOrThrowRuleError(ruleErrorConsumer);
@@ -2107,7 +2107,7 @@ public final class CcCompilationHelper {
             /* isUsingFission= */ false,
             /* dwoFile= */ null,
             /* ltoIndexingFile= */ null,
-            null,
+            /* indexStorePath= */null,
             ImmutableMap.of(
                 CompileBuildVariables.OUTPUT_PREPROCESS_FILE.getVariableName(),
                 dBuilder.getRealOutputFilePath().getSafePathString())));
@@ -2134,7 +2134,7 @@ public final class CcCompilationHelper {
             /* isUsingFission= */ false,
             /* dwoFile= */ null,
             /* ltoIndexingFile= */ null,
-            null,
+            /* indexStorePath= */null,
             ImmutableMap.of(
                 CompileBuildVariables.OUTPUT_ASSEMBLY_FILE.getVariableName(),
                 sdBuilder.getRealOutputFilePath().getSafePathString())));

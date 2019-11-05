@@ -232,7 +232,7 @@ public abstract class CcModule
         convertFromNoneable(sourceFile, /* defaultValue= */ null),
         convertFromNoneable(outputFile, /* defaultValue= */ null),
         /* gcnoFile= */ null,
-        null,
+        /* indexStorePath= */ null,
         /* isUsingFission= */ false,
         /* dwoFile= */ null,
         /* ltoIndexingFile= */ null,
