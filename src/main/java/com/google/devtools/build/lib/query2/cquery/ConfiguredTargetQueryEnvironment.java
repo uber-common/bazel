@@ -257,6 +257,8 @@ public class ConfiguredTargetQueryEnvironment
             accessor,
             kct -> getFwdDeps(ImmutableList.of(kct))),
         new StarlarkOutputFormatterCallback(
+            eventHandler, cqueryOptions, out, skyframeExecutor, accessor),
+        new JsonOutputFormatterCallback(
             eventHandler, cqueryOptions, out, skyframeExecutor, accessor));
   }
 
