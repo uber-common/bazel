@@ -98,6 +98,7 @@ java_library(
         "//src/main/protobuf:analysis_java_proto",
         "//src/main/protobuf:build_java_proto",
         "//third_party:flogger",
+        "//third_party:gson",
         "//third_party:guava",
         "//third_party:jsr305",
         "//third_party/protobuf:protobuf_java",
