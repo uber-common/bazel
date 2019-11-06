@@ -240,6 +240,8 @@ public class ConfiguredTargetQueryEnvironment
             aspectResolver,
             OutputType.JSON),
         new BuildOutputFormatterCallback(
+            eventHandler, cqueryOptions, out, skyframeExecutor, accessor),
+        new JsonOutputFormatterCallback(
             eventHandler, cqueryOptions, out, skyframeExecutor, accessor));
   }
 
