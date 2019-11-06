@@ -14,8 +14,12 @@
 package com.google.devtools.build.lib.query2.query.output;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import com.google.devtools.build.lib.cmdline.Label;
+import com.google.devtools.build.lib.packages.AbstractAttributeMapper;
 import com.google.devtools.build.lib.packages.Attribute;
 import com.google.devtools.build.lib.packages.BuildType;
+import com.google.devtools.build.lib.packages.BuildType.Selector;
 import com.google.devtools.build.lib.packages.InputFile;
 import com.google.devtools.build.lib.packages.OutputFile;
 import com.google.devtools.build.lib.packages.PackageGroup;
@@ -28,6 +32,7 @@ import com.google.devtools.build.lib.query2.engine.QueryEnvironment;
 import com.google.devtools.build.lib.query2.engine.SynchronizedDelegatingOutputFormatterCallback;
 import com.google.devtools.build.lib.query2.engine.ThreadSafeOutputFormatterCallback;
 import com.google.devtools.build.lib.query2.query.aspectresolvers.AspectResolver;
+import com.google.devtools.build.lib.query2.query.output.BuildOutputFormatter.AttributeReader;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
@@ -38,9 +43,12 @@ import java.io.OutputStream;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-/** An output formatter that prints the result as Json. */
-class JsonOutputFormatter extends AbstractUnorderedFormatter {
+/**
+ * An output formatter that prints the result as Json.
+ */
+public class JsonOutputFormatter extends AbstractUnorderedFormatter {
 
   @Override
   public String getName() {
@@ -73,7 +81,9 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
       public void processOutput(Iterable<Target> partialResult)
           throws IOException, InterruptedException {
         for (Target target : partialResult) {
-          result.add(target.getLabel().getCanonicalForm(), createTargetJsonObject(target));
+          result.add(target.getLabel().getCanonicalForm(),
+              createTargetJsonObject(target,
+                  new JsonQueryAttributeReader(target)));
         }
       }
 
@@ -86,7 +96,36 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
     };
   }
 
-  private static JsonObject createTargetJsonObject(Target target) {
+  public static class JsonQueryAttributeReader implements AttributeReader {
+
+    private final AbstractAttributeMapper abstractAttributeMap;
+
+    public JsonQueryAttributeReader(Target target) {
+      Rule rule = target.getAssociatedRule();
+      this.abstractAttributeMap = rule == null ? null : RawAttributeMapper.of(rule);
+    }
+
+    @Override
+    public PossibleAttributeValues getPossibleValues(Rule rule, Attribute attr) {
+      if (rule.isConfigurableAttribute(attr.getName())) {
+        // Multiple selectors can be concatenated when the attribute value is a list.
+        // To create a consistent output, we return a list of maps, where each map is
+        // a selector dictionary.
+        ImmutableList<Object> selectors = abstractAttributeMap
+            .getSelectorList(attr.getName(), attr.getType())
+            .getSelectors()
+            .stream()
+            .map(Selector::getEntries)
+            .collect(ImmutableList.toImmutableList());
+        return new PossibleAttributeValues(
+            ImmutableList.of(selectors),
+            AttributeValueSource.forRuleAndAttribute(rule, attr));
+      }
+      return PossibleAttributeValues.forRuleAndAttribute(rule, attr);
+    }
+  }
+
+  public static JsonObject createTargetJsonObject(Target target, AttributeReader reader) {
     JsonObject result = new JsonObject();
 
     if (target instanceof Rule) {
@@ -95,23 +134,12 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
       result.addProperty("base_path", target.getLabel().getPackageName());
       result.addProperty("class", rule.getRuleClass());
       for (Attribute attr : rule.getAttributes()) {
-        if (rule.isConfigurableAttribute(attr.getName())) {
-          BuildType.SelectorList<?> selectors =
-              RawAttributeMapper.of(rule).getSelectorList(attr.getName(), attr.getType());
-          for (BuildType.Selector<?> selector : selectors.getSelectors()) {
-            // TODO - This assumes that only one selector is present
-            result.add(attr.getName(), getJsonFromValue(selector.getEntries()));
-          }
-        } else {
-          PossibleAttributeValues values = PossibleAttributeValues.forRuleAndAttribute(rule, attr);
-          if (values.getSource() == AttributeValueSource.DEFAULT) {
-            continue;
-          }
-          Iterator<Object> it = values.iterator();
-          while (it.hasNext()) {
-            Object val = it.next();
-            result.add(attr.getName(), getJsonFromValue(val));
-          }
+        PossibleAttributeValues values = reader.getPossibleValues(rule, attr);
+        if (values.getSource() == AttributeValueSource.DEFAULT) {
+          continue;
+        }
+        for (Object value : values) {
+          result.add(attr.getName(), getJsonFromValue(value));
         }
       }
     } else if (target instanceof InputFile) {
@@ -155,9 +183,9 @@ class JsonOutputFormatter extends AbstractUnorderedFormatter {
         result.add(key.toString(), getJsonFromValue(valMap.get(key)));
       }
       return result;
-    }
-    else if (val instanceof Boolean)
+    } else if (val instanceof Boolean) {
       return gson.toJsonTree(val);
+    }
     return gson.toJsonTree(val.toString());
   }
 }
