@@ -5281,7 +5281,7 @@ def _impl(ctx):
                     ],
                     flag_groups = [
                         flag_group(
-                            flags = ["-index-store-path", "%{index_store_path}", "-index-ignore-system-symbols"],
+                            flags = ["-index-store-path", "%{index_store_path}"],
                             expand_if_available = "index_store_path",
                         ),
                     ],
