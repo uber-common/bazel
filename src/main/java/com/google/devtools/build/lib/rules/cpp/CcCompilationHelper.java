@@ -1297,7 +1297,8 @@ public final class CcCompilationHelper {
               && CppFileTypes.LTO_SOURCE.matches(sourceArtifact.getFilename());
 
       boolean indexWhileBuilding =
-              featureConfiguration.isEnabled(CppRuleClasses.INDEX_WHILE_BUILDING);
+          cppConfiguration.indexWhileBuilding()
+              && featureConfiguration.isEnabled(CppRuleClasses.INDEX_WHILE_BUILDING);
 
       String outputName = outputNameMap.get(sourceArtifact);
 

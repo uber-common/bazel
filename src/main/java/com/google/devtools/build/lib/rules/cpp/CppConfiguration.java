@@ -698,4 +698,8 @@ public final class CppConfiguration extends BuildConfiguration.Fragment
   public boolean loadCcRulesFromBzl() {
     return cppOptions.loadCcRulesFromBzl;
   }
+
+  public boolean indexWhileBuilding() {
+    return cppOptions.indexWhileBuilding;
+  }
 }
