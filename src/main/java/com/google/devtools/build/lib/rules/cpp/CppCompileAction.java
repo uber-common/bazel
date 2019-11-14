@@ -252,6 +252,7 @@ public class CppCompileAction extends AbstractAction
       @Nullable Artifact gcnoFile,
       @Nullable Artifact dwoFile,
       @Nullable Artifact ltoIndexingFile,
+      @Nullable Artifact indexStorePath,
       ActionEnvironment env,
       CcCompilationContext ccCompilationContext,
       CoptsFilter coptsFilter,
@@ -265,7 +266,7 @@ public class CppCompileAction extends AbstractAction
     super(
         owner,
         IterablesChain.concat(mandatoryInputs, inputsForInvalidation),
-        CollectionUtils.asSetWithoutNulls(outputFile, dotdFile, gcnoFile, dwoFile, ltoIndexingFile),
+        CollectionUtils.asSetWithoutNulls(outputFile, dotdFile, gcnoFile, dwoFile, ltoIndexingFile, indexStorePath),
         env);
     Preconditions.checkArgument(!shouldPruneModules || shouldScanIncludes);
     this.outputFile = Preconditions.checkNotNull(outputFile);
