@@ -60,6 +60,7 @@ public class CppCompileActionBuilder {
   @Nullable private PathFragment tempOutputFile;
   private Artifact dotdFile;
   private Artifact gcnoFile;
+  @Nullable Artifact indexStore;
   private CcCompilationContext ccCompilationContext = CcCompilationContext.EMPTY;
   private final List<String> pluginOpts = new ArrayList<>();
   private CoptsFilter coptsFilter = CoptsFilter.alwaysPasses();
@@ -120,6 +121,7 @@ public class CppCompileActionBuilder {
     this.tempOutputFile = other.tempOutputFile;
     this.dotdFile = other.dotdFile;
     this.gcnoFile = other.gcnoFile;
+    this.indexStore = other.indexStore;
     this.ccCompilationContext = other.ccCompilationContext;
     this.pluginOpts.addAll(other.pluginOpts);
     this.coptsFilter = other.coptsFilter;
@@ -320,6 +322,7 @@ public class CppCompileActionBuilder {
               gcnoFile,
               dwoFile,
               ltoIndexingFile,
+              indexStore,
               env,
               ccCompilationContext,
               coptsFilter,
@@ -490,6 +493,11 @@ public class CppCompileActionBuilder {
 
   public CppCompileActionBuilder setDwoFile(Artifact dwoFile) {
     this.dwoFile = dwoFile;
+    return this;
+  }
+
+  public CppCompileActionBuilder setIndexStore(Artifact indexStore) {
+    this.indexStore = indexStore;
     return this;
   }
 

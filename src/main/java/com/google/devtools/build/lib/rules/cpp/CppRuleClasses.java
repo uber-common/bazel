@@ -416,6 +416,8 @@ public class CppRuleClasses {
 
   public static final String COMPIILER_PARAM_FILE = "compiler_param_file";
 
+  public static final String INDEX_WHILE_BUILDING = "index_while_building";
+
   /** Ancestor for all rules that do include scanning. */
   public static final class CcIncludeScanningRule implements RuleDefinition {
     @Override
