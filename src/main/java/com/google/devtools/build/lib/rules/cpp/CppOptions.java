@@ -1074,6 +1074,16 @@ public class CppOptions extends FragmentOptions {
     return this;
   }
 
+  @Option(
+      name = "index_while_building",
+      defaultValue = "false",
+      documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
+      effectTags = {OptionEffectTag.ACTION_COMMAND_LINES, OptionEffectTag.AFFECTS_OUTPUTS},
+      metadataTags = {OptionMetadataTag.EXPERIMENTAL},
+      help = "If enabled, C compile actions will output index data using the -index-store-path flag.")
+  public boolean indexWhileBuilding;
+
+
   @Override
   public FragmentOptions getHost() {
     CppOptions host = (CppOptions) getDefault();
@@ -1126,6 +1136,7 @@ public class CppOptions extends FragmentOptions {
     host.disableNoCopts = disableNoCopts;
     host.loadCcRulesFromBzl = loadCcRulesFromBzl;
     host.validateTopLevelHeaderInclusions = validateTopLevelHeaderInclusions;
+    host.indexWhileBuilding = indexWhileBuilding;
 
     // Save host options for further use.
     host.hostCoptList = hostCoptList;

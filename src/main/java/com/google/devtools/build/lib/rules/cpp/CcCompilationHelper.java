@@ -1383,6 +1383,10 @@ public final class CcCompilationHelper {
           featureConfiguration.isEnabled(CppRuleClasses.THIN_LTO)
               && CppFileTypes.LTO_SOURCE.matches(sourceArtifact.getFilename());
 
+      boolean indexWhileBuilding =
+          cppConfiguration.indexWhileBuilding()
+              && featureConfiguration.isEnabled(CppRuleClasses.INDEX_WHILE_BUILDING);
+
       String outputName = outputNameMap.get(sourceArtifact);
 
       if (!sourceArtifact.isTreeArtifact()) {
@@ -1410,7 +1414,8 @@ public final class CcCompilationHelper {
                 // output (since it isn't generating a native object with debug
                 // info). In that case the LtoBackendAction will generate the dwo.
                 ccToolchain.shouldCreatePerObjectDebugInfo(featureConfiguration, cppConfiguration),
-                bitcodeOutput);
+                bitcodeOutput,
+                indexWhileBuilding);
             break;
         }
       } else {
@@ -1480,6 +1485,7 @@ public final class CcCompilationHelper {
             /* isUsingFission= */ false,
             /* dwoFile= */ null,
             /* ltoIndexingFile= */ null,
+            /* indexStorePath= */ null,
             /* additionalBuildVariables= */ ImmutableMap.of()));
     semantics.finalizeCompileActionBuilder(
         configuration, featureConfiguration, builder, ruleErrorConsumer);
@@ -1548,6 +1554,7 @@ public final class CcCompilationHelper {
       boolean isUsingFission,
       Artifact dwoFile,
       Artifact ltoIndexingFile,
+      Artifact indexStorePath,
       ImmutableMap<String, String> additionalBuildVariables) {
     Artifact sourceFile = builder.getSourceFile();
     String dotdFileExecPath = null;
@@ -1625,6 +1632,7 @@ public final class CcCompilationHelper {
         toPathString(builder.getOutputFile()),
         toPathString(gcnoFile),
         toPathString(dwoFile),
+        toPathString(indexStorePath),
         isUsingFission,
         toPathString(ltoIndexingFile),
         /* thinLtoIndex= */ null,
@@ -1706,6 +1714,7 @@ public final class CcCompilationHelper {
             generateDwo,
             dwoFile,
             /* ltoIndexingFile= */ null,
+            /* indexStorePath= */null,
             /* additionalBuildVariables= */ ImmutableMap.of()));
 
     builder.setGcnoFile(gcnoFile);
@@ -1753,6 +1762,7 @@ public final class CcCompilationHelper {
             /* isUsingFission= */ false,
             /* dwoFile= */ null,
             /* ltoIndexingFile= */ null,
+            /* indexStorePath= */null,
             /* additionalBuildVariables= */ ImmutableMap.of()));
     semantics.finalizeCompileActionBuilder(
         configuration, featureConfiguration, builder, ruleErrorConsumer);
@@ -1783,7 +1793,8 @@ public final class CcCompilationHelper {
         /* addObject= */ false,
         /* enableCoverage= */ false,
         /* generateDwo= */ false,
-        /* bitcodeOutput= */ false);
+        /* bitcodeOutput= */ false,
+        /* indexWhileBuilding= */ false);
   }
 
   private Collection<Artifact> createSourceAction(
@@ -1797,7 +1808,8 @@ public final class CcCompilationHelper {
       boolean addObject,
       boolean enableCoverage,
       boolean generateDwo,
-      boolean bitcodeOutput)
+      boolean bitcodeOutput,
+      boolean indexWhileBuilding)
       throws RuleErrorException {
     ImmutableList.Builder<Artifact> directOutputs = new ImmutableList.Builder<>();
     PathFragment ccRelativeName = sourceArtifact.getRootRelativePath();
@@ -1821,6 +1833,8 @@ public final class CcCompilationHelper {
           generateDwo && !bitcodeOutput ? getDwoFile(picBuilder.getOutputFile()) : null;
       Artifact ltoIndexingFile =
           bitcodeOutput ? getLtoIndexingFile(picBuilder.getOutputFile()) : null;
+      Artifact indexStore =
+          indexWhileBuilding ? getIndexStore(picBuilder.getOutputFile()) : null;
 
       picBuilder.setVariables(
           setupCompileBuildVariables(
@@ -1833,6 +1847,7 @@ public final class CcCompilationHelper {
               generateDwo,
               dwoFile,
               ltoIndexingFile,
+              indexStore,
               /* additionalBuildVariables= */ ImmutableMap.of()));
 
       result.addTemps(
@@ -1890,6 +1905,7 @@ public final class CcCompilationHelper {
 
       Artifact noPicDwoFile = generateDwo && !bitcodeOutput ? getDwoFile(noPicOutputFile) : null;
       Artifact ltoIndexingFile = bitcodeOutput ? getLtoIndexingFile(builder.getOutputFile()) : null;
+      Artifact indexStore = indexWhileBuilding ? getIndexStore(builder.getOutputFile()) : null;
 
       builder.setVariables(
           setupCompileBuildVariables(
@@ -1902,6 +1918,7 @@ public final class CcCompilationHelper {
               generateDwo,
               noPicDwoFile,
               ltoIndexingFile,
+              indexStore,
               /* additionalBuildVariables= */ ImmutableMap.of()));
 
       result.addTemps(
@@ -1916,6 +1933,7 @@ public final class CcCompilationHelper {
       builder.setGcnoFile(gcnoFile);
       builder.setDwoFile(noPicDwoFile);
       builder.setLtoIndexingFile(ltoIndexingFile);
+      builder.setIndexStore(indexStore);
 
       semantics.finalizeCompileActionBuilder(
           configuration, featureConfiguration, builder, ruleErrorConsumer);
@@ -2021,6 +2039,13 @@ public final class CcCompilationHelper {
         outputFile.getOutputDirRelativePath(configuration.isSiblingRepositoryLayout()), ext);
   }
 
+  private Artifact getIndexStore(Artifact outputFile) {
+    String name = outputFile.getFilename() + ".indexstore";
+    return actionConstructionContext.getTreeArtifact(
+            outputFile.getRootRelativePath().replaceName(name),
+            actionConstructionContext.getBinOrGenfilesDirectory());
+  }
+
   /** Create the actions for "--save_temps". */
   private ImmutableList<Artifact> createTempsActions(
       Artifact source,
@@ -2061,6 +2086,7 @@ public final class CcCompilationHelper {
             /* isUsingFission= */ false,
             /* dwoFile= */ null,
             /* ltoIndexingFile= */ null,
+            /* indexStorePath= */null,
             ImmutableMap.of(
                 CompileBuildVariables.OUTPUT_PREPROCESS_FILE.getVariableName(),
                 dBuilder.getRealOutputFilePath().getSafePathString())));
@@ -2087,6 +2113,7 @@ public final class CcCompilationHelper {
             /* isUsingFission= */ false,
             /* dwoFile= */ null,
             /* ltoIndexingFile= */ null,
+            /* indexStorePath= */null,
             ImmutableMap.of(
                 CompileBuildVariables.OUTPUT_ASSEMBLY_FILE.getVariableName(),
                 sdBuilder.getRealOutputFilePath().getSafePathString())));

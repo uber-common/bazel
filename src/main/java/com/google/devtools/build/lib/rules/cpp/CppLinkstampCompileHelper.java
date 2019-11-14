@@ -164,6 +164,7 @@ public class CppLinkstampCompileHelper {
         sourceFile.getExecPathString(),
         outputFile.getExecPathString(),
         /* gcnoFile= */ null,
+        /* indexStorePath= */null,
         /* isUsingFission= */ false,
         /* dwoFile= */ null,
         /* ltoIndexingFile= */ null,

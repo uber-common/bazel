@@ -705,6 +705,10 @@ public final class CppConfiguration extends Fragment
     return appleGenerateDsym;
   }
 
+  public boolean indexWhileBuilding() {
+    return cppOptions.indexWhileBuilding;
+  }
+
   public boolean experimentalStarlarkCcImport() {
     return cppOptions.experimentalStarlarkCcImport;
   }
