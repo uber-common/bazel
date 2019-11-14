@@ -5559,6 +5559,29 @@ def _impl(ctx):
         provides = ["profile"],
     )
 
+    index_while_building_feature = feature(
+            name = "index_while_building",
+            enabled = True,
+            flag_sets = [
+                flag_set(
+                    actions = [
+                        ACTION_NAMES.c_compile,
+                        ACTION_NAMES.cpp_compile,
+                        ACTION_NAMES.objc_compile,
+                        ACTION_NAMES.objcpp_compile,
+                    ],
+                    flag_groups = [
+                        flag_group(
+                            flags = ["-index-store-path", "%{index_store_path}"],
+                            expand_if_available = "index_store_path",
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+
+
     if (ctx.attr.cpu == "darwin_x86_64"):
         link_cocoa_feature = feature(
             name = "link_cocoa",
@@ -5743,6 +5766,7 @@ def _impl(ctx):
             include_paths_feature,
             sysroot_feature,
             dependency_file_feature,
+            index_while_building_feature,
             pic_feature,
             per_object_debug_info_feature,
             preprocessor_defines_feature,
