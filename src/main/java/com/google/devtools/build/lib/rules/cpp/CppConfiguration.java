@@ -702,4 +702,8 @@ public final class CppConfiguration extends BuildConfiguration.Fragment
   public boolean validateTopLevelHeaderInclusions() {
     return cppOptions.validateTopLevelHeaderInclusions;
   }
+
+  public boolean indexWhileBuilding() {
+    return cppOptions.indexWhileBuilding;
+  }
 }
