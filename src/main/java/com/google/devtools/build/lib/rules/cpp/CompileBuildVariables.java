@@ -118,7 +118,9 @@ public enum CompileBuildVariables {
   /** Path to the Propeller Optimize linker profile artifact */
   PROPELLER_OPTIMIZE_LD_PATH("propeller_optimize_ld_path"),
   /** Variable for includes that compiler needs to include into sources. */
-  INCLUDES("includes");
+  INCLUDES("includes"),
+  INDEX_STORE_PATH("index_store_path");
+
 
   private final String variableName;
 
@@ -135,6 +137,7 @@ public enum CompileBuildVariables {
       String sourceFile,
       String outputFile,
       String gcnoFile,
+      String indexStorePath,
       boolean isUsingFission,
       String dwoFile,
       String ltoIndexingFile,
@@ -165,6 +168,7 @@ public enum CompileBuildVariables {
           sourceFile,
           outputFile,
           gcnoFile,
+          indexStorePath,
           isUsingFission,
           dwoFile,
           ltoIndexingFile,
@@ -200,6 +204,7 @@ public enum CompileBuildVariables {
       String sourceFile,
       String outputFile,
       String gcnoFile,
+      String indexStorePath,
       boolean isUsingFission,
       String dwoFile,
       String ltoIndexingFile,
@@ -233,6 +238,7 @@ public enum CompileBuildVariables {
         sourceFile,
         outputFile,
         gcnoFile,
+        indexStorePath,
         isUsingFission,
         dwoFile,
         ltoIndexingFile,
@@ -262,6 +268,7 @@ public enum CompileBuildVariables {
       String sourceFile,
       String outputFile,
       String gcnoFile,
+      String indexStorePath,
       boolean isUsingFission,
       String dwoFile,
       String ltoIndexingFile,
@@ -305,6 +312,7 @@ public enum CompileBuildVariables {
         outputFile,
         gcnoFile,
         dwoFile,
+        indexStorePath,
         isUsingFission,
         ltoIndexingFile,
         thinLtoIndex,
@@ -323,6 +331,7 @@ public enum CompileBuildVariables {
       String outputFile,
       String gcnoFile,
       String dwoFile,
+      String indexStorePath,
       boolean isUsingFission,
       String ltoIndexingFile,
       String thinLtoIndex,
@@ -354,6 +363,10 @@ public enum CompileBuildVariables {
 
     if (dwoFile != null) {
       buildVariables.addStringVariable(PER_OBJECT_DEBUG_INFO_FILE.getVariableName(), dwoFile);
+    }
+
+    if (indexStorePath != null) {
+      buildVariables.addStringVariable(INDEX_STORE_PATH.getVariableName(), indexStorePath);
     }
 
     if (isUsingFission) {
