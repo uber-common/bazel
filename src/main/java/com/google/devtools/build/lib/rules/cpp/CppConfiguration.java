@@ -729,4 +729,8 @@ public final class CppConfiguration extends Fragment
   public boolean appleGenerateDsym() {
     return appleGenerateDsym;
   }
+
+  public boolean indexWhileBuilding() {
+    return cppOptions.indexWhileBuilding;
+  }
 }
