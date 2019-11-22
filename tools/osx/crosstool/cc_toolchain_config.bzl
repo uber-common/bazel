@@ -5153,6 +5153,28 @@ def _impl(ctx):
         ],
     )
 
+    generate_linkmap_feature = feature(
+        name = "generate_linkmap",
+        flag_sets = [
+            flag_set(
+                actions = [
+                    ACTION_NAMES.objc_executable,
+                    ACTION_NAMES.objcpp_executable,
+                ],
+                flag_groups = [
+                    flag_group(
+                        flags = [
+                            "-Xlinker",
+                            "-map",
+                            "-Xlinker",
+                            "%{linkmap_exec_path}",
+                        ]
+                    )
+                ],
+            ),
+        ],
+    )
+
     if (ctx.attr.cpu == "darwin_x86_64"):
         kernel_extension_feature = feature(
             name = "kernel_extension",
@@ -5479,6 +5501,7 @@ def _impl(ctx):
             default_compile_flags_feature,
             debug_prefix_map_pwd_is_dot_feature,
             generate_dsym_file_feature,
+            generate_linkmap_feature,
             contains_objc_source_feature,
             objc_actions_feature,
             strip_debug_symbols_feature,
@@ -5551,6 +5574,7 @@ def _impl(ctx):
             default_compile_flags_feature,
             debug_prefix_map_pwd_is_dot_feature,
             generate_dsym_file_feature,
+            generate_linkmap_feature,
             contains_objc_source_feature,
             objc_actions_feature,
             strip_debug_symbols_feature,
@@ -5624,6 +5648,7 @@ def _impl(ctx):
             default_compile_flags_feature,
             debug_prefix_map_pwd_is_dot_feature,
             generate_dsym_file_feature,
+            generate_linkmap_feature,
             contains_objc_source_feature,
             objc_actions_feature,
             strip_debug_symbols_feature,
