@@ -207,7 +207,7 @@ public class BazelPythonSemantics implements PythonSemantics {
       throws InterruptedException {
     PythonConfiguration config = ruleContext.getFragment(PythonConfiguration.class);
     BazelPythonConfiguration bazelConfig = ruleContext.getFragment(BazelPythonConfiguration.class);
-    boolean buildPythonZip = config.buildPythonZip();
+    boolean buildPythonZip = config.buildPythonZip() || ruleContext.getFeatures().contains(PyCommon.PYTHON_BUILD_EXECUTABLE_ZIP);
 
     /*
      * Python executable targets are launched in two stages. The first stage is the stub script that
