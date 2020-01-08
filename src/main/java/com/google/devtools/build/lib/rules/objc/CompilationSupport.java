@@ -171,7 +171,7 @@ public class CompilationSupport {
   @VisibleForTesting
   static final ImmutableList<String> SIMULATOR_COMPILE_FLAGS =
       ImmutableList.of(
-          "-fexceptions", "-fasm-blocks", "-fobjc-abi-version=2", "-fobjc-legacy-dispatch");
+          "-fexceptions", "-fasm-blocks", "-fobjc-abi-version=2");
 
   /**
    * Frameworks implicitly linked to iOS, watchOS, and tvOS binaries when using legacy compilation.

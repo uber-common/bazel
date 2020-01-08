@@ -1285,7 +1285,6 @@ public class ObjcLibraryTest extends ObjcRuleTestCase {
                 .add("-fexceptions")
                 .add("-fasm-blocks")
                 .add("-fobjc-abi-version=2")
-                .add("-fobjc-legacy-dispatch")
                 .addAll(CompilationSupport.DEFAULT_COMPILER_FLAGS)
                 .add("-mios-simulator-version-min=" + DEFAULT_IOS_SDK_VERSION)
                 .add("-arch x86_64")

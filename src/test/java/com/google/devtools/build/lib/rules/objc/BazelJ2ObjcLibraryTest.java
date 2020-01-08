@@ -1226,7 +1226,6 @@ public class BazelJ2ObjcLibraryTest extends J2ObjcLibraryTest {
             .add("-fexceptions")
             .add("-fasm-blocks")
             .add("-fobjc-abi-version=2")
-            .add("-fobjc-legacy-dispatch")
             .add("-DOS_IOS")
             .add("-mios-simulator-version-min=1.0")
             .add("-arch", "i386")

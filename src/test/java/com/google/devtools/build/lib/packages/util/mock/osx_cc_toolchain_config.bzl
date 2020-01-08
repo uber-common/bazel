@@ -7430,7 +7430,6 @@ def _impl(ctx):
                                 "-fexceptions",
                                 "-fasm-blocks",
                                 "-fobjc-abi-version=2",
-                                "-fobjc-legacy-dispatch",
                             ],
                         ),
                     ],
