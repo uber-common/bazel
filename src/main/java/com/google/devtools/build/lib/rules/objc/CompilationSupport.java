@@ -317,11 +317,11 @@ public class CompilationSupport {
                     .collect(ImmutableList.toImmutableList()))
             .setCopts(
                 ImmutableList.<String>builder()
-                    .addAll(getCompileRuleCopts())
                     .addAll(
                         ruleContext
                             .getFragment(ObjcConfiguration.class)
                             .getCoptsForCompilationMode())
+                    .addAll(getCompileRuleCopts())
                     .addAll(extraCompileArgs)
                     .build())
             .addFrameworkIncludeDirs(frameworkHeaderSearchPathFragments(objcProvider))
