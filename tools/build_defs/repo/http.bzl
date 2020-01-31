@@ -42,7 +42,7 @@ load(
 def _get_auth(ctx, urls):
     """Given the list of URLs obtain the correct auth dict."""
     if ctx.attr.netrc:
-        netrc = read_netrc(ctx, ctx.attr.netrc)
+        netrc = read_netrc(ctx, ctx.path(ctx.attr.netrc))
         return use_netrc(netrc, urls)
 
     if "HOME" in ctx.os.environ:
@@ -189,8 +189,8 @@ to omit the SHA-256 as remote files can change._ At best omitting this
 field will make your build non-hermetic. It is optional to make development
 easier but should be set before shipping.""",
     ),
-    "netrc": attr.string(
-        doc = "Location of the .netrc file to use for authentication",
+    "netrc": attr.label(
+        doc = "A .netrc file to use for authentication",
     ),
     "canonical_id": attr.string(
         doc = """A canonical id of the archive downloaded.
@@ -375,8 +375,8 @@ unless it was added to the cache by a request with the same canonical id.
 Each entry must be a file, http or https URL. Redirections are followed.
 Authentication is not supported.""",
     ),
-    "netrc": attr.string(
-        doc = "Location of the .netrc file to use for authentication",
+    "netrc": attr.label(
+        doc = "A .netrc file to use for authentication",
     ),
 }
 
