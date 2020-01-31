@@ -241,8 +241,8 @@ to omit the checksum as remote files can change._ At best omitting this
 field will make your build non-hermetic. It is optional to make development
 easier but either this attribute or `sha256` should be set before shipping.""",
     ),
-    "netrc": attr.string(
-        doc = "Location of the .netrc file to use for authentication",
+    "netrc": attr.path(
+        doc = "A .netrc file to use for authentication",
     ),
     "auth_patterns": attr.string_dict(
         doc = _AUTH_PATTERN_DOC,
@@ -449,8 +449,8 @@ easier but either this attribute or `sha256` should be set before shipping.""",
     ),
     "url": attr.string(doc = _URL_DOC),
     "urls": attr.string_list(doc = _URLS_DOC),
-    "netrc": attr.string(
-        doc = "Location of the .netrc file to use for authentication",
+    "netrc": attr.path(
+        doc = "A .netrc file to use for authentication",
     ),
     "auth_patterns": attr.string_dict(
         doc = _AUTH_PATTERN_DOC,
@@ -506,8 +506,8 @@ easier but either this attribute or `sha256` should be set before shipping.""",
     ),
     "url": attr.string(doc = _URL_DOC + "\n\nThe URL must end in `.jar`."),
     "urls": attr.string_list(doc = _URLS_DOC + "\n\nAll URLs must end in `.jar`."),
-    "netrc": attr.string(
-        doc = "Location of the .netrc file to use for authentication",
+    "netrc": attr.path(
+        doc = "A .netrc file to use for authentication",
     ),
     "auth_patterns": attr.string_dict(
         doc = _AUTH_PATTERN_DOC,
