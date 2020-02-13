@@ -81,6 +81,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -183,18 +185,18 @@ public class RemoteCache implements AutoCloseable {
 
     ImmutableSet<Digest> digestsToUpload =
         Utils.getFromFuture(cacheProtocol.findMissingDigests(digests));
-    ImmutableList.Builder<ListenableFuture<Void>> uploads = ImmutableList.builder();
+    ImmutableMap.Builder<String, ListenableFuture<Void>> uploads = ImmutableMap.builder();
     for (Digest digest : digestsToUpload) {
       Path file = digestToFile.get(digest);
       if (file != null) {
-        uploads.add(cacheProtocol.uploadFile(digest, file));
+        uploads.put(digest.toString() + "(" + file.toString() + ")", cacheProtocol.uploadFile(digest, file));
       } else {
         ByteString blob = digestToBlobs.get(digest);
         if (blob == null) {
           String message = "FindMissingBlobs call returned an unknown digest: " + digest;
           throw new IOException(message);
         }
-        uploads.add(cacheProtocol.uploadBlob(digest, blob));
+        uploads.put(digest.toString(), cacheProtocol.uploadBlob(digest, blob));
       }
     }
 
@@ -208,11 +210,15 @@ public class RemoteCache implements AutoCloseable {
     }
   }
 
-  private static void waitForUploads(List<ListenableFuture<Void>> uploads)
+  private static void waitForUploads(Map<String, ListenableFuture<Void>> uploads)
       throws IOException, InterruptedException {
     try {
-      for (ListenableFuture<Void> upload : uploads) {
-        upload.get();
+      for (Entry<String, ListenableFuture<Void>> entry : uploads.entrySet()) {
+        try {
+          entry.getValue().get(30, TimeUnit.MINUTES);
+        } catch (TimeoutException e) {
+          throw new IOException("Failed uploading " + entry.getKey() + ". " + e.getMessage());
+        }
       }
     } catch (ExecutionException e) {
       // TODO(buchgr): Add support for cancellation and factor this method out to be shared
