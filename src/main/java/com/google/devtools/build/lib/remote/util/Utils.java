@@ -37,6 +37,8 @@ import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import javax.annotation.Nullable;
 
@@ -51,8 +53,22 @@ public class Utils {
    */
   public static <T> T getFromFuture(ListenableFuture<T> f)
       throws IOException, InterruptedException {
+    return getFromFuture(f, -1);
+  }
+
+  public static <T> T getFromFuture(ListenableFuture<T> f, long timeout)
+      throws IOException, InterruptedException {
     try {
-      return f.get();
+      if (timeout > 0) {
+        try {
+          return f.get(timeout, TimeUnit.SECONDS);
+        } catch (TimeoutException e) {
+          throw new IOException(e.getMessage(), e);
+        }
+      }
+      else {
+        return f.get();
+      }
     } catch (ExecutionException e) {
       if (e.getCause() instanceof InterruptedException) {
         throw (InterruptedException) e.getCause();

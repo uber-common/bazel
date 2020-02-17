@@ -49,6 +49,7 @@ import com.google.devtools.build.lib.actions.cache.MetadataInjector;
 import com.google.devtools.build.lib.concurrent.ThreadSafety;
 import com.google.devtools.build.lib.exec.SpawnRunner.SpawnExecutionContext;
 import com.google.devtools.build.lib.profiler.Profiler;
+import com.google.devtools.build.lib.profiler.ProfilerTask;
 import com.google.devtools.build.lib.profiler.SilentCloseable;
 import com.google.devtools.build.lib.remote.RemoteCache.ActionResultMetadata.DirectoryMetadata;
 import com.google.devtools.build.lib.remote.RemoteCache.ActionResultMetadata.FileMetadata;
@@ -189,18 +190,18 @@ public class RemoteCache implements AutoCloseable {
     for (Digest digest : digestsToUpload) {
       Path file = digestToFile.get(digest);
       if (file != null) {
-        uploads.put(digest.toString() + "(" + file.toString() + ")", cacheProtocol.uploadFile(digest, file));
+        uploads.put(digest.getHash() + " (" + file.getPathString() + ")", cacheProtocol.uploadFile(digest, file));
       } else {
         ByteString blob = digestToBlobs.get(digest);
         if (blob == null) {
           String message = "FindMissingBlobs call returned an unknown digest: " + digest;
           throw new IOException(message);
         }
-        uploads.put(digest.toString(), cacheProtocol.uploadBlob(digest, blob));
+        uploads.put(digest.getHash(), cacheProtocol.uploadBlob(digest, blob));
       }
     }
 
-    waitForUploads(uploads.build());
+    waitForUploads(uploads.build(), options.remoteTimeout);
 
     if (manifest.getStderrDigest() != null) {
       result.setStderrDigest(manifest.getStderrDigest());
@@ -210,14 +211,18 @@ public class RemoteCache implements AutoCloseable {
     }
   }
 
-  private static void waitForUploads(Map<String, ListenableFuture<Void>> uploads)
+  private static void waitForUploads(Map<String, ListenableFuture<Void>> uploads, long timeout)
       throws IOException, InterruptedException {
     try {
       for (Entry<String, ListenableFuture<Void>> entry : uploads.entrySet()) {
-        try {
-          entry.getValue().get(30, TimeUnit.MINUTES);
+        try (SilentCloseable c = Profiler.instance().profile(ProfilerTask.REMOTE_DOWNLOAD, entry.getKey())) {
+          if (timeout > 0) {
+            entry.getValue().get(timeout, TimeUnit.SECONDS);
+          } else {
+            entry.getValue().get();
+          }
         } catch (TimeoutException e) {
-          throw new IOException("Failed uploading " + entry.getKey() + ". " + e.getMessage());
+          throw new IOException("Failed uploading " + entry.getKey() + " after " + timeout + " seconds.");
         }
       }
     } catch (ExecutionException e) {
@@ -285,12 +290,12 @@ public class RemoteCache implements AutoCloseable {
       throws ExecException, IOException, InterruptedException {
     ActionResultMetadata metadata = parseActionResultMetadata(result, execRoot);
 
-    List<ListenableFuture<FileMetadata>> downloads =
+    Map<ListenableFuture<FileMetadata>, String> downloads =
         Stream.concat(
                 metadata.files().stream(),
                 metadata.directories().stream()
                     .flatMap((entry) -> entry.getValue().files().stream()))
-            .map(
+            .collect(Collectors.toMap(
                 (file) -> {
                   try {
                     ListenableFuture<Void> download =
@@ -299,8 +304,8 @@ public class RemoteCache implements AutoCloseable {
                   } catch (IOException e) {
                     return Futures.<FileMetadata>immediateFailedFuture(e);
                   }
-                })
-            .collect(Collectors.toList());
+                },
+                (file) -> file.digest().getHash() + " (" + file.path().getPathString() + ")"));
 
     // Subsequently we need to wait for *every* download to finish, even if we already know that
     // one failed. That's so that when exiting this method we can be sure that all downloads have
@@ -314,16 +319,23 @@ public class RemoteCache implements AutoCloseable {
       if (origOutErr != null) {
         tmpOutErr = origOutErr.childOutErr();
       }
-      downloads.addAll(downloadOutErr(result, tmpOutErr));
+      downloads.putAll(downloadOutErr(result, tmpOutErr));
     } catch (IOException e) {
       downloadException = e;
     }
 
-    for (ListenableFuture<FileMetadata> download : downloads) {
+    for (Entry<ListenableFuture<FileMetadata>, String> download : downloads.entrySet()) {
       try {
         // Wait for all downloads to finish.
-        getFromFuture(download);
+        getFromFuture(download.getKey());
       } catch (IOException e) {
+        if (e.getCause() instanceof TimeoutException) {
+          IOException ex = new IOException("Failed downloading " + download.getValue() + " after " + options.remoteTimeout + " seconds.", e);
+          if (downloadException != null) {
+            ex.addSuppressed(downloadException);
+          }
+          downloadException = ex;
+        }
         if (downloadException == null) {
           downloadException = e;
         } else if (e != downloadException) {
@@ -368,12 +380,12 @@ public class RemoteCache implements AutoCloseable {
       }
     }
 
-    if (interruptedException != null) {
-      throw interruptedException;
-    }
-
     if (downloadException != null) {
       throw downloadException;
+    }
+
+    if (interruptedException != null) {
+      throw interruptedException;
     }
 
     if (tmpOutErr != null) {
@@ -386,7 +398,7 @@ public class RemoteCache implements AutoCloseable {
     // strategy.
     outputFilesLocker.lock();
 
-    moveOutputsToFinalLocation(downloads);
+    moveOutputsToFinalLocation(new ArrayList<>(downloads.keySet()));
 
     List<SymlinkMetadata> symlinksInDirectories = new ArrayList<>();
     for (Entry<Path, DirectoryMetadata> entry : metadata.directories()) {
@@ -493,30 +505,33 @@ public class RemoteCache implements AutoCloseable {
     return outerF;
   }
 
-  private List<ListenableFuture<FileMetadata>> downloadOutErr(ActionResult result, OutErr outErr)
-      throws IOException {
-    List<ListenableFuture<FileMetadata>> downloads = new ArrayList<>();
+  private ImmutableMap<ListenableFuture<FileMetadata>, String> downloadOutErr(
+      ActionResult result, OutErr outErr) throws IOException {
+    ImmutableMap.Builder<ListenableFuture<FileMetadata>, String> downloads = ImmutableMap.builder();
     if (!result.getStdoutRaw().isEmpty()) {
       result.getStdoutRaw().writeTo(outErr.getOutputStream());
       outErr.getOutputStream().flush();
     } else if (result.hasStdoutDigest()) {
-      downloads.add(
+      downloads.put(
           Futures.transform(
               cacheProtocol.downloadBlob(result.getStdoutDigest(), outErr.getOutputStream()),
               (d) -> null,
-              directExecutor()));
+              directExecutor()),
+              result.getStdoutDigest().getHash()
+          );
     }
     if (!result.getStderrRaw().isEmpty()) {
       result.getStderrRaw().writeTo(outErr.getErrorStream());
       outErr.getErrorStream().flush();
     } else if (result.hasStderrDigest()) {
-      downloads.add(
+      downloads.put(
           Futures.transform(
               cacheProtocol.downloadBlob(result.getStderrDigest(), outErr.getErrorStream()),
               (d) -> null,
-              directExecutor()));
+              directExecutor()),
+          result.getStderrDigest().getHash());
     }
-    return downloads;
+    return downloads.build();
   }
 
   /**
@@ -587,8 +602,8 @@ public class RemoteCache implements AutoCloseable {
       if (inMemoryOutput != null) {
         inMemoryOutputDownload = downloadBlob(inMemoryOutputDigest);
       }
-      for (ListenableFuture<FileMetadata> download : downloadOutErr(result, outErr)) {
-        getFromFuture(download);
+      for (Entry<ListenableFuture<FileMetadata>, String> download : downloadOutErr(result, outErr).entrySet()) {
+        getFromFuture(download.getKey());
       }
       if (inMemoryOutputDownload != null) {
         byte[] data = getFromFuture(inMemoryOutputDownload);
@@ -1124,6 +1139,6 @@ public class RemoteCache implements AutoCloseable {
 
   @VisibleForTesting
   protected <T> T getFromFuture(ListenableFuture<T> f) throws IOException, InterruptedException {
-    return Utils.getFromFuture(f);
+    return Utils.getFromFuture(f, options.remoteTimeout);
   }
 }
