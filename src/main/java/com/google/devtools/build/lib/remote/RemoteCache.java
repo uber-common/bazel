@@ -190,14 +190,14 @@ public class RemoteCache implements AutoCloseable {
     for (Digest digest : digestsToUpload) {
       Path file = digestToFile.get(digest);
       if (file != null) {
-        uploads.put(digest.getHash() + " (" + file.getPathString() + ")", cacheProtocol.uploadFile(digest, file));
+        uploads.put(digest.getHash() + " (" + digest.getSizeBytes() + " bytes)" + " (" + file.getPathString() + ")", cacheProtocol.uploadFile(digest, file));
       } else {
         ByteString blob = digestToBlobs.get(digest);
         if (blob == null) {
           String message = "FindMissingBlobs call returned an unknown digest: " + digest;
           throw new IOException(message);
         }
-        uploads.put(digest.getHash(), cacheProtocol.uploadBlob(digest, blob));
+        uploads.put(digest.getHash() + " (" + digest.getSizeBytes() + " bytes)", cacheProtocol.uploadBlob(digest, blob));
       }
     }
 
@@ -305,7 +305,7 @@ public class RemoteCache implements AutoCloseable {
                     return Futures.<FileMetadata>immediateFailedFuture(e);
                   }
                 },
-                (file) -> file.digest().getHash() + " (" + file.path().getPathString() + ")"));
+                (file) -> file.digest().getHash() + "(" + file.digest().getSizeBytes() + " bytes)" + " (" + file.path().getPathString() + ")"));
 
     // Subsequently we need to wait for *every* download to finish, even if we already know that
     // one failed. That's so that when exiting this method we can be sure that all downloads have
@@ -517,8 +517,7 @@ public class RemoteCache implements AutoCloseable {
               cacheProtocol.downloadBlob(result.getStdoutDigest(), outErr.getOutputStream()),
               (d) -> null,
               directExecutor()),
-              result.getStdoutDigest().getHash()
-          );
+              result.getStdoutDigest().getHash() + " (" + result.getStdoutDigest().getSizeBytes() + " bytes)");
     }
     if (!result.getStderrRaw().isEmpty()) {
       result.getStderrRaw().writeTo(outErr.getErrorStream());
@@ -529,7 +528,7 @@ public class RemoteCache implements AutoCloseable {
               cacheProtocol.downloadBlob(result.getStderrDigest(), outErr.getErrorStream()),
               (d) -> null,
               directExecutor()),
-          result.getStderrDigest().getHash());
+          result.getStderrDigest().getHash() + " (" + result.getStderrDigest().getSizeBytes() + " bytes)");
     }
     return downloads.build();
   }
