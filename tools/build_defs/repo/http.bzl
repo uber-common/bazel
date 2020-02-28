@@ -75,8 +75,10 @@ Authorization: Bearer RANDOM-TOKEN
 
 def _get_auth(ctx, urls):
     """Given the list of URLs obtain the correct auth dict."""
-    if ctx.attr.netrc:
-        netrc = read_netrc(ctx, ctx.attr.netrc)
+    if ctx.attr.netrc and ctx.attr.netrc_label:
+        fail("Cannot specify both 'netrc' and 'netrc_label' attributes.")
+    if ctx.attr.netrc or ctx.attr.netrc_label:
+        netrc = read_netrc(ctx, ctx.attr.netrc or ctx.path(ctx.attr.netrc_label))
         return use_netrc(netrc, urls, ctx.attr.auth_patterns)
 
     if "HOME" in ctx.os.environ and not ctx.os.name.startswith("windows"):
@@ -228,6 +230,9 @@ easier but should be set before shipping.""",
     ),
     "netrc": attr.string(
         doc = "Location of the .netrc file to use for authentication",
+    ),
+    "netrc_label": attr.label(
+        doc = "A label representing a .netrc file to use for authentication",
     ),
     "auth_patterns": attr.string_dict(
         doc = _AUTH_PATTERN_DOC,
@@ -417,6 +422,9 @@ Authentication is not supported.""",
     ),
     "netrc": attr.string(
         doc = "Location of the .netrc file to use for authentication",
+    ),
+    "netrc_label": attr.label(
+        doc = "A label representing a .netrc file to use for authentication",
     ),
     "auth_patterns": attr.string_dict(
         doc = _AUTH_PATTERN_DOC,
