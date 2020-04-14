@@ -817,6 +817,11 @@ public final class CcCompilationHelper {
     outputGroupsBuilder.putAll(
         CcCommon.createSaveFeatureStateArtifacts(
             cppConfiguration, featureConfiguration, ruleContext));
+    outputGroupsBuilder.put(
+        "cc_index_store",
+        NestedSetBuilder.<Artifact>stableOrder()
+            .addAll(ccCompilationOutputs.getIndexStoreFiles()).build()
+    );
     return outputGroupsBuilder.build();
   }
 
@@ -1875,6 +1880,10 @@ public final class CcCompilationHelper {
           result.addLtoBitcodeFile(
               picAction.getOutputFile(), ltoIndexingFile, getCopts(sourceArtifact, sourceLabel));
         }
+
+        if (indexStore != null) {
+          result.addIndexStore(indexStore);
+        }
       }
       if (dwoFile != null) {
         // Host targets don't produce .dwo files.
@@ -1946,6 +1955,10 @@ public final class CcCompilationHelper {
         if (bitcodeOutput) {
           result.addLtoBitcodeFile(
               objectFile, ltoIndexingFile, getCopts(sourceArtifact, sourceLabel));
+        }
+
+        if (indexStore != null) {
+          result.addIndexStore(indexStore);
         }
       }
       if (noPicDwoFile != null) {
