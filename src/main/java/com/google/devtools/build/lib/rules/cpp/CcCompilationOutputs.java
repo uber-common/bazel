@@ -69,6 +69,11 @@ public class CcCompilationOutputs implements CcCompilationOutputsApi<Artifact> {
    */
   private final ImmutableList<Artifact> headerTokenFiles;
 
+  /**
+   * All the .index files generated during compilation
+   */
+  private final ImmutableList<Artifact> indexStore;
+
   private CcCompilationOutputs(
       ImmutableList<Artifact> objectFiles,
       ImmutableList<Artifact> picObjectFiles,
@@ -76,7 +81,8 @@ public class CcCompilationOutputs implements CcCompilationOutputsApi<Artifact> {
       ImmutableList<Artifact> dwoFiles,
       ImmutableList<Artifact> picDwoFiles,
       NestedSet<Artifact> temps,
-      ImmutableList<Artifact> headerTokenFiles) {
+      ImmutableList<Artifact> headerTokenFiles,
+      ImmutableList<Artifact> indexStore) {
     this.objectFiles = objectFiles;
     this.picObjectFiles = picObjectFiles;
     this.ltoCompilationContext = ltoCompilationContext;
@@ -84,6 +90,7 @@ public class CcCompilationOutputs implements CcCompilationOutputsApi<Artifact> {
     this.picDwoFiles = picDwoFiles;
     this.temps = temps;
     this.headerTokenFiles = headerTokenFiles;
+    this.indexStore = indexStore;
   }
 
   /**
@@ -144,6 +151,13 @@ public class CcCompilationOutputs implements CcCompilationOutputsApi<Artifact> {
   }
 
   /**
+   * Returns and unmodifiable view of the .index files set.
+   */
+  public ImmutableList<Artifact> getIndexStoreFiles() {
+    return indexStore;
+  }
+
+  /**
    * Returns an unmodifiable view of the .pic.dwo files set.
    */
   public ImmutableList<Artifact> getPicDwoFiles() {
@@ -189,6 +203,7 @@ public class CcCompilationOutputs implements CcCompilationOutputsApi<Artifact> {
     private final Set<Artifact> picDwoFiles = new LinkedHashSet<>();
     private final NestedSetBuilder<Artifact> temps = NestedSetBuilder.stableOrder();
     private final Set<Artifact> headerTokenFiles = new LinkedHashSet<>();
+    private Set<Artifact> indexStore = new LinkedHashSet<>();
 
     private Builder() {
       // private to avoid class initialization deadlock between this class and its outer class
@@ -202,7 +217,8 @@ public class CcCompilationOutputs implements CcCompilationOutputsApi<Artifact> {
           ImmutableList.copyOf(dwoFiles),
           ImmutableList.copyOf(picDwoFiles),
           temps.build(),
-          ImmutableList.copyOf(headerTokenFiles));
+          ImmutableList.copyOf(headerTokenFiles),
+          ImmutableList.copyOf(indexStore));
     }
 
     public Builder merge(CcCompilationOutputs outputs) {
@@ -259,6 +275,11 @@ public class CcCompilationOutputs implements CcCompilationOutputsApi<Artifact> {
       }
 
       Iterables.addAll(picObjectFiles, artifacts);
+      return this;
+    }
+
+    public Builder addIndexStore(Artifact artifact){
+      indexStore.add(artifact);
       return this;
     }
 
