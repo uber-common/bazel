@@ -790,6 +790,11 @@ public final class CcCompilationHelper {
     outputGroupsBuilder.putAll(
         CcCommon.createSaveFeatureStateArtifacts(
             cppConfiguration, featureConfiguration, ruleContext));
+    outputGroupsBuilder.put(
+        "cc_index_store",
+        NestedSetBuilder.<Artifact>stableOrder()
+            .addAll(ccCompilationOutputs.getIndexStoreFiles()).build()
+    );
     return outputGroupsBuilder.build();
   }
 
@@ -1870,6 +1875,10 @@ public final class CcCompilationHelper {
           // Host targets don't produce .dwo files.
           result.addPicDwoFile(dwoFile);
         }
+
+        if (indexStore != null) {
+          result.addIndexStore(indexStore);
+        }
       }
 
       if (generateNoPicAction) {
@@ -1947,6 +1956,10 @@ public final class CcCompilationHelper {
         if (noPicDwoFile != null) {
           // Host targets don't produce .dwo files.
           result.addDwoFile(noPicDwoFile);
+        }
+
+        if (indexStore != null) {
+          result.addIndexStore(indexStore);
         }
       }
     }
