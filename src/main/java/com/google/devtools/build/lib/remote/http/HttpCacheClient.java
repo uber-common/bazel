@@ -490,7 +490,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
         .addListener(
             (Future<Channel> chP) -> {
               if (!chP.isSuccess()) {
-                outerF.setException(chP.cause());
+                outerF.setException(new IOException(chP.cause()));
                 return;
               }
 
@@ -520,7 +520,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
                                 return;
                               }
                             }
-                            outerF.setException(cause);
+                            outerF.setException(new IOException(cause));
                           }
                         } finally {
                           releaseDownloadChannel(ch);
@@ -610,7 +610,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
             return;
           }
         }
-        throw e;
+        throw new IOException(e);
       } finally {
         if (!success) {
           storedBlobs.remove(key);
