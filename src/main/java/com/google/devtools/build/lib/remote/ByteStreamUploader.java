@@ -34,6 +34,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.devtools.build.lib.remote.RemoteRetrier.ProgressiveBackoff;
 import com.google.devtools.build.lib.remote.util.TracingMetadataUtils;
+import com.google.devtools.build.lib.remote.util.Utils;
 import io.grpc.CallCredentials;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
@@ -245,7 +246,8 @@ class ByteStreamUploader extends AbstractReferenceCounted {
           Futures.catchingAsync(
               uploadResult,
               Exception.class,
-              (e) -> Futures.immediateFailedFuture(new IOException(e)),
+              (e) -> Futures.immediateFailedFuture(
+                  new IOException(Utils.getExceptionMessageWithStackTrace(e), e)),
               MoreExecutors.directExecutor());
 
       uploadsInProgress.put(hash, uploadResult);
