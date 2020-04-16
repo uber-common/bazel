@@ -201,14 +201,13 @@ public class GrpcCacheClient implements RemoteCacheClient, MissingDigestsFinder 
                 MoreExecutors.directExecutor());
     return Futures.catchingAsync(
         success,
-        RuntimeException.class,
+        Exception.class,
         (e) ->
             Futures.immediateFailedFuture(
                 new IOException(
                     String.format(
-                        "findMissingBlobs(%d) for %s",
-                        requestBuilder.getBlobDigestsCount(),
-                        TracingMetadataUtils.fromCurrentContext().getActionId()),
+                        "findMissingBlobs(%d)",
+                        requestBuilder.getBlobDigestsCount()),
                     e)),
         MoreExecutors.directExecutor());
   }
@@ -239,8 +238,13 @@ public class GrpcCacheClient implements RemoteCacheClient, MissingDigestsFinder 
             .setActionDigest(actionKey.getDigest())
             .build();
     Context ctx = Context.current();
-    return retrier.executeAsync(
-        () -> ctx.call(() -> handleStatus(acFutureStub().getActionResult(request))));
+    return Futures.catchingAsync(
+        retrier.executeAsync(
+            () -> ctx.call(() -> handleStatus(acFutureStub().getActionResult(request)))),
+        Exception.class,
+        (e) -> Futures.immediateFailedFuture(new IOException(e)),
+        MoreExecutors.directExecutor());
+
   }
 
   private static String digestToString(Digest digest) {
@@ -260,7 +264,7 @@ public class GrpcCacheClient implements RemoteCacheClient, MissingDigestsFinder 
                           .setActionDigest(actionKey.getDigest())
                           .setActionResult(actionResult)
                           .build()));
-    } catch (StatusRuntimeException e) {
+    } catch (Exception e) {
       throw new IOException(e);
     }
   }
@@ -294,10 +298,7 @@ public class GrpcCacheClient implements RemoteCacheClient, MissingDigestsFinder 
 
           @Override
           public void onFailure(Throwable t) {
-            if (t instanceof StatusRuntimeException) {
-              t = new IOException(t);
-            }
-            outerF.setException(t);
+            outerF.setException(new IOException(t));
           }
         },
         Context.current().fixedContextExecutor(MoreExecutors.directExecutor()));
@@ -320,7 +321,7 @@ public class GrpcCacheClient implements RemoteCacheClient, MissingDigestsFinder 
                         requestRead(
                             resourceName, offset, progressiveBackoff, digest, out, hashSupplier)),
             progressiveBackoff),
-        StatusRuntimeException.class,
+        Exception.class,
         (e) -> Futures.immediateFailedFuture(new IOException(e)),
         MoreExecutors.directExecutor());
   }
@@ -361,7 +362,7 @@ public class GrpcCacheClient implements RemoteCacheClient, MissingDigestsFinder 
                 if (status.getCode() == Status.Code.NOT_FOUND) {
                   future.setException(new CacheNotFoundException(digest));
                 } else {
-                  future.setException(t);
+                  future.setException(new IOException(t));
                 }
               }
 

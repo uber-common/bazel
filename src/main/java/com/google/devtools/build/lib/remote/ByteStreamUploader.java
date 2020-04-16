@@ -244,8 +244,8 @@ class ByteStreamUploader extends AbstractReferenceCounted {
       uploadResult =
           Futures.catchingAsync(
               uploadResult,
-              StatusRuntimeException.class,
-              (sre) -> Futures.immediateFailedFuture(new IOException(sre)),
+              Exception.class,
+              (e) -> Futures.immediateFailedFuture(new IOException(e)),
               MoreExecutors.directExecutor());
 
       uploadsInProgress.put(hash, uploadResult);
