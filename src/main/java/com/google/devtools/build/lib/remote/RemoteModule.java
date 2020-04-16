@@ -296,8 +296,24 @@ public final class RemoteModule extends BlazeModule {
         verifyServerCapabilities(remoteOptions, execChannel, credentials, retrier, env, digestUtil);
       }
       if (cacheChannel != execChannel) {
-        verifyServerCapabilities(
-            remoteOptions, cacheChannel, credentials, retrier, env, digestUtil);
+        try {
+          verifyServerCapabilities(
+              remoteOptions, cacheChannel, credentials, retrier, env, digestUtil);
+        }
+        catch (AbruptExitException e) {
+          if (enableRemoteExecution) {
+            // TODO(apatti) - Re-throw if remote exec is enabled.
+            //  Not sure if it requires the cache to be live
+            throw e;
+          }
+          // TODO(apatti) - Just short circuit this for now to prevent build
+          //  failures due to unreachable/unhealthy cache
+          remoteOptions.remoteCache = null;
+          remoteOptions.remoteOutputsMode = RemoteOutputsMode.ALL;
+          env.getReporter().handle(Event.warn(
+              "Failed to query cache server capabilities. Build will continue without cache."));
+          return;
+        }
       }
 
       ByteStreamUploader uploader =
