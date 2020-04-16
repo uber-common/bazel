@@ -16,6 +16,7 @@ package com.google.devtools.build.lib.remote.util;
 import build.bazel.remote.execution.v2.ActionResult;
 import build.bazel.remote.execution.v2.Digest;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Streams;
 import com.google.common.util.concurrent.FluentFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -34,10 +35,12 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 /** Utility methods for the remote package. * */
@@ -158,6 +161,15 @@ public class Utils {
               expectedHash, actualHash);
       throw new IOException(msg);
     }
+  }
+
+  public static String getExceptionMessageWithStackTrace(Throwable e) {
+    return e.getCause().toString() + "\n" + getStackTraceString();
+  }
+
+  public static String getStackTraceString() {
+    return Streams.stream(Arrays.asList(Thread.currentThread().getStackTrace()))
+        .map(StackTraceElement::toString).collect(Collectors.joining("\n\t"));
   }
 
   /** An in-memory output file. */
