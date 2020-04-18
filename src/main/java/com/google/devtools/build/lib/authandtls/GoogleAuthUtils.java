@@ -16,6 +16,8 @@ package com.google.devtools.build.lib.authandtls;
 
 import com.google.auth.Credentials;
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.IdTokenCredentials;
+import com.google.auth.oauth2.IdTokenProvider;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -213,12 +215,13 @@ public final class GoogleAuthUtils {
    */
   @Nullable
   public static Credentials newCredentials(@Nullable AuthAndTLSOptions options) throws IOException {
+    Credentials credentials = null;
     if (options == null) {
       return null;
     } else if (options.googleCredentials != null) {
       // Credentials from file
       try (InputStream authFile = new FileInputStream(options.googleCredentials)) {
-        return newCredentials(authFile, options.googleAuthScopes);
+        credentials = newCredentials(authFile, options.googleAuthScopes);
       } catch (FileNotFoundException e) {
         String message =
             String.format(
@@ -227,10 +230,19 @@ public final class GoogleAuthUtils {
         throw new IOException(message, e);
       }
     } else if (options.useGoogleDefaultCredentials) {
-      return newCredentials(
+      credentials = newCredentials(
           null /* Google Application Default Credentials */, options.googleAuthScopes);
     }
-    return null;
+    if (credentials != null && !Strings.isNullOrEmpty(options.googleTargetAudience)) {
+      if (credentials instanceof IdTokenProvider) {
+        IdTokenProvider idTokenProvider = (IdTokenProvider) credentials;
+        return IdTokenCredentials.newBuilder()
+            .setIdTokenProvider(idTokenProvider)
+            .setTargetAudience(options.googleTargetAudience)
+            .build();
+      }
+    }
+    return credentials;
   }
 
   /**
