@@ -52,6 +52,15 @@ public class AuthAndTLSOptions extends OptionsBase {
   public List<String> googleAuthScopes;
 
   @Option(
+      name = "google_target_audience",
+      defaultValue = "null",
+      documentationCategory = OptionDocumentationCategory.UNCATEGORIZED,
+      effectTags = {OptionEffectTag.UNKNOWN},
+      help = "The target audience for the id token."
+  )
+  public String googleTargetAudience;
+
+  @Option(
     name = "google_credentials",
     oldName = "auth_credentials",
     defaultValue = "null",
