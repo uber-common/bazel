@@ -177,23 +177,7 @@ public class ObjcConfiguration extends BuildConfiguration.Fragment
    */
   @Override
   public ImmutableList<String> getCoptsForCompilationMode() {
-    switch (compilationMode) {
-      case DBG:
-        if (this.debugWithGlibcxx) {
-          return ImmutableList.<String>builder()
-              .addAll(DBG_COPTS)
-              .addAll(GLIBCXX_DBG_COPTS)
-              .build();
-        } else {
-          return DBG_COPTS;
-        }
-      case FASTBUILD:
-        return fastbuildOptions;
-      case OPT:
-        return OPT_COPTS;
-      default:
-        throw new AssertionError();
-    }
+    return ImmutableList.of();
   }
 
   /**
