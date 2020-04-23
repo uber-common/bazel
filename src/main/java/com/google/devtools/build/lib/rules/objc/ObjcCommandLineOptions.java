@@ -293,4 +293,21 @@ public class ObjcCommandLineOptions extends FragmentOptions {
           "If true, --feature=-<feature> and features=[\"-<feature>\"] "
               + "allow disabling default crosstool features.")
   public boolean incompatibleObjcDisableFeatures;
+
+  @Option(
+      name = "incompatible_objc_disable_legacy_copts",
+      defaultValue = "false",
+      documentationCategory = OptionDocumentationCategory.TOOLCHAIN,
+      effectTags = {OptionEffectTag.ACTION_COMMAND_LINES},
+      metadataTags = {
+          OptionMetadataTag.INCOMPATIBLE_CHANGE,
+          OptionMetadataTag.TRIGGERED_BY_ALL_INCOMPATIBLE_CHANGES,
+      },
+      help =
+          "If true, Bazel no longer appends the following hard-coded compilation flags: \n "
+              + " * dbg compilation mode: '-O0', '-DDEBUG=1', '-fstack-protector', "
+              + "'-fstack-protector-all', '-g'\n"
+              + " * opt compilation mode: ''-Os', '-DNDEBUG=1', '-Wno-unused-variable', "
+              + "'-Winit-self', '-Wno-extra'")
+  public boolean incompatibleObjcDisableLegacyCopts;
 }

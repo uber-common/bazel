@@ -68,6 +68,7 @@ public class ObjcConfiguration extends Fragment implements ObjcConfigurationApi<
   private final Label appleSdk;
   private final boolean compileInfoMigration;
   private final boolean objcDisableFeatures;
+  private final boolean objcDisableLegacyCopts;
 
   ObjcConfiguration(ObjcCommandLineOptions objcOptions, CoreOptions options) {
     this.iosSimulatorDevice = objcOptions.iosSimulatorDevice;
@@ -98,6 +99,7 @@ public class ObjcConfiguration extends Fragment implements ObjcConfigurationApi<
     this.appleSdk = objcOptions.appleSdk;
     this.compileInfoMigration = objcOptions.incompatibleObjcCompileInfoMigration;
     this.objcDisableFeatures = objcOptions.incompatibleObjcDisableFeatures;
+    this.objcDisableLegacyCopts = objcOptions.incompatibleObjcDisableLegacyCopts;
   }
 
   /**
@@ -186,12 +188,12 @@ public class ObjcConfiguration extends Fragment implements ObjcConfigurationApi<
               .addAll(GLIBCXX_DBG_COPTS)
               .build();
         } else {
-          return DBG_COPTS;
+          return objcDisableLegacyCopts ? ImmutableList.of() : DBG_COPTS;
         }
       case FASTBUILD:
         return fastbuildOptions;
       case OPT:
-        return OPT_COPTS;
+        return objcDisableLegacyCopts ? ImmutableList.of() : OPT_COPTS;
       default:
         throw new AssertionError();
     }
