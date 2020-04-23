@@ -591,10 +591,22 @@ public class CompilationSupport {
     CppConfiguration cppConfiguration = ruleContext.getFragment(CppConfiguration.class);
     activatedCrosstoolSelectables.addAll(CcCommon.getCoverageFeatures(cppConfiguration));
 
+    ImmutableSet.Builder<String> requestedCrosstoolSelectables;
+    if (configuration.getFragment(ObjcConfiguration.class).objcDisableFeatures()) {
+      requestedCrosstoolSelectables = ImmutableSet.builder();
+      for (String selectable: activatedCrosstoolSelectables.build()) {
+        if (!ruleContext.getDisabledFeatures().contains(selectable)) {
+          requestedCrosstoolSelectables.add(selectable);
+        }
+      }
+    }
+    else {
+      requestedCrosstoolSelectables = activatedCrosstoolSelectables;
+    }
     try {
       return ccToolchain
           .getFeatures()
-          .getFeatureConfiguration(activatedCrosstoolSelectables.build());
+          .getFeatureConfiguration(requestedCrosstoolSelectables.build());
     } catch (CollidingProvidesException e) {
       ruleContext.ruleError(e.getMessage());
       return FeatureConfiguration.EMPTY;

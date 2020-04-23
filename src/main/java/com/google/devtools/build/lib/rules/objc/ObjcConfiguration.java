@@ -67,6 +67,7 @@ public class ObjcConfiguration extends Fragment implements ObjcConfigurationApi<
   private final boolean shouldScanIncludes;
   private final Label appleSdk;
   private final boolean compileInfoMigration;
+  private final boolean objcDisableFeatures;
 
   ObjcConfiguration(ObjcCommandLineOptions objcOptions, CoreOptions options) {
     this.iosSimulatorDevice = objcOptions.iosSimulatorDevice;
@@ -96,6 +97,7 @@ public class ObjcConfiguration extends Fragment implements ObjcConfigurationApi<
     this.shouldScanIncludes = objcOptions.scanIncludes;
     this.appleSdk = objcOptions.appleSdk;
     this.compileInfoMigration = objcOptions.incompatibleObjcCompileInfoMigration;
+    this.objcDisableFeatures = objcOptions.incompatibleObjcDisableFeatures;
   }
 
   /**
@@ -263,5 +265,10 @@ public class ObjcConfiguration extends Fragment implements ObjcConfigurationApi<
   /** Whether native rules can assume compile info has been migrated to CcInfo. */
   public boolean compileInfoMigration() {
     return compileInfoMigration;
+  }
+
+  /** Whether to allow disabling default toolchains selectables with --feature=-<feature>. */
+  public boolean objcDisableFeatures() {
+    return objcDisableFeatures;
   }
 }

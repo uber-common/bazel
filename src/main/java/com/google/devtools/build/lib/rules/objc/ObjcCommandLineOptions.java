@@ -279,4 +279,18 @@ public class ObjcCommandLineOptions extends FragmentOptions {
               + "https://github.com/bazelbuild/bazel/issues/10854 for details and migration "
               + "instructions")
   public boolean incompatibleObjcCompileInfoMigration;
+
+  @Option(
+      name = "incompatible_objc_disable_features",
+      defaultValue = "false",
+      documentationCategory = OptionDocumentationCategory.TOOLCHAIN,
+      effectTags = {OptionEffectTag.ACTION_COMMAND_LINES},
+      metadataTags = {
+          OptionMetadataTag.INCOMPATIBLE_CHANGE,
+          OptionMetadataTag.TRIGGERED_BY_ALL_INCOMPATIBLE_CHANGES,
+      },
+      help =
+          "If true, --feature=-<feature> and features=[\"-<feature>\"] "
+              + "allow disabling default crosstool features.")
+  public boolean incompatibleObjcDisableFeatures;
 }
