@@ -3313,6 +3313,36 @@ def _impl(ctx):
         ],
     )
 
+    objc_legacy_copts_feature = feature(
+        name = "objc_legacy_copts",
+        flag_sets = [
+            flag_set(
+                actions = [
+                    ACTION_NAMES.objc_compile,
+                    ACTION_NAMES.objcpp_compile,
+                ],
+                flag_groups = [
+                    flag_group(
+                        flags = ["-O0", "-DDEBUG=1", "-fstack-protector", "-fstack-protector-all", "-g"],
+                    ),
+                ],
+                with_features = [with_feature_set(features = ["dbg"])],
+            ),
+            flag_set(
+                actions = [
+                    ACTION_NAMES.objc_compile,
+                    ACTION_NAMES.objcpp_compile,
+                ],
+                flag_groups = [
+                    flag_group(
+                        flags = ["-Os", "-DNDEBUG=1", "-Wno-unused-variable", "-Winit-self", "-Wno-extra"],
+                    ),
+                ],
+                with_features = [with_feature_set(features = ["opt"])],
+            ),
+        ],
+    )
+
     if (ctx.attr.cpu == "tvos_arm64" or
         ctx.attr.cpu == "tvos_x86_64"):
         unfiltered_cxx_flags_feature = feature(
@@ -5775,6 +5805,7 @@ def _impl(ctx):
             user_compile_flags_feature,
             unfiltered_compile_flags_feature,
             linker_param_file_feature,
+            objc_legacy_copts_feature,
             compiler_input_flags_feature,
             compiler_output_flags_feature,
             objcopy_embed_flags_feature,
@@ -5846,6 +5877,7 @@ def _impl(ctx):
             user_compile_flags_feature,
             unfiltered_compile_flags_feature,
             linker_param_file_feature,
+            objc_legacy_copts_feature,
             compiler_input_flags_feature,
             compiler_output_flags_feature,
             supports_dynamic_linker_feature,
@@ -5919,6 +5951,7 @@ def _impl(ctx):
             user_compile_flags_feature,
             unfiltered_compile_flags_feature,
             linker_param_file_feature,
+            objc_legacy_copts_feature,
             compiler_input_flags_feature,
             compiler_output_flags_feature,
             supports_pic_feature,
