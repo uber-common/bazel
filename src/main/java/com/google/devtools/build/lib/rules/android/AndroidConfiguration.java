@@ -1037,20 +1037,28 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
     public boolean useRTxtFromMergedResources;
 
     @Option(
-        name = "output_library_merged_assets",
-        defaultValue = "true",
-        documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
-        effectTags = {OptionEffectTag.UNKNOWN},
-        help = "If disabled, does not produce merged asset.zip outputs for library targets")
-    public boolean outputLibraryMergedAssets;
-
-    @Option(
         name = "link_library_resources",
         defaultValue = "true",
         documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
         effectTags = {OptionEffectTag.CHANGES_INPUTS},
         help = "If disabled does not run aapt2 link for android_library targets")
     public boolean linkLibraryResources;
+
+    @Option(
+            name = "output_library_merged_assets",
+            defaultValue = "true",
+            documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
+            effectTags = {OptionEffectTag.UNKNOWN},
+            help = "If disabled, does not produce merged asset.zip outputs for library targets")
+    public boolean outputLibraryMergedAssets;
+
+    @Option(
+            name = "output_library_linked_resources",
+            defaultValue = "true",
+            documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
+            effectTags = {OptionEffectTag.UNKNOWN},
+            help = "If disabled, does not provide library.ap_ outputs for library targets")
+    public boolean outputLibraryLinkedResources;
 
     @Option(
         name = "legacy_main_dex_list_generator",
@@ -1195,6 +1203,7 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
   private final boolean useRTxtFromMergedResources;
   private final boolean outputLibraryMergedAssets;
   private final boolean linkLibraryResources;
+  private final boolean outputLibraryLinkedResources;
   private final Label legacyMainDexListGenerator;
   private final Label optimizingDexer;
   private final boolean disableInstrumentationManifestMerging;
@@ -1257,6 +1266,7 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
     this.useRTxtFromMergedResources = options.useRTxtFromMergedResources;
     this.outputLibraryMergedAssets = options.outputLibraryMergedAssets;
     this.linkLibraryResources = options.linkLibraryResources;
+    this.outputLibraryLinkedResources = options.outputLibraryLinkedResources;
     this.legacyMainDexListGenerator = options.legacyMainDexListGenerator;
     this.optimizingDexer = options.optimizingDexer;
     this.disableInstrumentationManifestMerging = options.disableInstrumentationManifestMerging;
@@ -1565,5 +1575,9 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
   @Nullable
   public Label getOptimizingDexer() {
     return optimizingDexer;
+  }
+ 
+  boolean outputLibraryLinkedResources() {
+    return outputLibraryLinkedResources;
   }
 }

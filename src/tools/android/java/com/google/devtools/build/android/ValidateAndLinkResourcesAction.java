@@ -221,7 +221,7 @@ public final class ValidateAndLinkResourcesAction {
       }
 
       profiler.recordEndOf("validate").startTask("link");
-      ResourceLinker.create(aapt2Options.aapt2, executorService, scopedTmp.getPath())
+      StaticLibrary staticLibrary = ResourceLinker.create(aapt2Options.aapt2, executorService, scopedTmp.getPath())
           .profileUsing(profiler)
           // NB: these names are really confusing.
           //   .dependencies is meant for linking in android.jar
@@ -233,9 +233,13 @@ public final class ValidateAndLinkResourcesAction {
           .buildVersion(aapt2Options.buildToolsVersion)
           .outputAsProto(aapt2Options.resourceTableAsProto)
           .linkStatically(resources)
-          .copyLibraryTo(options.staticLibraryOut)
+          .copyLibraryTo(options.staticLibraryOut);
+      staticLibrary
           .copySourceJarTo(options.sourceJarOut)
           .copyRTxtTo(options.rTxtOut);
+      if (options.staticLibraryOut != null) {
+        staticLibrary.copyLibraryTo(options.staticLibraryOut);
+      }
       profiler.recordEndOf("link");
     }
   }
