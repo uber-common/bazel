@@ -178,7 +178,8 @@ public abstract class AndroidResourcesTest extends ResourceTestBase {
                 dataContext,
                 getManifest(),
                 DataBinding.contextFrom(ruleContext, dataContext.getAndroidConfig()),
-                /* neverlink = */ false);
+                /* neverlink = */ false,
+                /* linkResources */ true);
     Optional<? extends AndroidResources> maybeFiltered =
         assertFilter(unfiltered, filteredResources, /* isDependency = */ true);
 

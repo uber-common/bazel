@@ -187,7 +187,8 @@ public abstract class AndroidStarlarkData
               ResourceDependencies.fromProviders(
                   Sequence.cast(deps, AndroidResourcesInfo.class, "deps"), neverlink),
               DataBinding.contextFrom(
-                  enableDataBinding, ctx.getActionConstructionContext(), ctx.getAndroidConfig()));
+                  enableDataBinding, ctx.getActionConstructionContext(), ctx.getAndroidConfig()),
+              ctx.getAndroidConfig().linkLibraryResources());
     } catch (RuleErrorException e) {
       throw handleRuleException(errorReporter, e);
     }
@@ -284,7 +285,8 @@ public abstract class AndroidStarlarkData
                 ResourceDependencies.fromProviders(
                     getProviders(depsTargets, AndroidResourcesInfo.PROVIDER),
                     /* neverlink = */ false),
-                DataBinding.getDisabledDataBindingContext(ctx));
+                DataBinding.getDisabledDataBindingContext(ctx),
+                ctx.getAndroidConfig().linkLibraryResources());
 
     MergedAndroidAssets mergedAssets =
         AndroidAssets.forAarImport(assets)
