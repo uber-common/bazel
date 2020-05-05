@@ -420,14 +420,16 @@ public class AndroidResources {
       AndroidDataContext dataContext,
       StampedAndroidManifest manifest,
       DataBindingContext dataBindingContext,
-      boolean neverlink)
+      boolean neverlink,
+      boolean linkResources)
       throws RuleErrorException, InterruptedException {
     return process(
         dataContext,
         manifest,
         ImmutableList.of(),
         ResourceDependencies.fromRuleDeps(ruleContext, neverlink),
-        dataBindingContext);
+        dataBindingContext,
+        linkResources);
   }
 
   ValidatedAndroidResources process(
@@ -435,11 +437,12 @@ public class AndroidResources {
       StampedAndroidManifest manifest,
       List<Artifact> resApkDeps,
       ResourceDependencies resourceDeps,
-      DataBindingContext dataBindingContext)
+      DataBindingContext dataBindingContext,
+      boolean linkResources)
       throws InterruptedException {
-    return parse(dataContext, manifest, dataBindingContext)
-        .merge(dataContext, resourceDeps)
-        .validate(dataContext, resApkDeps);
+    MergedAndroidResources merge = parse(dataContext, manifest, dataBindingContext)
+        .merge(dataContext, resourceDeps);
+    return linkResources ? merge.validate(dataContext) : merge.validateNoLink(dataContext);
   }
 
   @Override

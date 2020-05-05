@@ -58,8 +58,13 @@ public class MergedAndroidResources extends ParsedAndroidResources {
                 dataContext.omitTransitiveResourcesFromAndroidRClasses());
 
     if (dataContext.getAndroidConfig().useRTxtFromMergedResources()) {
-      builder.setAapt2RTxtOut(
-          dataContext.createOutputArtifact(AndroidRuleClasses.ANDROID_RESOURCES_AAPT2_R_TXT));
+      if (dataContext.getAndroidConfig().linkLibraryResources()) {
+        builder.setAapt2RTxtOut(
+            dataContext.createOutputArtifact(AndroidRuleClasses.ANDROID_RESOURCES_AAPT2_R_TXT));
+      } else {
+        builder.setAapt2RTxtOut(
+            dataContext.createOutputArtifact(AndroidRuleClasses.ANDROID_R_TXT));
+      }
     }
 
     return builder
@@ -181,6 +186,10 @@ public class MergedAndroidResources extends ParsedAndroidResources {
   public ValidatedAndroidResources validate(
       AndroidDataContext dataContext, List<Artifact> resApkDeps) throws InterruptedException {
     return ValidatedAndroidResources.validateFrom(dataContext, this, resApkDeps);
+  }
+
+  public ValidatedAndroidResources validateNoLink(AndroidDataContext dataContext) {
+    return ValidatedAndroidResources.of(this, this.getAapt2RTxt(), null, null, null, null, null, dataContext.getAndroidConfig().useRTxtFromMergedResources());
   }
 
   @Override

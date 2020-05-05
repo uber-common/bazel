@@ -1045,6 +1045,14 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
     public boolean outputLibraryMergedAssets;
 
     @Option(
+        name = "link_library_resources",
+        defaultValue = "true",
+        documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
+        effectTags = {OptionEffectTag.CHANGES_INPUTS},
+        help = "If disabled does not run aapt2 link for android_library targets")
+    public boolean linkLibraryResources;
+
+    @Option(
         name = "legacy_main_dex_list_generator",
         // TODO(b/147692286): Update this default value to R8's GenerateMainDexList binary after
         // migrating usage.
@@ -1186,6 +1194,7 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
   private final boolean filterLibraryJarWithProgramJar;
   private final boolean useRTxtFromMergedResources;
   private final boolean outputLibraryMergedAssets;
+  private final boolean linkLibraryResources;
   private final Label legacyMainDexListGenerator;
   private final Label optimizingDexer;
   private final boolean disableInstrumentationManifestMerging;
@@ -1247,6 +1256,7 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
     this.filterLibraryJarWithProgramJar = options.filterLibraryJarWithProgramJar;
     this.useRTxtFromMergedResources = options.useRTxtFromMergedResources;
     this.outputLibraryMergedAssets = options.outputLibraryMergedAssets;
+    this.linkLibraryResources = options.linkLibraryResources;
     this.legacyMainDexListGenerator = options.legacyMainDexListGenerator;
     this.optimizingDexer = options.optimizingDexer;
     this.disableInstrumentationManifestMerging = options.disableInstrumentationManifestMerging;
@@ -1532,6 +1542,10 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
 
   boolean outputLibraryMergedAssets() {
     return outputLibraryMergedAssets;
+  }
+
+  boolean linkLibraryResources() {
+    return linkLibraryResources;
   }
 
   /** Returns the label provided with --legacy_main_dex_list_generator, if any. */
