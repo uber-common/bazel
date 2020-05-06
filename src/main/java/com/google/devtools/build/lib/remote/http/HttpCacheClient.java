@@ -32,6 +32,7 @@ import com.google.protobuf.ByteString;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
@@ -55,6 +56,8 @@ import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.logging.LogLevel;
+import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
@@ -82,6 +85,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
@@ -117,6 +121,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
   public static final String CAS_PREFIX = "cas/";
   private static final Pattern INVALID_TOKEN_ERROR =
       Pattern.compile("\\s*error\\s*=\\s*\"?invalid_token\"?");
+
+  private static Logger logger = Logger.getLogger(HttpCacheClient.class.getName());
 
   private final ConcurrentHashMap<String, Boolean> storedBlobs = new ConcurrentHashMap<>();
 
@@ -268,6 +274,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
               SSLEngine engine = sslCtx.newEngine(ch.alloc(), hostname, port);
               engine.setUseClientMode(true);
               p.addFirst("ssl-handler", new SslHandler(engine));
+              p.addLast("logging-handler", new LoggingHandler(HttpCacheClient.class.getName()));
             }
           }
         };
@@ -431,10 +438,12 @@ public final class HttpCacheClient implements RemoteCacheClient {
   }
 
   private boolean isChannelPipelineEmpty(ChannelPipeline pipeline) {
-    return (pipeline.first() == null)
-        || (useTls
-            && "ssl-handler".equals(pipeline.firstContext().name())
-            && pipeline.first() == pipeline.last());
+    for (Entry<String, ChannelHandler> entry: pipeline) {
+      if (entry.getKey() != "logging-handler" && (!useTls || entry.getKey() != "ssl-handler" )) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @Override
