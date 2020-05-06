@@ -18,7 +18,10 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
+import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.TimeoutException;
+import io.netty.handler.timeout.WriteTimeoutException;
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -29,18 +32,57 @@ public final class IdleTimeoutHandler extends IdleStateHandler {
   private final TimeoutException timeoutException;
   private boolean closed;
 
+  public final static class WriteTimeoutReaderIdleException extends IOException {
+    public static final WriteTimeoutReaderIdleException INSTANCE = new WriteTimeoutReaderIdleException();
+    private WriteTimeoutReaderIdleException() {}
+  }
+
+  public final static class WriteTimeoutWriterIdleException extends IOException {
+    public static final WriteTimeoutWriterIdleException INSTANCE = new WriteTimeoutWriterIdleException();
+    private WriteTimeoutWriterIdleException() {}
+  }
+
+  public final static class ReadTimeoutReaderIdleException extends IOException {
+    public static final ReadTimeoutReaderIdleException INSTANCE = new ReadTimeoutReaderIdleException();
+    private ReadTimeoutReaderIdleException() {}
+  }
+
+  public final static class ReadTimeoutWriterIdleException extends IOException {
+    public static final ReadTimeoutWriterIdleException INSTANCE = new ReadTimeoutWriterIdleException();
+    private ReadTimeoutWriterIdleException() {}
+  }
+
   @SuppressWarnings("GoodTime-ApiWithNumericTimeUnit")
   public IdleTimeoutHandler(long timeoutSeconds, TimeoutException timeoutException) {
-    super(/* readerIdleTime= */ 0, /* writerIdleTime= */ 0, timeoutSeconds, TimeUnit.SECONDS);
+    super(timeoutSeconds, timeoutSeconds, timeoutSeconds, TimeUnit.SECONDS);
     this.timeoutException = timeoutException;
   }
 
   @Override
   @SuppressWarnings("FutureReturnValueIgnored")
   protected final void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt) throws Exception {
-    assert evt.state() == IdleState.ALL_IDLE;
     if (!closed) {
-      ctx.fireExceptionCaught(timeoutException);
+      switch (evt.state()) {
+        case ALL_IDLE:
+          ctx.fireExceptionCaught(timeoutException);
+          break;
+        case READER_IDLE:
+          if (timeoutException == WriteTimeoutException.INSTANCE) {
+            ctx.fireExceptionCaught(WriteTimeoutReaderIdleException.INSTANCE);
+          }
+          else if (timeoutException == ReadTimeoutException.INSTANCE) {
+            ctx.fireExceptionCaught(ReadTimeoutReaderIdleException.INSTANCE);
+          }
+          break;
+        case WRITER_IDLE:
+          if (timeoutException == WriteTimeoutException.INSTANCE) {
+            ctx.fireExceptionCaught(WriteTimeoutWriterIdleException.INSTANCE);
+          }
+          else if (timeoutException == ReadTimeoutException.INSTANCE) {
+            ctx.fireExceptionCaught(ReadTimeoutWriterIdleException.INSTANCE);
+          }
+          break;
+      }
       ctx.close();
       closed = true;
     }
