@@ -35,6 +35,7 @@ import io.netty.handler.timeout.WriteTimeoutException;
 import io.netty.util.internal.StringUtil;
 import java.io.IOException;
 import java.util.Map.Entry;
+import java.util.logging.Logger;
 
 /** ChannelHandler for uploads. */
 final class HttpUploadHandler extends AbstractHttpHandler<FullHttpResponse> {
@@ -43,6 +44,8 @@ final class HttpUploadHandler extends AbstractHttpHandler<FullHttpResponse> {
   private String path;
   /** the size of the data being uploaded in bytes */
   private long contentLength;
+
+  private static Logger logger = Logger.getLogger(HttpUploadHandler.class.getName());
 
   public HttpUploadHandler(
       Credentials credentials, ImmutableList<Entry<String, String>> extraHttpHeaders) {
@@ -64,6 +67,8 @@ final class HttpUploadHandler extends AbstractHttpHandler<FullHttpResponse> {
           && !response.status().equals(HttpResponseStatus.NO_CONTENT)) {
         // Supporting more than OK status to be compatible with nginx webdav.
         String errorMsg = response.status().toString();
+        logger.info(String.format("Upload of %s failed. Error: %s.", path, errorMsg));
+
         if (response.content().readableBytes() > 0) {
           byte[] data = new byte[response.content().readableBytes()];
           response.content().readBytes(data);
@@ -71,6 +76,7 @@ final class HttpUploadHandler extends AbstractHttpHandler<FullHttpResponse> {
         }
         failAndResetUserPromise(new HttpException(response, errorMsg, null));
       } else {
+        logger.info(String.format("Upload of %s completed.", path));
         succeedAndResetUserPromise();
       }
     } finally {
@@ -105,6 +111,7 @@ final class HttpUploadHandler extends AbstractHttpHandler<FullHttpResponse> {
               if (f.isSuccess()) {
                 return;
               }
+              logger.info(String.format("Upload of %s failed. Writing request raised: %s", path, f.toString()));
               failAndClose(f.cause(), ctx);
             });
     ctx.writeAndFlush(body)
@@ -113,6 +120,7 @@ final class HttpUploadHandler extends AbstractHttpHandler<FullHttpResponse> {
               if (f.isSuccess()) {
                 return;
               }
+              logger.info(String.format("Upload of %s failed. Writing body raised: %s", path, f.toString()));
               failAndClose(f.cause(), ctx);
             });
   }
@@ -120,6 +128,8 @@ final class HttpUploadHandler extends AbstractHttpHandler<FullHttpResponse> {
   @Override
   @SuppressWarnings("deprecation")
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable t) {
+    logger.info(String.format("Upload of %s failed. Caught exception: %s", path, t.toString()));
+
     if (t instanceof WriteTimeoutException) {
       super.exceptionCaught(ctx, new UploadTimeoutException(path, contentLength));
     } else if (t instanceof TooLongFrameException) {
@@ -130,6 +140,8 @@ final class HttpUploadHandler extends AbstractHttpHandler<FullHttpResponse> {
   }
 
   private HttpRequest buildRequest(String path, String host, long contentLength) {
+    logger.info(String.format("Upload of %s started. Content length: %d bytes", path, contentLength));
+
     HttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.PUT, path);
     request.headers().set(HttpHeaderNames.HOST, host);
     request.headers().set(HttpHeaderNames.ACCEPT, "*/*");
@@ -145,6 +157,7 @@ final class HttpUploadHandler extends AbstractHttpHandler<FullHttpResponse> {
   @SuppressWarnings("FutureReturnValueIgnored")
   private void failAndClose(Throwable t, ChannelHandlerContext ctx) {
     try {
+      logger.info(String.format("Upload of %s failed. Cause: %s.", path, t.toString()));
       failAndResetUserPromise(t);
     } finally {
       ctx.close();
