@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.devtools.build.lib.clock.Clock;
@@ -43,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -140,6 +142,7 @@ public final class Profiler {
     final int parentId;
     final ProfilerTask type;
     final String description;
+    final Map<String, Object> args;
 
     long duration;
     int[] counts; // number of invocations per ProfilerTask type
@@ -153,6 +156,7 @@ public final class Profiler {
       this.startTimeNanos = startTimeNanos;
       this.type = eventType;
       this.description = Preconditions.checkNotNull(description);
+      this.args = new ConcurrentHashMap<>();
     }
 
     TaskData(long threadId, long startTimeNanos, long duration, String description) {
@@ -163,6 +167,7 @@ public final class Profiler {
       this.startTimeNanos = startTimeNanos;
       this.duration = duration;
       this.description = description;
+      this.args = new ConcurrentHashMap<>();
     }
 
     /** Aggregates information about an *immediate* subtask. */
@@ -175,6 +180,12 @@ public final class Profiler {
       }
       counts[index]++;
       durations[index] += duration;
+    }
+
+    public void enrich(String key, Object val) {
+      Preconditions.checkNotNull(key, "Key must be non-empty");
+      Preconditions.checkNotNull(key, "Value must be non-empty");
+      args.put(key, val);
     }
 
     @Override
@@ -810,6 +821,60 @@ public final class Profiler {
         || (type == ProfilerTask.INFO && "discoverInputs".equals(taskData.description));
   }
 
+  private TaskData peekWithTaskType(ProfilerTask type) {
+    TaskData data = taskStack.peek();
+    Preconditions.checkState(
+        data.type == type,
+        "Inconsistent Profiler.enrichCurrentTask() call: requested event type %s but was %s.",
+        type,
+        data.type);
+    return data;
+  }
+
+  public void enrichCurrentTask(ProfilerTask type, String key, String val) {
+    if (isActive() && isProfiling(type)) {
+      peekWithTaskType(type).enrich(key, val);
+    }
+  }
+
+  public void enrichCurrentTask(ProfilerTask type, String key, Number val) {
+      if (isActive() && isProfiling(type)) {
+        peekWithTaskType(type).enrich(key, val);
+      }
+  }
+
+  public void enrichCurrentTask(ProfilerTask type, String key, Boolean val) {
+    if (isActive() && isProfiling(type)) {
+      peekWithTaskType(type).enrich(key, val);
+    }
+  }
+
+  public void enrichCurrentTask(ProfilerTask type, String key, List<String> val) {
+    if (isActive() && isProfiling(type)) {
+      TaskData data = peekWithTaskType(type);
+      Object current = data.args.get(key);
+      if (current instanceof List) {
+        data.enrich(key, ImmutableList.builder().addAll((List) current).addAll(val).build());
+      } else {
+        data.enrich(key, val);
+      }
+    }
+  }
+
+  public void enrichCurrentTask(ProfilerTask type, String key, Map<String, String> val) {
+    if (isActive() && isProfiling(type)) {
+      TaskData data = peekWithTaskType(type);
+      Object current = data.args.get(key);
+      if (current instanceof Map) {
+        Map<String, String> map = new HashMap<>((Map) current);
+        map.putAll(val);
+        data.enrich(key, ImmutableMap.copyOf(map));
+      } else {
+        data.enrich(key, val);
+      }
+    }
+  }
+
   /**
    * Records the end of the task and moves tasks from the thread-local stack to
    * the main queue. Will validate that given task type matches task at the top
@@ -1008,6 +1073,27 @@ public final class Profiler {
       }
     }
 
+    private void writeArg(JsonWriter writer, Object key, Object val) throws IOException {
+      if (key != null) {
+        writer.name(key.toString());
+      }
+      if (val instanceof Map) {
+        writer.beginObject();
+        for (Map.Entry<Object, Object> entry : ((Map<Object, Object>) val).entrySet()) {
+          writeArg(writer, entry.getKey(), entry.getValue());
+        }
+        writer.endObject();
+      } else if (val instanceof List) {
+        writer.beginArray();
+        for (Object entry : (List) val) {
+          writeArg(writer, null, entry);
+        }
+        writer.endArray();
+      } else {
+        writer.value(val.toString());
+      }
+    }
+
     private void writeTask(JsonWriter writer, TaskData data) throws IOException {
       String eventType = data.duration == 0 ? "i" : "X";
       writer.setIndent("  ");
@@ -1026,6 +1112,10 @@ public final class Profiler {
         writer.name("dur").value(TimeUnit.NANOSECONDS.toMicros(data.duration));
       }
       writer.name("pid").value(1);
+
+      if (!data.args.isEmpty()) {
+        writeArg(writer, "args", data.args);
+      }
 
       // Primary outputs are non-mergeable, thus incompatible with slim profiles.
       if (includePrimaryOutput && data instanceof ActionTaskData) {
