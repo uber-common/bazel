@@ -49,6 +49,7 @@ import com.google.devtools.build.lib.actions.cache.MetadataInjector;
 import com.google.devtools.build.lib.concurrent.ThreadSafety;
 import com.google.devtools.build.lib.exec.SpawnRunner.SpawnExecutionContext;
 import com.google.devtools.build.lib.profiler.Profiler;
+import com.google.devtools.build.lib.profiler.ProfilerTask;
 import com.google.devtools.build.lib.profiler.SilentCloseable;
 import com.google.devtools.build.lib.remote.RemoteCache.ActionResultMetadata.DirectoryMetadata;
 import com.google.devtools.build.lib.remote.RemoteCache.ActionResultMetadata.FileMetadata;
@@ -116,7 +117,12 @@ public class RemoteCache implements AutoCloseable {
 
   public ActionResult downloadActionResult(ActionKey actionKey)
       throws IOException, InterruptedException {
-    return Utils.getFromFuture(cacheProtocol.downloadActionResult(actionKey));
+    try (SilentCloseable c =
+        Profiler.instance().profile(ProfilerTask.REMOTE_DOWNLOAD, "download action result")) {
+      Profiler.instance()
+          .enrichCurrentTask(ProfilerTask.REMOTE_DOWNLOAD, "ac", actionKey.getDigest().getHash());
+      return Utils.getFromFuture(cacheProtocol.downloadActionResult(actionKey));
+    }
   }
 
   /**
@@ -134,12 +140,19 @@ public class RemoteCache implements AutoCloseable {
       FileOutErr outErr,
       int exitCode)
       throws ExecException, IOException, InterruptedException {
+
     ActionResult.Builder resultBuilder = ActionResult.newBuilder();
-    uploadOutputs(execRoot, actionKey, action, command, outputs, outErr, resultBuilder);
+    try (SilentCloseable c =
+        Profiler.instance().profile(ProfilerTask.REMOTE_UPLOAD, "remote cache outputs upload")) {
+      uploadOutputs(execRoot, actionKey, action, command, outputs, outErr, resultBuilder);
+    }
     resultBuilder.setExitCode(exitCode);
     ActionResult result = resultBuilder.build();
     if (exitCode == 0 && !action.getDoNotCache()) {
-      cacheProtocol.uploadActionResult(actionKey, result);
+      try (SilentCloseable c1 =
+          Profiler.instance().profile(ProfilerTask.REMOTE_UPLOAD, "upload action result")) {
+        cacheProtocol.uploadActionResult(actionKey, result);
+      }
     }
     return result;
   }
@@ -181,21 +194,31 @@ public class RemoteCache implements AutoCloseable {
     digests.addAll(digestToFile.keySet());
     digests.addAll(digestToBlobs.keySet());
 
-    ImmutableSet<Digest> digestsToUpload =
-        Utils.getFromFuture(cacheProtocol.findMissingDigests(digests));
-    ImmutableList.Builder<ListenableFuture<Void>> uploads = ImmutableList.builder();
+    ImmutableSet<Digest> digestsToUpload = null;
+    try (SilentCloseable c =
+        Profiler.instance().profile(ProfilerTask.REMOTE_UPLOAD, "find missing digests")) {
+      digestsToUpload = Utils.getFromFuture(cacheProtocol.findMissingDigests(digests));
+    }
+    ImmutableList.Builder<ListenableFuture<Digest>> uploads = ImmutableList.builder();
     for (Digest digest : digestsToUpload) {
       Path file = digestToFile.get(digest);
+      ListenableFuture<Void> upload;
+      Profiler.instance().enrichCurrentTask(ProfilerTask.REMOTE_UPLOAD, digest.getHash(), "failure");
       if (file != null) {
-        uploads.add(cacheProtocol.uploadFile(digest, file));
+        upload = cacheProtocol.uploadFile(digest, file);
       } else {
         ByteString blob = digestToBlobs.get(digest);
         if (blob == null) {
           String message = "FindMissingBlobs call returned an unknown digest: " + digest;
           throw new IOException(message);
         }
-        uploads.add(cacheProtocol.uploadBlob(digest, blob));
+        upload = cacheProtocol.uploadBlob(digest, blob);
       }
+      uploads.add(Futures.transformAsync(
+          upload,
+          (v) -> Futures.immediateFuture(digest),
+          directExecutor()
+      ));
     }
 
     waitForUploads(uploads.build());
@@ -208,11 +231,12 @@ public class RemoteCache implements AutoCloseable {
     }
   }
 
-  private static void waitForUploads(List<ListenableFuture<Void>> uploads)
+  private static void waitForUploads(List<ListenableFuture<Digest>> uploads)
       throws IOException, InterruptedException {
     try {
-      for (ListenableFuture<Void> upload : uploads) {
-        upload.get();
+      for (ListenableFuture<Digest> upload : uploads) {
+        Digest digest = upload.get();
+        Profiler.instance().enrichCurrentTask(ProfilerTask.REMOTE_UPLOAD, digest.getHash(), "success");
       }
     } catch (ExecutionException e) {
       // TODO(buchgr): Add support for cancellation and factor this method out to be shared
@@ -260,6 +284,18 @@ public class RemoteCache implements AutoCloseable {
     return actualPath.getParentDirectory().getRelative(actualPath.getBaseName() + ".tmp");
   }
 
+  public void download(
+      ActionResult result,
+      Path execRoot,
+      FileOutErr origOutErr,
+      OutputFilesLocker outputFilesLocker)
+      throws ExecException, IOException, InterruptedException {
+    try (SilentCloseable c =
+        Profiler.instance()
+            .profile(ProfilerTask.REMOTE_DOWNLOAD, "remote cache outputs download")) {
+      doDownload(result, execRoot, origOutErr, outputFilesLocker);
+    }
+  }
   /**
    * Download the output files and directory trees of a remotely executed action to the local
    * machine, as well stdin / stdout to the given files.
@@ -271,7 +307,7 @@ public class RemoteCache implements AutoCloseable {
    * @throws IOException in case of a cache miss or if the remote cache is unavailable.
    * @throws ExecException in case clean up after a failed download failed.
    */
-  public void download(
+  private void doDownload(
       ActionResult result,
       Path execRoot,
       FileOutErr origOutErr,
@@ -286,6 +322,9 @@ public class RemoteCache implements AutoCloseable {
                     .flatMap((entry) -> entry.getValue().files().stream()))
             .map(
                 (file) -> {
+                  Profiler.instance()
+                      .enrichCurrentTask(
+                          ProfilerTask.REMOTE_DOWNLOAD, file.digest().getHash(), "failure");
                   try {
                     ListenableFuture<Void> download =
                         downloadFile(toTmpDownloadPath(file.path()), file.digest());
@@ -308,6 +347,7 @@ public class RemoteCache implements AutoCloseable {
       if (origOutErr != null) {
         tmpOutErr = origOutErr.childOutErr();
       }
+      // TODO: add stderr/stdout digest to profiler task
       downloads.addAll(downloadOutErr(result, tmpOutErr));
     } catch (IOException e) {
       downloadException = e;
@@ -316,7 +356,11 @@ public class RemoteCache implements AutoCloseable {
     for (ListenableFuture<FileMetadata> download : downloads) {
       try {
         // Wait for all downloads to finish.
-        getFromFuture(download);
+        FileMetadata f = getFromFuture(download);
+        if (f != null) {
+          Profiler.instance()
+              .enrichCurrentTask(ProfilerTask.REMOTE_DOWNLOAD, f.digest().getHash(), "success");
+        }
       } catch (IOException e) {
         if (downloadException == null) {
           downloadException = e;
