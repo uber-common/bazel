@@ -32,6 +32,7 @@ import com.google.auth.Credentials;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.devtools.build.lib.remote.util.DigestUtil;
 import com.google.devtools.build.lib.vfs.DigestHashFunction;
 import com.google.devtools.build.remote.worker.http.HttpCacheServerHandler;
@@ -40,6 +41,7 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandler.Sharable;
@@ -64,6 +66,7 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
@@ -85,6 +88,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
 import javax.annotation.Nullable;
 import org.junit.Test;
@@ -289,6 +293,80 @@ public class HttpCacheClientTest {
       throws Exception {
     return createHttpBlobStore(
         serverChannel, timeoutSeconds, /* remoteVerifyDownloads= */ true, creds);
+  }
+
+  @Test
+  public void testFindMissingDigestsUnsupported() throws Exception {
+    ServerChannel server = null;
+    try {
+      server =
+          testServer.start(
+              new SimpleChannelInboundHandler<FullHttpRequest>() {
+                @Override
+                protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest msg) {
+                  FullHttpResponse response =
+                      new DefaultFullHttpResponse(
+                          HttpVersion.HTTP_1_1, HttpResponseStatus.METHOD_NOT_ALLOWED);
+                  ctx.writeAndFlush(response);
+                }
+              });
+      HttpCacheClient blobStore = createHttpBlobStore(server, 1, null);
+      ImmutableSet<Digest> digests = ImmutableSet.of(DIGEST_UTIL.compute(new byte[0]));
+      assertThat(blobStore.findMissingDigests(digests).get()).isEqualTo(digests);
+    } finally {
+      testServer.stop(server);
+    }
+  }
+
+  @Test
+  public void testFindMissingDigests() throws Exception {
+    ServerChannel server = null;
+    AtomicInteger headCounter = new AtomicInteger(0);
+    Digest zero = DIGEST_UTIL.compute(new byte[0]);
+    Digest a = DIGEST_UTIL.compute(new byte[] {'a'});
+    Digest b = DIGEST_UTIL.compute(new byte[] {'b', 'b'});
+    Digest c = DIGEST_UTIL.compute(new byte[] {'c', 'c', 'c'});
+    ConcurrentHashMap<String, byte[]> cache = new ConcurrentHashMap<>();
+    cache.put("/" + HttpCacheClient.CAS_PREFIX + zero.getHash(), new byte[0]);
+    cache.put("/" + HttpCacheClient.CAS_PREFIX + a.getHash(), new byte[0]);
+    cache.put("/" + HttpCacheClient.CAS_PREFIX + b.getHash(), new byte[0]);
+    try {
+      server =
+          testServer.start(
+              new HttpCacheServerHandler(cache) {
+                @Override
+                protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
+                  if (request.method().equals(HttpMethod.HEAD)) {
+                    headCounter.incrementAndGet();
+                    FullHttpResponse response;
+                    if (cache.containsKey(request.uri())) {
+                      response =
+                          new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+                    } else {
+                      response =
+                          new DefaultFullHttpResponse(
+                              HttpVersion.HTTP_1_1, HttpResponseStatus.NOT_FOUND);
+                    }
+                    ctx.writeAndFlush(response);
+                  } else {
+                    super.channelRead0(ctx, request);
+                  }
+                }
+              });
+      HttpCacheClient blobStore = createHttpBlobStore(server, 1, false, null);
+
+      blobStore.downloadBlob(a, new ByteArrayOutputStream()).get();
+      assertThat(blobStore.findMissingDigests(ImmutableSet.of(zero, a, c)).get())
+          .isEqualTo(ImmutableSet.of(c));
+      assertThat(headCounter.get()).isEqualTo(2);
+
+      blobStore.uploadBlob(c, ByteString.copyFrom(c.toByteArray()));
+      assertThat(blobStore.findMissingDigests(ImmutableSet.of(zero, a, b)).get())
+          .isEqualTo(ImmutableSet.of());
+      assertThat(headCounter.get()).isEqualTo(3);
+    } finally {
+      testServer.stop(server);
+    }
   }
 
   @Test
