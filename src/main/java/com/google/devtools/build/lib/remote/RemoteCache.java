@@ -198,6 +198,8 @@ public class RemoteCache implements AutoCloseable {
     try (SilentCloseable c =
         Profiler.instance().profile(ProfilerTask.REMOTE_UPLOAD, "find missing digests")) {
       digestsToUpload = Utils.getFromFuture(cacheProtocol.findMissingDigests(digests));
+      digests.forEach((d) -> Profiler.instance().enrichCurrentTask(ProfilerTask.REMOTE_UPLOAD, d.getHash(), "available"));
+      digestsToUpload.forEach((d) -> Profiler.instance().enrichCurrentTask(ProfilerTask.REMOTE_UPLOAD, d.getHash(), "missing"));
     }
     ImmutableList.Builder<ListenableFuture<Digest>> uploads = ImmutableList.builder();
     for (Digest digest : digestsToUpload) {
