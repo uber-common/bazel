@@ -273,6 +273,17 @@ public final class RemoteOptions extends OptionsBase {
   public int remoteMaxRetryAttempts;
 
   @Option(
+      name = "remote_max_failure_rate",
+      defaultValue = "0",
+      documentationCategory = OptionDocumentationCategory.REMOTE,
+      effectTags = {OptionEffectTag.UNKNOWN},
+      help =
+          "The maximum tolerable failure rate above which no more communications"
+              + " with the remote server are attempted. If set to 0, the option is disabled."
+              + " This only works with HTTP cache at the moment.")
+  public double remoteMaxFailureRate;
+
+  @Option(
       name = "disk_cache",
       defaultValue = "null",
       documentationCategory = OptionDocumentationCategory.UNCATEGORIZED,
