@@ -272,19 +272,35 @@ public class Retrier {
    * backoff.
    */
   public <T> ListenableFuture<T> executeAsync(AsyncCallable<T> call, Backoff backoff) {
+    State circuitState = circuitBreaker.state();
+    if (circuitState.equals(State.REJECT_CALLS)) {
+      return Futures.immediateFailedFuture(new CircuitBreakerException());
+    }
     try {
-      return Futures.catchingAsync(
+      ListenableFuture<T> future = Futures.transformAsync(
           call.call(),
+          (f) -> {
+            circuitBreaker.recordSuccess();
+            return Futures.immediateFuture(f);
+          },
+          MoreExecutors.directExecutor()
+      );
+      return Futures.catchingAsync(
+          future,
           Exception.class,
-          t -> onExecuteAsyncFailure(t, call, backoff),
+          t -> onExecuteAsyncFailure(t, call, backoff, circuitState),
           MoreExecutors.directExecutor());
     } catch (Exception e) {
-      return onExecuteAsyncFailure(e, call, backoff);
+      return onExecuteAsyncFailure(e, call, backoff, circuitState);
     }
   }
 
   private <T> ListenableFuture<T> onExecuteAsyncFailure(
-      Exception t, AsyncCallable<T> call, Backoff backoff) {
+      Exception t, AsyncCallable<T> call, Backoff backoff, State circuitState) {
+    circuitBreaker.recordFailure();
+    if (circuitState.equals(State.TRIAL_CALL)) {
+      return Futures.immediateFailedFuture(t);
+    }
     if (isRetriable(t)) {
       long waitMillis = backoff.nextDelayMillis(t);
       if (waitMillis >= 0) {
