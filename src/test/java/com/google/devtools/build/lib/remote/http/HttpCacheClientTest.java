@@ -33,9 +33,15 @@ import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.devtools.build.lib.remote.RemoteRetrier;
+import com.google.devtools.build.lib.remote.Retrier.FailureRateCircuitBreaker;
+import com.google.devtools.build.lib.remote.Retrier.CircuitBreakerException;
+import com.google.devtools.build.lib.remote.options.RemoteOptions;
 import com.google.devtools.build.lib.remote.util.DigestUtil;
 import com.google.devtools.build.lib.vfs.DigestHashFunction;
 import com.google.devtools.build.remote.worker.http.HttpCacheServerHandler;
+import com.google.devtools.common.options.Options;
 import com.google.protobuf.ByteString;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
@@ -88,6 +94,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
 import javax.annotation.Nullable;
@@ -256,7 +263,8 @@ public class HttpCacheClientTest {
       ServerChannel serverChannel,
       int timeoutSeconds,
       boolean remoteVerifyDownloads,
-      @Nullable final Credentials creds)
+      @Nullable final Credentials creds,
+      @Nullable RemoteRetrier retrier)
       throws Exception {
     SocketAddress socketAddress = serverChannel.localAddress();
     if (socketAddress instanceof DomainSocketAddress) {
@@ -286,6 +294,14 @@ public class HttpCacheClientTest {
       throw new IllegalStateException(
           "unsupported socket address class " + socketAddress.getClass());
     }
+  }
+
+  private HttpCacheClient createHttpBlobStore(
+      ServerChannel serverChannel,
+      int timeoutSeconds,
+      boolean remoteVerifyDownloads,
+      @Nullable final Credentials creds) throws Exception {
+    return createHttpBlobStore(serverChannel, timeoutSeconds, remoteVerifyDownloads, creds, null);
   }
 
   private HttpCacheClient createHttpBlobStore(
@@ -369,6 +385,163 @@ public class HttpCacheClientTest {
       assertThat(blobStore.findMissingDigests(ImmutableSet.of(zero, a, b)).get())
           .isEqualTo(ImmutableSet.of());
       assertThat(headCounter.get()).isEqualTo(3);
+    } finally {
+      testServer.stop(server);
+    }
+  }
+
+  @Test
+  public void testRetriesDisabled() throws Exception {
+    ServerChannel server = null;
+    try {
+      AtomicInteger hitCounter = new AtomicInteger(0);
+      server =
+          testServer.start(
+              new SimpleChannelInboundHandler<FullHttpRequest>() {
+
+                @Override
+                protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
+                  hitCounter.incrementAndGet();
+
+                  FullHttpResponse response =
+                      new DefaultFullHttpResponse(
+                          HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+                  HttpUtil.setContentLength(response, 0);
+                  ctx.writeAndFlush(response);
+                }
+              });
+
+      HttpCacheClient blobStore =
+          createHttpBlobStore(server, /* timeoutSeconds= */ 1, /* credentials= */ null);
+
+      ByteString data = ByteString.copyFrom("foo bar", StandardCharsets.UTF_8);
+      Digest digest = DIGEST_UTIL.compute(data.toByteArray());
+
+      for (int i = 1; i < 3; i++) {
+        ListenableFuture<Void> future = blobStore.downloadBlob(digest, new ByteArrayOutputStream());
+
+        ExecutionException e = assertThrows(ExecutionException.class, () -> future.get());
+        assertThat(e.getCause()).isInstanceOf(HttpException.class);
+
+        assertThat(hitCounter.get()).isEqualTo(i);
+      }
+    } finally {
+      testServer.stop(server);
+    }
+  }
+
+  @Test
+  public void testRetries() throws Exception {
+    ServerChannel server = null;
+    try {
+      Map<String, Integer> hitCounters = new ConcurrentHashMap<>();
+      server =
+          testServer.start(
+              new SimpleChannelInboundHandler<FullHttpRequest>() {
+
+                @Override
+                protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
+                  Integer current = hitCounters.getOrDefault(request.uri(), 0);
+                  hitCounters.put(request.uri(), current + 1);
+                  FullHttpResponse response;
+
+                  // Return 500 every time the digest is requested for the first time
+                  // to force a retry. Return 200 in any other case
+                  if (current > 0) {
+                    response =
+                        new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+                  } else {
+                    response =
+                        new DefaultFullHttpResponse(
+                            HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+                  }
+                  HttpUtil.setContentLength(response, 0);
+                  ctx.writeAndFlush(response);
+                }
+              });
+
+      HttpCacheClient blobStore =
+          createHttpBlobStore(
+              server,
+              /* timeoutSeconds= */ 1,
+              /* verify download */ false,
+              /* credentials= */ null,
+              HttpCacheClient.newRetrier(Options.getDefaults(RemoteOptions.class)));
+
+      ByteString a = ByteString.copyFrom("a", StandardCharsets.UTF_8);
+      Digest aDigest = DIGEST_UTIL.compute(a.toByteArray());
+      ByteString b = ByteString.copyFrom("b", StandardCharsets.UTF_8);
+      Digest bDigest = DIGEST_UTIL.compute(b.toByteArray());
+      ByteString c = ByteString.copyFrom("c", StandardCharsets.UTF_8);
+      Digest cDigest = DIGEST_UTIL.compute(c.toByteArray());
+
+      blobStore.downloadBlob(aDigest, new ByteArrayOutputStream()).get();
+      blobStore.downloadBlob(bDigest, new ByteArrayOutputStream()).get();
+      blobStore.downloadBlob(cDigest, new ByteArrayOutputStream()).get();
+      blobStore.downloadBlob(cDigest, new ByteArrayOutputStream()).get();
+
+      assertThat(hitCounters.get("/" + HttpCacheClient.CAS_PREFIX + aDigest.getHash()))
+          .isEqualTo(2);
+      assertThat(hitCounters.get("/" + HttpCacheClient.CAS_PREFIX + bDigest.getHash()))
+          .isEqualTo(2);
+      assertThat(hitCounters.get("/" + HttpCacheClient.CAS_PREFIX + cDigest.getHash()))
+          .isEqualTo(3);
+    } finally {
+      testServer.stop(server);
+    }
+  }
+
+  @Test
+  public void testMaxFailureRate() throws Exception {
+    ServerChannel server = null;
+    try {
+      AtomicInteger hitCounter = new AtomicInteger(0);
+      server =
+          testServer.start(
+              new SimpleChannelInboundHandler<FullHttpRequest>() {
+
+                @Override
+                protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
+                  hitCounter.incrementAndGet();
+                  FullHttpResponse response =
+                      new DefaultFullHttpResponse(
+                          HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+                  HttpUtil.setContentLength(response, 0);
+                  ctx.writeAndFlush(response);
+                }
+              });
+
+      RemoteOptions options = Options.getDefaults(RemoteOptions.class);
+      options.remoteMaxFailureRate = 0.2;
+      options.remoteMaxRetryAttempts = 3;
+      FailureRateCircuitBreaker circuitBreaker= new FailureRateCircuitBreaker(
+          /* maxFailureRate */ options.remoteMaxFailureRate,
+          /* minExecutionsToComputeFailureRate */ 5
+      );
+      HttpCacheClient blobStore =
+          createHttpBlobStore(
+              server,
+              /* timeoutSeconds= */ 1,
+              /* verify download */ false,
+              /* credentials= */ null,
+              HttpCacheClient.newRetrier(options, circuitBreaker));
+
+      ByteString data = ByteString.copyFrom("foo", StandardCharsets.UTF_8);
+      Digest digest = DIGEST_UTIL.compute(data.toByteArray());
+
+      ExecutionException e = assertThrows(
+          ExecutionException.class,
+          () -> blobStore.downloadBlob(digest, new ByteArrayOutputStream()).get()
+      );
+      assertThat(e.getCause()).isInstanceOf(HttpException.class);
+
+      e = assertThrows(
+          ExecutionException.class,
+          () -> blobStore.downloadBlob(digest, new ByteArrayOutputStream()).get()
+      );
+      assertThat(e.getCause()).isInstanceOf(CircuitBreakerException.class);
+
+      assertThat(hitCounter.get()).isEqualTo(5);
     } finally {
       testServer.stop(server);
     }
