@@ -23,8 +23,11 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
+import com.google.devtools.build.lib.remote.RemoteRetrier;
+import com.google.devtools.build.lib.remote.Retrier;
 import com.google.devtools.build.lib.remote.common.CacheNotFoundException;
 import com.google.devtools.build.lib.remote.common.RemoteCacheClient;
+import com.google.devtools.build.lib.remote.options.RemoteOptions;
 import com.google.devtools.build.lib.remote.util.DigestUtil;
 import com.google.devtools.build.lib.remote.util.Utils;
 import com.google.devtools.build.lib.vfs.Path;
@@ -77,11 +80,13 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
+import java.nio.channels.ClosedChannelException;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
@@ -90,6 +95,7 @@ import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
 
 /**
  * Implementation of {@link RemoteCacheClient} that can talk to a HTTP/1.1 backend.
@@ -124,6 +130,10 @@ public final class HttpCacheClient implements RemoteCacheClient {
 
   private static Logger logger = Logger.getLogger(HttpCacheClient.class.getName());
 
+  private static Pattern RETRYABLE_ERROR_MESSAGE = Pattern.compile(
+      "^.*(?:(?:connection.*(?:reset|closed|abort|broken)|broken.*pipe)|(?:(?:connection|operation|download|upload|read|write).*time.?\\s?out)).*$",
+      Pattern.CASE_INSENSITIVE);
+
   private final ConcurrentHashMap<String, Boolean> storedBlobs = new ConcurrentHashMap<>();
 
   private final EventLoopGroup eventLoop;
@@ -136,6 +146,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
   private final DigestUtil digestUtil;
 
   private final Object closeLock = new Object();
+  private final RemoteRetrier retrier;
 
   @GuardedBy("closeLock")
   private boolean isClosed;
@@ -155,7 +166,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
       boolean verifyDownloads,
       ImmutableList<Entry<String, String>> extraHttpHeaders,
       DigestUtil digestUtil,
-      @Nullable final Credentials creds)
+      @Nullable final Credentials creds,
+      @Nullable RemoteRetrier retrier)
       throws Exception {
     return new HttpCacheClient(
         NioEventLoopGroup::new,
@@ -167,7 +179,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
         extraHttpHeaders,
         digestUtil,
         creds,
-        null);
+        null,
+        retrier);
   }
 
   public static HttpCacheClient create(
@@ -178,7 +191,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
       boolean verifyDownloads,
       ImmutableList<Entry<String, String>> extraHttpHeaders,
       DigestUtil digestUtil,
-      @Nullable final Credentials creds)
+      @Nullable final Credentials creds,
+      @Nullable RemoteRetrier retrier)
       throws Exception {
 
     if (KQueue.isAvailable()) {
@@ -192,7 +206,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
           extraHttpHeaders,
           digestUtil,
           creds,
-          domainSocketAddress);
+          domainSocketAddress,
+          retrier);
     } else if (Epoll.isAvailable()) {
       return new HttpCacheClient(
           EpollEventLoopGroup::new,
@@ -204,7 +219,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
           extraHttpHeaders,
           digestUtil,
           creds,
-          domainSocketAddress);
+          domainSocketAddress,
+          retrier);
     } else {
       throw new Exception("Unix domain sockets are unsupported on this platform");
     }
@@ -220,7 +236,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
       ImmutableList<Entry<String, String>> extraHttpHeaders,
       DigestUtil digestUtil,
       @Nullable final Credentials creds,
-      @Nullable SocketAddress socketAddress)
+      @Nullable SocketAddress socketAddress,
+      @Nullable RemoteRetrier retrier)
       throws Exception {
     useTls = uri.getScheme().equals("https");
     if (uri.getPort() == -1) {
@@ -288,6 +305,48 @@ public final class HttpCacheClient implements RemoteCacheClient {
     this.extraHttpHeaders = extraHttpHeaders;
     this.verifyDownloads = verifyDownloads;
     this.digestUtil = digestUtil;
+    this.retrier = retrier != null ? retrier : newRetrier(null);
+  }
+
+  public static RemoteRetrier newRetrier(RemoteOptions options) {
+    if (options == null || options.remoteMaxRetryAttempts <= 0) {
+      return new RemoteRetrier(
+          () -> Retrier.RETRIES_DISABLED,
+          (Exception e) -> false,
+          MoreExecutors.listeningDecorator(Executors.newScheduledThreadPool(1)),
+          Retrier.ALLOW_ALL_CALLS);
+    }
+    return new RemoteRetrier(
+        () -> new RemoteRetrier.ExponentialBackoff(options),
+        (Exception e) -> shouldRetry(e),
+        MoreExecutors.listeningDecorator(Executors.newScheduledThreadPool(1)),
+        Retrier.ALLOW_ALL_CALLS);
+  }
+
+  private static boolean shouldRetry(Exception e) {
+    if (e instanceof HttpException) {
+      HttpResponse response = ((HttpException) e).response();
+      if (response.status().equals(HttpResponseStatus.INTERNAL_SERVER_ERROR)
+          || response.status().equals(HttpResponseStatus.BAD_GATEWAY)
+          || response.status().equals(HttpResponseStatus.SERVICE_UNAVAILABLE)) {
+        logger.info(String.format("Retrying: HttpException: %s.", response.status().toString()));
+        return true;
+      }
+    } else if (e instanceof ClosedChannelException
+        || e instanceof SSLException
+        || e instanceof DownloadTimeoutException
+        || e instanceof UploadTimeoutException) {
+      logger.info(String.format("Retrying: %s: %s.", e.getClass().getSimpleName(), e.getMessage()));
+      return true;
+    } else if (e instanceof IOException) {
+      String message = e.getMessage();
+      if (RETRYABLE_ERROR_MESSAGE.asPredicate().test(message)) {
+        logger.info(String.format("Retrying: IOException: %s.", message));
+        return true;
+      }
+    }
+    logger.warning(String.format("Failed: %s: %s.", e.getClass().getSimpleName(), e.getMessage()));
+    return false;
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
@@ -515,7 +574,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
     final HashingOutputStream hashOut =
         verifyDownloads ? digestUtil.newHashingOutputStream(out) : null;
     return Futures.transformAsync(
-        get(digest, hashOut != null ? hashOut : out, /* casDownload= */ true),
+        retrier.executeAsync(
+            () -> get(digest, hashOut != null ? hashOut : out, /* casDownload= */ true)),
         (v) -> {
           try {
             if (hashOut != null) {
@@ -645,11 +705,13 @@ public final class HttpCacheClient implements RemoteCacheClient {
   @Override
   public ListenableFuture<ActionResult> downloadActionResult(ActionKey actionKey) {
     return Utils.downloadAsActionResult(
-        actionKey, (digest, out) -> get(digest, out, /* casDownload= */ false));
+        actionKey, (digest, out) ->
+            retrier.executeAsync(
+                () -> get(digest, out, /* casDownload= */ false)));
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
-  private void uploadBlocking(String key, long length, InputStream in, boolean casUpload)
+  private Void uploadBlocking(String key, long length, InputStream in, boolean casUpload)
       throws IOException, InterruptedException {
     InputStream wrappedIn =
         new FilterInputStream(in) {
@@ -684,7 +746,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
             }
             putAfterCredentialRefresh(upload);
             success = true;
-            return;
+            return null;
           }
         }
         throw e;
@@ -698,12 +760,14 @@ public final class HttpCacheClient implements RemoteCacheClient {
         }
       }
     }
+    return null;
   }
 
   @Override
   public ListenableFuture<Void> uploadFile(Digest digest, Path file) {
     try (InputStream in = file.getInputStream()) {
-      uploadBlocking(digest.getHash(), digest.getSizeBytes(), in, /* casUpload= */ true);
+      retrier.execute(
+          () -> uploadBlocking(digest.getHash(), digest.getSizeBytes(), in, /* casUpload= */ true));
     } catch (IOException | InterruptedException e) {
       return Futures.immediateFailedFuture(e);
     }
@@ -713,7 +777,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
   @Override
   public ListenableFuture<Void> uploadBlob(Digest digest, ByteString data) {
     try (InputStream in = data.newInput()) {
-      uploadBlocking(digest.getHash(), digest.getSizeBytes(), in, /* casUpload= */ true);
+      retrier.execute(
+          () -> uploadBlocking(digest.getHash(), digest.getSizeBytes(), in, /* casUpload= */ true));
     } catch (IOException | InterruptedException e) {
       return Futures.immediateFailedFuture(e);
     }
@@ -764,7 +829,9 @@ public final class HttpCacheClient implements RemoteCacheClient {
   public ListenableFuture<ImmutableSet<Digest>> findMissingDigests(Iterable<Digest> digests) {
     ImmutableList.Builder<ListenableFuture<Digest>> queries = ImmutableList.builder();
     for (Digest digest : digests) {
-      queries.add(findMissingDigest(digest, SettableFuture.create(), true));
+      queries.add(
+          retrier.executeAsync(
+              ()-> findMissingDigest(digest, SettableFuture.create(), true)));
     }
 
     return Futures.transformAsync(
@@ -814,7 +881,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
       throws IOException, InterruptedException {
     ByteString serialized = actionResult.toByteString();
     try (InputStream in = serialized.newInput()) {
-      uploadBlocking(actionKey.getDigest().getHash(), serialized.size(), in, false);
+      retrier.execute(
+          () -> uploadBlocking(actionKey.getDigest().getHash(), serialized.size(), in, false));
     }
   }
 
