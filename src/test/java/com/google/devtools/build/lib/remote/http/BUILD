@@ -20,9 +20,12 @@ java_test(
     ],
     test_class = "com.google.devtools.build.lib.AllTests",
     deps = [
+        "//src/main/java/com/google/devtools/build/lib/remote:Retrier",
         "//src/main/java/com/google/devtools/build/lib/remote/http",
+        "//src/main/java/com/google/devtools/build/lib/remote/options",
         "//src/main/java/com/google/devtools/build/lib/remote/util",
         "//src/main/java/com/google/devtools/build/lib/vfs",
+        "//src/main/java/com/google/devtools/common/options:options_internal",
         "//src/test/java/com/google/devtools/build/lib:test_runner",
         "//src/test/java/com/google/devtools/build/lib/testutil",
         "//src/test/java/com/google/devtools/build/lib/testutil:JunitUtils",
