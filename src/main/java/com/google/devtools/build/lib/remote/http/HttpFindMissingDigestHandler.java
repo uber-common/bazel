@@ -116,7 +116,7 @@ final class HttpFindMissingDigestHandler extends AbstractHttpHandler<HttpRespons
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
-  provate void succeedAndResetUserPromise() {
+  private void succeedAndResetUserPromise() {
     userPromise.setSuccess();
     userPromise = null;
   }

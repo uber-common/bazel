@@ -353,14 +353,19 @@ public class HttpCacheClientTest {
                   }
                 }
               });
-      HttpCacheClient blobStore = createHttpBlobStore(server, 1, false, null);
+      HttpCacheClient blobStore =
+          createHttpBlobStore(
+              server,
+              /* timeoutSeconds= */ 1,
+              /* verify downloads */ false,
+              /* credentials= */ null);
 
       blobStore.downloadBlob(a, new ByteArrayOutputStream()).get();
       assertThat(blobStore.findMissingDigests(ImmutableSet.of(zero, a, c)).get())
           .isEqualTo(ImmutableSet.of(c));
       assertThat(headCounter.get()).isEqualTo(2);
 
-      blobStore.uploadBlob(c, ByteString.copyFrom(c.toByteArray()));
+      blobStore.uploadBlob(c, ByteString.copyFrom(new byte[] {'c', 'c', 'c'}));
       assertThat(blobStore.findMissingDigests(ImmutableSet.of(zero, a, b)).get())
           .isEqualTo(ImmutableSet.of());
       assertThat(headCounter.get()).isEqualTo(3);
