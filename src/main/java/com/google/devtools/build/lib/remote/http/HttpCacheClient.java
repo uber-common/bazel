@@ -26,6 +26,7 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.google.devtools.build.lib.remote.RemoteRetrier;
 import com.google.devtools.build.lib.remote.Retrier;
 import com.google.devtools.build.lib.remote.Retrier.CircuitBreaker;
+import com.google.devtools.build.lib.remote.Retrier.FailureRateCircuitBreaker;
 import com.google.devtools.build.lib.remote.common.CacheNotFoundException;
 import com.google.devtools.build.lib.remote.common.RemoteCacheClient;
 import com.google.devtools.build.lib.remote.options.RemoteOptions;
@@ -308,7 +309,10 @@ public final class HttpCacheClient implements RemoteCacheClient {
   public static RemoteRetrier newRetrier(RemoteOptions options) {
     CircuitBreaker circuitBreaker =
         options != null && options.remoteMaxFailureRate > 0
-            ? new Retrier.FailureRateCircuitBreaker(options.remoteMaxFailureRate)
+            ? new FailureRateCircuitBreaker(
+                options.remoteMaxFailureRate,
+                ImmutableList.of(CacheNotFoundException.class)
+            )
             : Retrier.ALLOW_ALL_CALLS;
     return newRetrier(options, circuitBreaker);
   }
@@ -329,7 +333,10 @@ public final class HttpCacheClient implements RemoteCacheClient {
   }
 
   private static boolean shouldRetry(Exception e) {
-    if (e instanceof HttpException) {
+    if (e instanceof CacheNotFoundException) {
+      return false;
+    }
+    else if (e instanceof HttpException) {
       HttpResponse response = ((HttpException) e).response();
       if (response.status().equals(HttpResponseStatus.INTERNAL_SERVER_ERROR)
           || response.status().equals(HttpResponseStatus.BAD_GATEWAY)
