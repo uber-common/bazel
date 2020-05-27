@@ -81,6 +81,7 @@ public class RetrierTest {
     Supplier<Backoff> s  = () -> new ZeroBackoff(/*maxRetries=*/2);
     Retrier r = new Retrier(s, RETRY_ALL, retryService, alwaysOpen);
     AtomicInteger numCalls = new AtomicInteger();
+    Exception t = new Exception("call failed");
     Exception e =
         assertThrows(
             Exception.class,
@@ -88,12 +89,12 @@ public class RetrierTest {
                 r.execute(
                     () -> {
                       numCalls.incrementAndGet();
-                      throw new Exception("call failed");
+                      throw t;
                     }));
     assertThat(e).hasMessageThat().isEqualTo("call failed");
 
     assertThat(numCalls.get()).isEqualTo(3);
-    verify(alwaysOpen, times(3)).recordFailure();
+    verify(alwaysOpen, times(3)).recordFailure(t);
     verify(alwaysOpen, never()).recordSuccess();
   }
 
@@ -117,7 +118,7 @@ public class RetrierTest {
     assertThat(e).hasMessageThat().isEqualTo("call failed");
 
     assertThat(numCalls.get()).isEqualTo(1);
-    verify(alwaysOpen, times(1)).recordFailure();
+    verify(alwaysOpen, times(1)).recordFailure(e);
     verify(alwaysOpen, never()).recordSuccess();
   }
 
@@ -129,16 +130,17 @@ public class RetrierTest {
     Supplier<Backoff> s  = () -> new ZeroBackoff(/*maxRetries=*/2);
     Retrier r = new Retrier(s, RETRY_ALL, retryService, alwaysOpen);
     AtomicInteger numCalls = new AtomicInteger();
+    Exception e = new Exception("call failed");
     int val = r.execute(() -> {
       numCalls.incrementAndGet();
       if (numCalls.get() == 3) {
         return 1;
       }
-      throw new Exception("call failed");
+      throw e;
     });
     assertThat(val).isEqualTo(1);
 
-    verify(alwaysOpen, times(2)).recordFailure();
+    verify(alwaysOpen, times(2)).recordFailure(e);
     verify(alwaysOpen, times(1)).recordSuccess();
   }
 
@@ -350,7 +352,7 @@ public class RetrierTest {
     }
 
     @Override
-    public synchronized void recordFailure() {
+    public synchronized void recordFailure(Throwable t) {
       consecutiveFailures++;
       if (consecutiveFailures >= maxConsecutiveFailures) {
         state = State.REJECT_CALLS;
