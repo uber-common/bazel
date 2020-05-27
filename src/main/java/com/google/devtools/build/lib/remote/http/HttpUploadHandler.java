@@ -33,8 +33,14 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.stream.ChunkedStream;
 import io.netty.handler.timeout.WriteTimeoutException;
 import io.netty.util.internal.StringUtil;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map.Entry;
+import java.util.zip.Deflater;
+import java.util.zip.DeflaterInputStream;
 
 /** ChannelHandler for uploads. */
 final class HttpUploadHandler extends AbstractHttpHandler<FullHttpResponse> {
@@ -93,12 +99,11 @@ final class HttpUploadHandler extends AbstractHttpHandler<FullHttpResponse> {
     }
     UploadCommand cmd = (UploadCommand) msg;
     path = constructPath(cmd.uri(), cmd.hash(), cmd.casUpload());
-    contentLength = cmd.contentLength();
+    HttpChunkedInput body = buildBody(cmd);
     HttpRequest request = buildRequest(path, constructHost(cmd.uri()), contentLength);
     addCredentialHeaders(request, cmd.uri());
     addExtraRemoteHeaders(request);
     addUserAgentHeader(request);
-    HttpChunkedInput body = buildBody(cmd);
     ctx.writeAndFlush(request)
         .addListener(
             (f) -> {
@@ -138,8 +143,41 @@ final class HttpUploadHandler extends AbstractHttpHandler<FullHttpResponse> {
     return request;
   }
 
-  private HttpChunkedInput buildBody(UploadCommand msg) {
-    return new HttpChunkedInput(new ChunkedStream(msg.data()));
+  private HttpChunkedInput buildBody(UploadCommand msg) throws IOException {
+    if (msg.casUpload()) {
+      // we first have to compress to a byte buffer
+      // as we need to know the content length for the header
+      InputStream data = msg.data();
+      Deflater deflater = new Deflater();
+      ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+      final int bufferSize = 65536;
+      byte[] inBuffer = new byte[bufferSize];
+      int chunkLength = 0;
+      byte[] outBuffer = new byte[bufferSize];
+      while ((chunkLength = data.read(inBuffer)) != -1) {
+        deflater.setInput(inBuffer, 0, chunkLength);
+        while (!deflater.needsInput()) {
+          chunkLength = deflater.deflate(outBuffer);
+          if (chunkLength > 0) {
+            outputStream.write(outBuffer, 0, chunkLength);
+          }
+        }
+      }
+      deflater.finish();
+      while (!deflater.finished()) {
+        chunkLength = deflater.deflate(outBuffer);
+        if (chunkLength > 0) {
+          outputStream.write(outBuffer, 0, chunkLength);
+        }
+      }
+      contentLength = outputStream.size();
+      InputStream compressedInput = new ByteArrayInputStream(outputStream.toByteArray());
+      return new HttpChunkedInput(new ChunkedStream(compressedInput));
+    } else {
+      contentLength = msg.contentLength();
+      return new HttpChunkedInput(new ChunkedStream(msg.data()));
+    }
+
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
