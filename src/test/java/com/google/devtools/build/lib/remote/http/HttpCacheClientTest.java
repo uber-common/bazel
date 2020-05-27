@@ -37,6 +37,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.devtools.build.lib.remote.RemoteRetrier;
 import com.google.devtools.build.lib.remote.Retrier.FailureRateCircuitBreaker;
 import com.google.devtools.build.lib.remote.Retrier.CircuitBreakerException;
+import com.google.devtools.build.lib.remote.common.CacheNotFoundException;
 import com.google.devtools.build.lib.remote.options.RemoteOptions;
 import com.google.devtools.build.lib.remote.util.DigestUtil;
 import com.google.devtools.build.lib.testutil.MoreAsserts.ThrowingRunnable;
@@ -499,16 +500,20 @@ public class HttpCacheClientTest {
     ServerChannel server = null;
     try {
       AtomicInteger hitCounter = new AtomicInteger(0);
+      HttpResponseStatus status = HttpResponseStatus.NOT_FOUND;
       server =
           testServer.start(
               new SimpleChannelInboundHandler<FullHttpRequest>() {
 
                 @Override
                 protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
-                  hitCounter.incrementAndGet();
+                  int count = hitCounter.incrementAndGet();
                   FullHttpResponse response =
                       new DefaultFullHttpResponse(
-                          HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+                          HttpVersion.HTTP_1_1,
+                          count > 1 ?
+                              HttpResponseStatus.INTERNAL_SERVER_ERROR :
+                              HttpResponseStatus.NOT_FOUND);
                   HttpUtil.setContentLength(response, 0);
                   ctx.writeAndFlush(response);
                 }
@@ -519,7 +524,8 @@ public class HttpCacheClientTest {
       options.remoteMaxRetryAttempts = 3;
       FailureRateCircuitBreaker circuitBreaker= new FailureRateCircuitBreaker(
           /* maxFailureRate */ options.remoteMaxFailureRate,
-          /* minExecutionsToComputeFailureRate */ 5
+          /* minExecutionsToComputeFailureRate */ 5,
+          ImmutableList.of(CacheNotFoundException.class)
       );
       HttpCacheClient blobStore =
           createHttpBlobStore(
@@ -536,6 +542,13 @@ public class HttpCacheClientTest {
           ExecutionException.class,
           () -> blobStore.downloadBlob(digest, new ByteArrayOutputStream()).get()
       );
+      assertThat(e.getCause()).isInstanceOf(CacheNotFoundException.class);
+      assertThat(hitCounter.get()).isEqualTo(1);
+
+      e = assertThrows(
+          ExecutionException.class,
+          () -> blobStore.downloadBlob(digest, new ByteArrayOutputStream()).get()
+      );
       assertThat(e.getCause()).isInstanceOf(HttpException.class);
 
       e = assertThrows(
@@ -544,7 +557,7 @@ public class HttpCacheClientTest {
       );
       assertThat(e.getCause()).isInstanceOf(CircuitBreakerException.class);
 
-      assertThat(hitCounter.get()).isEqualTo(5);
+      assertThat(hitCounter.get()).isEqualTo(6);
     } finally {
       testServer.stop(server);
     }
