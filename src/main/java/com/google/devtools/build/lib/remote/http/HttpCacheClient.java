@@ -71,7 +71,9 @@ import io.netty.handler.timeout.WriteTimeoutException;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
 import io.netty.util.internal.PlatformDependent;
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -91,6 +93,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
+import java.util.zip.DeflaterOutputStream;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.net.ssl.SSLEngine;
@@ -736,8 +739,20 @@ public final class HttpCacheClient implements RemoteCacheClient {
     UploadCommand upload = new UploadCommand(uri, casUpload, key, wrappedIn, length);
     Channel ch = null;
     boolean success = false;
+    File compressedUpload = null;
     if (storedBlobs.putIfAbsent((casUpload ? CAS_PREFIX : AC_PREFIX) + key, true) == null) {
       try {
+        if (casUpload) {
+          // first compress to a temporary file before creating an upload channel
+          compressedUpload = createCompressedUpload(key, in);
+          in.close();
+          in = new FileInputStream(compressedUpload);
+          InputStream wrappedCompressedIn = new FilterInputStream(in) {
+            @Override
+            public void close() {}
+          };
+          upload = new UploadCommand(uri, true, key, wrappedCompressedIn, compressedUpload.length());
+        }
         ch = acquireUploadChannel();
         ChannelFuture uploadFuture = ch.writeAndFlush(upload);
         uploadFuture.sync();
@@ -766,12 +781,27 @@ public final class HttpCacheClient implements RemoteCacheClient {
           storedBlobs.remove(key);
         }
         in.close();
+        if (compressedUpload != null) {
+          compressedUpload.delete();
+        }
         if (ch != null) {
           releaseUploadChannel(ch);
         }
       }
     }
     return null;
+  }
+
+  private File createCompressedUpload(String name, InputStream input) throws IOException {
+    File compressedOutput = File.createTempFile(name, ".gz");
+    compressedOutput.deleteOnExit();
+    OutputStream out = new DeflaterOutputStream(new FileOutputStream(compressedOutput));
+    byte[] buffer = new byte[131072];
+    int len;
+    while ((len = input.read(buffer)) > 0) {
+      out.write(buffer, 0, len);
+    }
+    return compressedOutput;
   }
 
   @Override
