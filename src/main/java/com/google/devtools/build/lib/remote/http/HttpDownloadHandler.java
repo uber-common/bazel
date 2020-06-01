@@ -58,10 +58,14 @@ final class HttpDownloadHandler extends AbstractHttpHandler<HttpObject> {
   private long contentLength = -1;
   /** the path header in the http request */
   private String path;
+  private final boolean decompressDownloads;
 
   public HttpDownloadHandler(
-      Credentials credentials, ImmutableList<Entry<String, String>> extraHttpHeaders) {
+      Credentials credentials,
+      ImmutableList<Entry<String, String>> extraHttpHeaders,
+      boolean decompressDownloads) {
     super(credentials, extraHttpHeaders);
+    this.decompressDownloads = decompressDownloads;
   }
 
   @Override
@@ -152,7 +156,7 @@ final class HttpDownloadHandler extends AbstractHttpHandler<HttpObject> {
       return;
     }
     DownloadCommand cmd = (DownloadCommand) msg;
-    if (cmd.casDownload()) {
+    if (cmd.casDownload() && this.decompressDownloads) {
       rawOut = cmd.out();
       out = new InflaterOutputStream(rawOut);
     } else {

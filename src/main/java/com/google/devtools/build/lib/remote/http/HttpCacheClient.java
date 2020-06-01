@@ -145,6 +145,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
   private final ImmutableList<Entry<String, String>> extraHttpHeaders;
   private final boolean useTls;
   private final boolean verifyDownloads;
+  private final boolean compressCasUploads;
   private final DigestUtil digestUtil;
 
   private final Object closeLock = new Object();
@@ -166,6 +167,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
       int timeoutSeconds,
       int remoteMaxConnections,
       boolean verifyDownloads,
+      boolean compressCasUploads,
       ImmutableList<Entry<String, String>> extraHttpHeaders,
       DigestUtil digestUtil,
       @Nullable final Credentials creds,
@@ -178,6 +180,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
         timeoutSeconds,
         remoteMaxConnections,
         verifyDownloads,
+        compressCasUploads,
         extraHttpHeaders,
         digestUtil,
         creds,
@@ -191,6 +194,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
       int timeoutSeconds,
       int remoteMaxConnections,
       boolean verifyDownloads,
+      boolean compressCasUploads,
       ImmutableList<Entry<String, String>> extraHttpHeaders,
       DigestUtil digestUtil,
       @Nullable final Credentials creds,
@@ -205,6 +209,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
           timeoutSeconds,
           remoteMaxConnections,
           verifyDownloads,
+          compressCasUploads,
           extraHttpHeaders,
           digestUtil,
           creds,
@@ -218,6 +223,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
           timeoutSeconds,
           remoteMaxConnections,
           verifyDownloads,
+          compressCasUploads,
           extraHttpHeaders,
           digestUtil,
           creds,
@@ -235,6 +241,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
       int timeoutSeconds,
       int remoteMaxConnections,
       boolean verifyDownloads,
+      boolean compressCasUploads,
       ImmutableList<Entry<String, String>> extraHttpHeaders,
       DigestUtil digestUtil,
       @Nullable final Credentials creds,
@@ -305,6 +312,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
     this.timeoutSeconds = timeoutSeconds;
     this.extraHttpHeaders = extraHttpHeaders;
     this.verifyDownloads = verifyDownloads;
+    this.compressCasUploads = compressCasUploads;
     this.digestUtil = digestUtil;
     this.retrier = retrier != null ? retrier : newRetrier(null);
   }
@@ -535,7 +543,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
                     new IdleTimeoutHandler(timeoutSeconds, ReadTimeoutException.INSTANCE));
                 p.addLast(new HttpClientCodec());
                 synchronized (credentialsLock) {
-                  p.addLast(new HttpDownloadHandler(creds, extraHttpHeaders));
+                  p.addLast(new HttpDownloadHandler(creds, extraHttpHeaders, compressCasUploads));
                 }
 
                 if (!ch.eventLoop().inEventLoop()) {
@@ -742,7 +750,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
     File compressedUpload = null;
     if (storedBlobs.putIfAbsent((casUpload ? CAS_PREFIX : AC_PREFIX) + key, true) == null) {
       try {
-        if (casUpload) {
+        if (casUpload && this.compressCasUploads) {
           // first compress to a temporary file before creating an upload channel
           compressedUpload = createCompressedUpload(key, in);
           in.close();
