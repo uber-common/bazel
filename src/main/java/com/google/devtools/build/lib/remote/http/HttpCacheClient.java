@@ -735,32 +735,32 @@ public final class HttpCacheClient implements RemoteCacheClient {
   @SuppressWarnings("FutureReturnValueIgnored")
   private Void uploadBlocking(String key, long length, InputStream in, boolean casUpload)
       throws IOException, InterruptedException {
-    InputStream wrappedIn =
-        new FilterInputStream(in) {
-          @Override
-          public void close() {
-            // Ensure that the InputStream can't be closed somewhere in the Netty
-            // pipeline, so that we can support retries. The InputStream is closed in
-            // the finally block below.
-          }
-        };
-    UploadCommand upload = new UploadCommand(uri, casUpload, key, wrappedIn, length);
-    Channel ch = null;
-    boolean success = false;
-    File compressedUpload = null;
     if (storedBlobs.putIfAbsent((casUpload ? CAS_PREFIX : AC_PREFIX) + key, true) == null) {
+      InputStream input = in;
+      long inputLength = length;
+      Channel ch = null;
+      boolean success = false;
+      File compressedUpload = null;
+      UploadCommand upload = null;
       try {
         if (casUpload && this.compressCasUploads) {
           // first compress to a temporary file before creating an upload channel
           compressedUpload = createCompressedUpload(key, in);
           in.close();
-          in = new FileInputStream(compressedUpload);
-          InputStream wrappedCompressedIn = new FilterInputStream(in) {
-            @Override
-            public void close() {}
-          };
-          upload = new UploadCommand(uri, true, key, wrappedCompressedIn, compressedUpload.length());
+          input = new FileInputStream(compressedUpload);
+          inputLength = compressedUpload.length();
         }
+
+        InputStream wrappedIn =
+                new FilterInputStream(input) {
+                  @Override
+                  public void close() {
+                    // Ensure that the InputStream can't be closed somewhere in the Netty
+                    // pipeline, so that we can support retries. The InputStream is closed in
+                    // the finally block below.
+                  }
+                };
+        upload = new UploadCommand(uri, casUpload, key, wrappedIn, inputLength);
         ch = acquireUploadChannel();
         ChannelFuture uploadFuture = ch.writeAndFlush(upload);
         uploadFuture.sync();
@@ -773,7 +773,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
           if (authTokenExpired(response)) {
             refreshCredentials();
             // The error is due to an auth token having expired. Let's try again.
-            if (!reset(in)) {
+            if (!reset(input)) {
               // The InputStream can't be reset and thus we can't retry as most likely
               // bytes have already been read from the InputStream.
               throw e;
@@ -788,7 +788,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
         if (!success) {
           storedBlobs.remove(key);
         }
-        in.close();
+        input.close();
         if (compressedUpload != null) {
           compressedUpload.delete();
         }
