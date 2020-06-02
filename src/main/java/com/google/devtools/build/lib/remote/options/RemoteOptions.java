@@ -447,7 +447,7 @@ public final class RemoteOptions extends OptionsBase {
       documentationCategory = OptionDocumentationCategory.REMOTE,
       effectTags = {OptionEffectTag.EXECUTION},
       help = "If set to true, Bazel will compress CAS blobs before upload and "
-        + "try to decompress them on download.")
+        + "decompress them on download if using an HTTP cache.")
   public boolean remoteCompressCasUploads;
 
   // The below options are not configurable by users, only tests.
