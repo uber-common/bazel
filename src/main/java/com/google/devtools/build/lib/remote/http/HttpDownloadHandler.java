@@ -38,18 +38,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Map.Entry;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.zip.InflaterOutputStream;
-import java.util.zip.ZipException;
 
 /** ChannelHandler for downloads. */
 final class HttpDownloadHandler extends AbstractHttpHandler<HttpObject> {
 
-  private static final Logger logger = Logger.getLogger(HttpDownloadHandler.class.getName());
-
   private OutputStream out;
-  private OutputStream rawOut;
   private boolean keepAlive = HttpVersion.HTTP_1_1.isKeepAliveDefault();
   private boolean downloadSucceeded;
   private HttpResponse response;
@@ -58,14 +51,10 @@ final class HttpDownloadHandler extends AbstractHttpHandler<HttpObject> {
   private long contentLength = -1;
   /** the path header in the http request */
   private String path;
-  private final boolean decompressDownloads;
 
   public HttpDownloadHandler(
-      Credentials credentials,
-      ImmutableList<Entry<String, String>> extraHttpHeaders,
-      boolean decompressDownloads) {
+      Credentials credentials, ImmutableList<Entry<String, String>> extraHttpHeaders) {
     super(credentials, extraHttpHeaders);
-    this.decompressDownloads = decompressDownloads;
   }
 
   @Override
@@ -116,18 +105,8 @@ final class HttpDownloadHandler extends AbstractHttpHandler<HttpObject> {
 
       ByteBuf content = ((HttpContent) msg).content();
       int readableBytes = content.readableBytes();
-      int readerIndex = content.readerIndex();
-      try {
-        content.readBytes(out, readableBytes);
-      } catch (ZipException ex) {
-        // not a compressed response, fall back to uncompressed
-        logger.log(Level.WARNING, "Decompression failed: " + ex.toString());
-        content.readerIndex(readerIndex);
-        out = rawOut;
-        content.readBytes(out, readableBytes);
-      }
+      content.readBytes(out, readableBytes);
       bytesReceived += readableBytes;
-
       if (msg instanceof LastHttpContent) {
         if (downloadSucceeded) {
           succeedAndReset(ctx);
@@ -156,12 +135,7 @@ final class HttpDownloadHandler extends AbstractHttpHandler<HttpObject> {
       return;
     }
     DownloadCommand cmd = (DownloadCommand) msg;
-    if (cmd.casDownload() && this.decompressDownloads) {
-      rawOut = cmd.out();
-      out = new InflaterOutputStream(rawOut);
-    } else {
-      out = cmd.out();
-    }
+    out = cmd.out();
     path = constructPath(cmd.uri(), cmd.digest().getHash(), cmd.casDownload());
     HttpRequest request = buildRequest(path, constructHost(cmd.uri()));
     addCredentialHeaders(request, cmd.uri());
@@ -227,7 +201,6 @@ final class HttpDownloadHandler extends AbstractHttpHandler<HttpObject> {
       }
     } finally {
       out = null;
-      rawOut = null;
       keepAlive = HttpVersion.HTTP_1_1.isKeepAliveDefault();
       downloadSucceeded = false;
       response = null;

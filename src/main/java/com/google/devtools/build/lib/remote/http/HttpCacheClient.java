@@ -94,6 +94,7 @@ import java.util.function.Function;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import java.util.zip.DeflaterOutputStream;
+import java.util.zip.InflaterOutputStream;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.net.ssl.SSLEngine;
@@ -543,7 +544,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
                     new IdleTimeoutHandler(timeoutSeconds, ReadTimeoutException.INSTANCE));
                 p.addLast(new HttpClientCodec());
                 synchronized (credentialsLock) {
-                  p.addLast(new HttpDownloadHandler(creds, extraHttpHeaders, compressCasUploads));
+                  p.addLast(new HttpDownloadHandler(creds, extraHttpHeaders));
                 }
 
                 if (!ch.eventLoop().inEventLoop()) {
@@ -614,6 +615,13 @@ public final class HttpCacheClient implements RemoteCacheClient {
 
   @SuppressWarnings("FutureReturnValueIgnored")
   private ListenableFuture<Void> get(Digest digest, final OutputStream out, boolean casDownload) {
+    final OutputStream outputStream;
+    if (casDownload && this.compressCasUploads) {
+      outputStream = new InflaterOutputStream(out);
+    } else {
+      outputStream = out;
+    }
+
     final AtomicBoolean dataWritten = new AtomicBoolean();
     OutputStream wrappedOut =
         new OutputStream() {
@@ -624,18 +632,18 @@ public final class HttpCacheClient implements RemoteCacheClient {
           @Override
           public void write(byte[] b, int offset, int length) throws IOException {
             dataWritten.set(true);
-            out.write(b, offset, length);
+            outputStream.write(b, offset, length);
           }
 
           @Override
           public void write(int b) throws IOException {
             dataWritten.set(true);
-            out.write(b);
+            outputStream.write(b);
           }
 
           @Override
           public void flush() throws IOException {
-            out.flush();
+            outputStream.flush();
           }
         };
     DownloadCommand downloadCmd = new DownloadCommand(uri, casDownload, digest, wrappedOut);
