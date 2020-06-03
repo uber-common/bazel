@@ -71,7 +71,9 @@ import io.netty.handler.timeout.WriteTimeoutException;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
 import io.netty.util.internal.PlatformDependent;
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -91,6 +93,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
+import java.util.zip.DeflaterOutputStream;
+import java.util.zip.InflaterOutputStream;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.net.ssl.SSLEngine;
@@ -142,6 +146,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
   private final ImmutableList<Entry<String, String>> extraHttpHeaders;
   private final boolean useTls;
   private final boolean verifyDownloads;
+  private final boolean compressCasUploads;
   private final DigestUtil digestUtil;
 
   private final Object closeLock = new Object();
@@ -163,6 +168,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
       int timeoutSeconds,
       int remoteMaxConnections,
       boolean verifyDownloads,
+      boolean compressCasUploads,
       ImmutableList<Entry<String, String>> extraHttpHeaders,
       DigestUtil digestUtil,
       @Nullable final Credentials creds,
@@ -175,6 +181,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
         timeoutSeconds,
         remoteMaxConnections,
         verifyDownloads,
+        compressCasUploads,
         extraHttpHeaders,
         digestUtil,
         creds,
@@ -188,6 +195,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
       int timeoutSeconds,
       int remoteMaxConnections,
       boolean verifyDownloads,
+      boolean compressCasUploads,
       ImmutableList<Entry<String, String>> extraHttpHeaders,
       DigestUtil digestUtil,
       @Nullable final Credentials creds,
@@ -202,6 +210,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
           timeoutSeconds,
           remoteMaxConnections,
           verifyDownloads,
+          compressCasUploads,
           extraHttpHeaders,
           digestUtil,
           creds,
@@ -215,6 +224,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
           timeoutSeconds,
           remoteMaxConnections,
           verifyDownloads,
+          compressCasUploads,
           extraHttpHeaders,
           digestUtil,
           creds,
@@ -232,6 +242,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
       int timeoutSeconds,
       int remoteMaxConnections,
       boolean verifyDownloads,
+      boolean compressCasUploads,
       ImmutableList<Entry<String, String>> extraHttpHeaders,
       DigestUtil digestUtil,
       @Nullable final Credentials creds,
@@ -302,6 +313,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
     this.timeoutSeconds = timeoutSeconds;
     this.extraHttpHeaders = extraHttpHeaders;
     this.verifyDownloads = verifyDownloads;
+    this.compressCasUploads = compressCasUploads;
     this.digestUtil = digestUtil;
     this.retrier = retrier != null ? retrier : newRetrier(null);
   }
@@ -603,6 +615,13 @@ public final class HttpCacheClient implements RemoteCacheClient {
 
   @SuppressWarnings("FutureReturnValueIgnored")
   private ListenableFuture<Void> get(Digest digest, final OutputStream out, boolean casDownload) {
+    final OutputStream outputStream;
+    if (casDownload && this.compressCasUploads) {
+      outputStream = new InflaterOutputStream(out);
+    } else {
+      outputStream = out;
+    }
+
     final AtomicBoolean dataWritten = new AtomicBoolean();
     OutputStream wrappedOut =
         new OutputStream() {
@@ -613,18 +632,18 @@ public final class HttpCacheClient implements RemoteCacheClient {
           @Override
           public void write(byte[] b, int offset, int length) throws IOException {
             dataWritten.set(true);
-            out.write(b, offset, length);
+            outputStream.write(b, offset, length);
           }
 
           @Override
           public void write(int b) throws IOException {
             dataWritten.set(true);
-            out.write(b);
+            outputStream.write(b);
           }
 
           @Override
           public void flush() throws IOException {
-            out.flush();
+            outputStream.flush();
           }
         };
     DownloadCommand downloadCmd = new DownloadCommand(uri, casDownload, digest, wrappedOut);
@@ -724,20 +743,32 @@ public final class HttpCacheClient implements RemoteCacheClient {
   @SuppressWarnings("FutureReturnValueIgnored")
   private Void uploadBlocking(String key, long length, InputStream in, boolean casUpload)
       throws IOException, InterruptedException {
-    InputStream wrappedIn =
-        new FilterInputStream(in) {
-          @Override
-          public void close() {
-            // Ensure that the InputStream can't be closed somewhere in the Netty
-            // pipeline, so that we can support retries. The InputStream is closed in
-            // the finally block below.
-          }
-        };
-    UploadCommand upload = new UploadCommand(uri, casUpload, key, wrappedIn, length);
-    Channel ch = null;
-    boolean success = false;
     if (storedBlobs.putIfAbsent((casUpload ? CAS_PREFIX : AC_PREFIX) + key, true) == null) {
+      InputStream input = in;
+      long inputLength = length;
+      Channel ch = null;
+      boolean success = false;
+      File compressedUpload = null;
+      UploadCommand upload = null;
       try {
+        if (casUpload && this.compressCasUploads) {
+          // first compress to a temporary file before creating an upload channel
+          compressedUpload = createCompressedUpload(key, in);
+          in.close();
+          input = new FileInputStream(compressedUpload);
+          inputLength = compressedUpload.length();
+        }
+
+        InputStream wrappedIn =
+                new FilterInputStream(input) {
+                  @Override
+                  public void close() {
+                    // Ensure that the InputStream can't be closed somewhere in the Netty
+                    // pipeline, so that we can support retries. The InputStream is closed in
+                    // the finally block below.
+                  }
+                };
+        upload = new UploadCommand(uri, casUpload, key, wrappedIn, inputLength);
         ch = acquireUploadChannel();
         ChannelFuture uploadFuture = ch.writeAndFlush(upload);
         uploadFuture.sync();
@@ -750,7 +781,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
           if (authTokenExpired(response)) {
             refreshCredentials();
             // The error is due to an auth token having expired. Let's try again.
-            if (!reset(in)) {
+            if (!reset(input)) {
               // The InputStream can't be reset and thus we can't retry as most likely
               // bytes have already been read from the InputStream.
               throw e;
@@ -765,13 +796,29 @@ public final class HttpCacheClient implements RemoteCacheClient {
         if (!success) {
           storedBlobs.remove(key);
         }
-        in.close();
+        input.close();
+        if (compressedUpload != null) {
+          compressedUpload.delete();
+        }
         if (ch != null) {
           releaseUploadChannel(ch);
         }
       }
     }
     return null;
+  }
+
+  private File createCompressedUpload(String name, InputStream input) throws IOException {
+    File compressedOutput = File.createTempFile(name, ".gz");
+    compressedOutput.deleteOnExit();
+    OutputStream out = new DeflaterOutputStream(new FileOutputStream(compressedOutput));
+    byte[] buffer = new byte[131072];
+    int len;
+    while ((len = input.read(buffer)) > 0) {
+      out.write(buffer, 0, len);
+    }
+    out.close();
+    return compressedOutput;
   }
 
   @Override
