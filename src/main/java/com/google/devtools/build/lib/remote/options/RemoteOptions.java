@@ -494,6 +494,15 @@ public final class RemoteOptions extends OptionsBase {
               + "that loads objects from the CAS on demand.")
   public String remoteDownloadSymlinkTemplate;
 
+  @Option(
+      name = "remote_compress_cas_uploads",
+      defaultValue =  "false",
+      documentationCategory = OptionDocumentationCategory.REMOTE,
+      effectTags = {OptionEffectTag.EXECUTION},
+      help = "If set to true, Bazel will compress CAS blobs before upload and "
+        + "decompress them on download if using an HTTP cache.")
+  public boolean remoteCompressCasUploads;
+
   // The below options are not configurable by users, only tests.
   // This is part of the effort to reduce the overall number of flags.
 
