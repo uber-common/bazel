@@ -524,6 +524,7 @@ public class HttpCacheClientTest {
       FailureRateCircuitBreaker circuitBreaker= new FailureRateCircuitBreaker(
           /* maxFailureRate */ options.remoteMaxFailureRate,
           /* minExecutionsToComputeFailureRate */ 5,
+          /* failureRateTimeWindowSize */ 0,
           ImmutableList.of(CacheNotFoundException.class)
       );
       HttpCacheClient blobStore =

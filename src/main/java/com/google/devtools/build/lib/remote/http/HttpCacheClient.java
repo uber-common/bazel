@@ -311,6 +311,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
         options != null && options.remoteMaxFailureRate > 0
             ? new FailureRateCircuitBreaker(
                 options.remoteMaxFailureRate,
+                FailureRateCircuitBreaker.DEFAULT_MIN_EXECUTIONS_TO_COMPUTE_FAILURE_RATE,
+                options.remoteFailureRateTimeWindowSize,
                 ImmutableList.of(CacheNotFoundException.class)
             )
             : Retrier.ALLOW_ALL_CALLS;
