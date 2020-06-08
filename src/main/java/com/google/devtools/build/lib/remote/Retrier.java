@@ -25,11 +25,14 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.devtools.build.lib.remote.Retrier.CircuitBreaker.State;
 import java.io.IOException;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.logging.Logger;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -141,9 +144,9 @@ public class Retrier {
 
   public static class FailureRateCircuitBreaker implements CircuitBreaker {
 
-    // 100 arbitrarily chosen as a fair balance between giving up
-    // too quickly vs trying too much and giving up too late.
-    public static final int DEFAULT_MIN_EXECUTIONS_TO_COMPUTE_FAILURE_RATE = 100;
+    private static Logger logger = Logger.getLogger(FailureRateCircuitBreaker.class.getName());
+
+    public static final int DEFAULT_MIN_EXECUTIONS_TO_COMPUTE_FAILURE_RATE = 10;
 
     private State state;
     private final AtomicInteger failures;
@@ -151,18 +154,14 @@ public class Retrier {
     private final double maxFailureRate;
     private final int minExecutionsToComputeFailureRate;
     private final ImmutableSet<Class> ignoredErrors;
+    private final int timeWindow;
 
-    public FailureRateCircuitBreaker(double maxFailureRate) {
-      this(maxFailureRate, DEFAULT_MIN_EXECUTIONS_TO_COMPUTE_FAILURE_RATE, ImmutableSet.of());
-    }
-
-    public FailureRateCircuitBreaker(double maxFailureRate, Iterable<Class> ignoredErrors) {
-      this(maxFailureRate, DEFAULT_MIN_EXECUTIONS_TO_COMPUTE_FAILURE_RATE, ignoredErrors);
-    }
+    private final ScheduledExecutorService scheduler;
 
     public FailureRateCircuitBreaker(
         double maxFailureRate,
         int minExecutionsToComputeFailureRate,
+        int failureRateTimeWindowSize,
         Iterable<Class> ignoredErrors) {
       this.maxFailureRate = maxFailureRate;
       this.state = State.ACCEPT_CALLS;
@@ -170,6 +169,8 @@ public class Retrier {
       this.successes = new AtomicInteger(0);
       this.minExecutionsToComputeFailureRate = minExecutionsToComputeFailureRate;
       this.ignoredErrors = ImmutableSet.copyOf(ignoredErrors);
+      this.timeWindow = failureRateTimeWindowSize;
+      this.scheduler = timeWindow > 0 ? Executors.newScheduledThreadPool(1) : null;
     }
 
     @Override
@@ -183,12 +184,20 @@ public class Retrier {
         return;
       }
       double currentFailures = failures.incrementAndGet();
+      if (timeWindow > 0) {
+        scheduler.schedule(failures::decrementAndGet, timeWindow, TimeUnit.SECONDS);
+      }
       double currentSuccesses = successes.get();
       if (currentFailures + currentSuccesses < minExecutionsToComputeFailureRate) {
         // Execute at least minExecutionsToComputeFailureRate before computing the rate
         return;
       }
-      if (currentFailures / (currentFailures + currentSuccesses) > maxFailureRate) {
+      double failureRate = currentFailures / (currentFailures + currentSuccesses);
+      if (failureRate > maxFailureRate && state != State.REJECT_CALLS) {
+        logger.warning(
+            String.format(
+                "Failure rate %.2f too high: %.0f fail, %.0f success. Rejecting calls.",
+                failureRate, currentFailures, currentSuccesses));
         state = State.REJECT_CALLS;
       }
     }
@@ -196,6 +205,9 @@ public class Retrier {
     @Override
     public void recordSuccess() {
       successes.incrementAndGet();
+      if (timeWindow > 0) {
+        scheduler.schedule(successes::decrementAndGet, timeWindow, TimeUnit.SECONDS);
+      }
     }
   }
 
