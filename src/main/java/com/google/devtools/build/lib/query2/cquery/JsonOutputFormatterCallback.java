@@ -133,7 +133,7 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
     List<String> paths;
     try {
       DefaultInfo provider = target.get(DefaultInfo.PROVIDER);
-      paths = ((Collection<Artifact>) provider.getFiles().toCollection())
+      paths = ((Collection<Artifact>) provider.getFiles().toList())
           .stream()
           .map(Artifact::getExecPathString)
           .collect(Collectors.toList());
@@ -148,7 +148,7 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
 
   private static JsonObject createOutputGroupsJsonObject(ConfiguredTarget target, Gson gson) {
     JsonObject outputGroups = new JsonObject();
-    OutputGroupInfo provider = target.get(OutputGroupInfo.SKYLARK_CONSTRUCTOR);
+    OutputGroupInfo provider = target.get(OutputGroupInfo.STARLARK_CONSTRUCTOR);
     if (provider != null) {
       for (String group : provider) {
         List<String> outputPaths = provider
