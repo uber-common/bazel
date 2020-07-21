@@ -52,6 +52,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include <map>
 #include <string>
@@ -279,6 +280,22 @@ class RunfilesCreator {
     closedir(dh);
   }
 
+  bool isSameFile(const char *file1,const char *file2) {
+    fprintf(stderr,"isSameFile Start\n");
+    struct stat file1_info, file2_info;
+    int file1_stat_result = stat(file1, &file1_info);
+    if(file1_stat_result < 0) {
+        fprintf(stderr, "%s: %s\n", file1, strerror(errno));
+    }
+    int file2_stat_result = stat(file2, &file2_info);
+    if(file2_stat_result < 0) {
+        fprintf(stderr, "%s: %s\n", file2, strerror(errno));
+    }
+    fprintf(stderr, "file1_stat_result: %d\nfile2_stat_result: %d\nfile1_info.st_ino: %lld\nfile2_info.st_ino: %lld\n", file1_stat_result, file2_stat_result, file1_info.st_ino, file2_info.st_ino);
+    return file1_stat_result == 0  && file2_stat_result == 0
+    && file1_info.st_ino == file2_info.st_ino;
+  }
+
   void CreateFiles() {
     for (FileInfoMap::const_iterator it = manifest_.begin();
          it != manifest_.end(); ++it) {
@@ -301,7 +318,17 @@ class RunfilesCreator {
         case FILE_TYPE_SYMLINK:
           {
             const std::string& target = it->second.symlink_target;
-            if (symlink(target.c_str(), path.c_str()) != 0) {
+            int symlink_result = symlink(target.c_str(), path.c_str());
+            if ( symlink_result == 0) {
+                if(!isSameFile(target.c_str(), path.c_str())) {
+                    remove(path.c_str());
+                    symlink(target.c_str(), path.c_str());
+                    fprintf(stderr,"retry symlink\n");
+                    if(!isSameFile(target.c_str(), path.c_str())) {
+                        PDIE("after retry symlinking '%s' -> '%s'", path.c_str(), target.c_str());
+                    }
+                }
+            } else {
               PDIE("symlinking '%s' -> '%s'", path.c_str(), target.c_str());
             }
           }
