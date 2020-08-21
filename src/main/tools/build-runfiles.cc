@@ -304,6 +304,12 @@ class RunfilesCreator {
             if (symlink(target.c_str(), path.c_str()) != 0) {
               PDIE("symlinking '%s' -> '%s'", path.c_str(), target.c_str());
             }
+            // ReadLinkOrDie is just a way to slowdown the execution
+            // This way symlink will be accessed after sometime and hopefully
+            // it is available by then
+            // Ref: IOSDX-10713
+            std::string s;
+            ReadLinkOrDie(path, &s);
           }
           break;
       }
