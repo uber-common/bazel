@@ -897,7 +897,7 @@ public abstract class ObjcRuleTestCase extends BuildViewTestCase {
     assertThat(Joiner.on(" ").join(linkAction.getArguments()))
         .contains("-bundle_loader " + getBinArtifact("bin_lipobin", binTarget).getExecPath());
     assertThat(Joiner.on(" ").join(linkAction.getArguments()))
-        .contains("-Xlinker -rpath -Xlinker @loader_path/Frameworks");
+        .contains("-Wl,-rpath,@loader_path/Frameworkss");
   }
 
   protected Action lipoLibAction(String libLabel) throws Exception {
