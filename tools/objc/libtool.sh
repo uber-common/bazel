@@ -33,9 +33,8 @@ if [ -z ${MY_LOCATION+x} ]; then
 fi
 
 WRAPPER="${MY_LOCATION}/xcrunwrapper.sh"
-
 TEMPDIR="$(mktemp -d "${TMPDIR:-/tmp}/libtool.XXXXXXXX")"
-trap "rm -rf \"${TEMPDIR}\"" EXIT
+trap 'rm -rf "$TEMPDIR"' EXIT
 
 # Creates a symbolic link to the input argument file and returns the symlink
 # file path.
@@ -53,69 +52,67 @@ function hash_objfile() {
 }
 
 ARGS=()
+handle_filelist=0
+keep_next=0
 
-while [[ $# -gt 0 ]]; do
-  ARG="$1"
-  shift
+function parse_option() {
+  local -r ARG="$1"
+  if [[ "$handle_filelist" == "1" ]]; then
+    handle_filelist=0
+    HASHED_FILELIST="${ARG%.objlist}_hashes.objlist"
+    rm -f "${HASHED_FILELIST}"
+    # Use python helper script for fast md5 calculation of many strings.
+    python "${MY_LOCATION}/make_hashed_objlist.py" \
+      "${ARG}" "${HASHED_FILELIST}" "${TEMPDIR}"
+    ARGS+=("${HASHED_FILELIST}")
+  elif [[ "$keep_next" == "1" ]]; then
+    keep_next=0
+    ARGS+=("$ARG")
+  else
+    case "${ARG}" in
+      # Filelist flag, need to symlink each input in the contents of file and
+      # pass a new filelist which contains the symlinks.
+      -filelist)
+        handle_filelist=1
+        ARGS+=("${ARG}")
+        ;;
+      @*)
+        path="${ARG:1}"
+        while IFS= read -r opt
+        do
+          parse_option "$opt"
+        done < "$path" || exit 1
+        ;;
+      # Flags with no args
+      -static|-s|-a|-c|-L|-T|-D|-no_warning_for_no_symbols)
+        ARGS+=("${ARG}")
+        ;;
+      # Single-arg flags
+      -arch_only|-syslibroot|-o)
+        keep_next=1
+        ARGS+=("${ARG}")
+        ;;
+      # Any remaining flags are unexpected and may ruin flag parsing.
+      # Add any flags here to libtool_check_unique.cc as well
+      -*)
+        echo "Unrecognized libtool flag ${ARG}"
+        exit 1
+        ;;
+      # Archive inputs can remain untouched, as they come from other targets.
+      *.a)
+        ARGS+=("${ARG}")
+        ;;
+      # Remaining args are input objects
+      *)
+        ARGS+=("$(hash_objfile "${ARG}")")
+        ;;
+    esac
+  fi
+}
 
-  # Libtool artifact symlinking. Apple's libtool has a bug when there are two
-  # input files with the same basename. We thus create symlinks that are named
-  # with a hash suffix for each input, and pass them to libtool.
-  # See b/28186497.
-  case "${ARG}" in
-    # Filelist flag, need to symlink each input in the contents of file and
-    # pass a new filelist which contains the symlinks.
-    -filelist)
-      ARGS+=("${ARG}")
-      ARG="$1"
-      shift
-      HASHED_FILELIST="${ARG%.objlist}_hashes.objlist"
-      rm -f "${HASHED_FILELIST}"
-      # Use python helper script for fast md5 calculation of many strings.
-      python "${MY_LOCATION}/make_hashed_objlist.py" \
-        "${ARG}" "${HASHED_FILELIST}" "${TEMPDIR}"
-      ARGS+=("${HASHED_FILELIST}")
-      ;;
-   # Output flag
-    -o)
-     ARGS+=("${ARG}")
-     ARG="$1"
-     shift
-     ARGS+=("${ARG}")
-     OUTPUTFILE="${ARG}"
-     ;;
-   # Flags with no args
-    -static|-s|-a|-c|-L|-T|-no_warning_for_no_symbols)
-      ARGS+=("${ARG}")
-      ;;
-   # Single-arg flags
-   -arch_only|-syslibroot)
-     ARGS+=("${ARG}")
-     ARG="$1"
-     shift
-     ARGS+=("${ARG}")
-     ;;
-   # Any remaining flags are unexpected and may ruin flag parsing.
-   -*)
-     echo "Unrecognized libtool flag ${ARG}"
-     exit 1
-     ;;
-   # Archive inputs can remain untouched, as they come from other targets.
-   *.a)
-     ARGS+=("${ARG}")
-     ;;
-   # Remaining args are input objects
-   *)
-     ARGS+=("$(echo "$(hash_objfile "${ARG}")")")
-     ;;
-   esac
+for arg in "$@"; do
+  parse_option "$arg"
 done
 
-# Ensure 0 timestamping for hermetic results.
-export ZERO_AR_DATE=1
-
-"${WRAPPER}" libtool "${ARGS[@]}"
-
-# Prevents a pre-Xcode-8 bug in which passing zero-date archive files to ld
-# would cause ld to error.
-touch "$OUTPUTFILE"
+printf '%s\n' "${ARGS[@]}" > "$TEMPDIR/processed.params"
+"${WRAPPER}" libtool "@$TEMPDIR/processed.params"
