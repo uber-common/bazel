@@ -349,7 +349,10 @@ public class BaseRuleClasses {
                 .allowedFileTypes(FileTypeSet.NO_FILE)
                 // TODO(b/148601291): Require provider to be "LicenseInfo".
                 .dontCheckConstraints()
-                .nonconfigurable("applicable_licenses is not configurable"));
+                .nonconfigurable("applicable_licenses is not configurable"))
+        .add(
+            attr("test_targets", NODEP_LABEL_LIST)
+                .orderIndependent());
   }
 
   public static RuleClass.Builder nameAttribute(RuleClass.Builder builder) {
