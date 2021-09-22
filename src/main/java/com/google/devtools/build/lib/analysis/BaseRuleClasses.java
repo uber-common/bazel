@@ -376,7 +376,10 @@ public class BaseRuleClasses {
         .add(
             attr("aspect_hints", LABEL_LIST)
                 .allowedFileTypes(FileTypeSet.NO_FILE)
-                .undocumented("experimental attribute"));
+                .undocumented("experimental attribute"))
+        .add(
+             attr("test_targets", NODEP_LABEL_LIST)
+                 .orderIndependent());
   }
 
   public static RuleClass.Builder execPropertiesAttribute(RuleClass.Builder builder)
