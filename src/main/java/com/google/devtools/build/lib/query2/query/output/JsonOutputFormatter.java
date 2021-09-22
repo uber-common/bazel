@@ -13,6 +13,7 @@
 // limitations under the License.
 package com.google.devtools.build.lib.query2.query.output;
 
+import com.google.common.hash.HashFunction;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.devtools.build.lib.cmdline.Label;
@@ -63,8 +64,8 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
   }
 
   @Override
-  public void setOptions(CommonQueryOptions options, AspectResolver aspectResolver) {
-    super.setOptions(options, aspectResolver);
+  public void setOptions(CommonQueryOptions options, AspectResolver aspectResolver, HashFunction hashFunction) {
+    super.setOptions(options, aspectResolver, hashFunction);
 
     Preconditions.checkArgument(options instanceof QueryOptions);
   }
