@@ -131,15 +131,19 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
   }
 
   private static JsonElement createDefaultOutputsJson(ConfiguredTarget target, Gson gson) {
-    DefaultInfo provider = target.get(DefaultInfo.PROVIDER);
-    if (provider == null) {
+    List<String> paths;
+    try {
+      DefaultInfo provider = target.get(DefaultInfo.PROVIDER);
+      paths = ((Collection<Artifact>) provider.getFiles().toList())
+          .stream()
+          .map(Artifact::getExecPathString)
+          .collect(Collectors.toList());
+    }
+    catch (NullPointerException e){
+      // Some rules do not have default info provider (e.g. Package Groups) and
+      // throw an exception in case it is accessed
       return new JsonArray();
     }
-    List<String> paths = ((Collection<Artifact>) provider.getFiles().toList())
-        .stream()
-        .map(Artifact::getExecPathString)
-        .collect(Collectors.toList());
-
     return gson.toJsonTree(paths);
   }
 
