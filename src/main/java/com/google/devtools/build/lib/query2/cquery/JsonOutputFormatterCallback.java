@@ -47,7 +47,7 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
       CqueryOptions options,
       OutputStream out,
       SkyframeExecutor skyframeExecutor,
-      TargetAccessor<ConfiguredTarget> accessor) {
+      TargetAccessor<KeyedConfiguredTarget> accessor) {
     super(eventHandler, options, out, skyframeExecutor, accessor);
   }
 
@@ -56,21 +56,22 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
     return "json";
   }
 
-  private AbstractAttributeMapper getAttributeMap(Rule rule, ConfiguredTarget configuredTarget)
+  private AbstractAttributeMapper getAttributeMap(Rule rule, KeyedConfiguredTarget kct)
       throws InterruptedException {
-    if (configuredTarget instanceof RuleConfiguredTarget) {
-      return ConfiguredAttributeMapper
-          .of(rule, ((RuleConfiguredTarget) configuredTarget).getConfigConditions());
+    if (rule == null) {
+      return null;
     }
-    if (configuredTarget instanceof AliasConfiguredTarget) {
+    if (kct.getConfiguredTarget() instanceof RuleConfiguredTarget) {
       return ConfiguredAttributeMapper
-          .of(rule, ((AliasConfiguredTarget) configuredTarget).getConfigConditions());
+          .of(rule, accessor.getGeneratingConfiguredTarget(kct).getConfigConditions());
     }
-    if (configuredTarget instanceof OutputFileConfiguredTarget) {
+    if (kct.getConfiguredTarget() instanceof AliasConfiguredTarget) {
       return ConfiguredAttributeMapper
-          .of(rule, accessor
-              .getGeneratingConfiguredTarget((OutputFileConfiguredTarget) configuredTarget)
-              .getConfigConditions());
+          .of(rule, accessor.getGeneratingConfiguredTarget(kct).getConfigConditions());
+    }
+    if (kct.getConfiguredTarget() instanceof OutputFileConfiguredTarget) {
+      return ConfiguredAttributeMapper.of(
+          rule, accessor.getGeneratingConfiguredTarget(kct).getConfigConditions());
     }
     return null;
   }
@@ -100,14 +101,14 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
   }
 
   @Override
-  public void processOutput(Iterable<ConfiguredTarget> partialResult)
+  public void processOutput(Iterable<KeyedConfiguredTarget> partialResult)
       throws IOException, InterruptedException {
 
     JsonObject result = new JsonObject();
     Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
-    for (ConfiguredTarget configuredTarget : partialResult) {
-      Target target = accessor.getTargetFromConfiguredTarget(configuredTarget);
+    for (KeyedConfiguredTarget configuredTarget : partialResult) {
+      Target target = accessor.getTarget(configuredTarget);
       Rule rule = target.getAssociatedRule();
       AbstractAttributeMapper attributeMap = getAttributeMap(rule, configuredTarget);
       AttributeReader attributeReader = new JsonCQueryAttributeReader(attributeMap);
