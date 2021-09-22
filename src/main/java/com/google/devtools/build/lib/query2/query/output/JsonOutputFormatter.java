@@ -187,6 +187,6 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
     } else if (val instanceof Boolean) {
       return gson.toJsonTree(val);
     }
-    return gson.toJsonTree(val.toString());
+    return gson.toJsonTree(val == null ? "None" : val.toString());
   }
 }
