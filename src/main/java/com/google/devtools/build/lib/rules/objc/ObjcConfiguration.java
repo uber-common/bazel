@@ -159,23 +159,7 @@ public class ObjcConfiguration extends Fragment implements ObjcConfigurationApi<
    */
   @Override
   public ImmutableList<String> getCoptsForCompilationMode() {
-    switch (compilationMode) {
-      case DBG:
-        ImmutableList.Builder<String> opts = ImmutableList.builder();
-        if (!this.avoidHardcodedCompilationFlags) {
-          opts.addAll(DBG_COPTS);
-        }
-        if (this.debugWithGlibcxx) {
-          opts.addAll(GLIBCXX_DBG_COPTS);
-        }
-        return opts.build();
-      case FASTBUILD:
-        return fastbuildOptions;
-      case OPT:
-        return this.avoidHardcodedCompilationFlags ? ImmutableList.of() : OPT_COPTS;
-      default:
-        throw new AssertionError();
-    }
+    return ImmutableList.of();
   }
 
   /**
