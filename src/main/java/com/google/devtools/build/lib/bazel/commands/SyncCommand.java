@@ -29,6 +29,11 @@ import com.google.devtools.build.lib.cmdline.LabelSyntaxException;
 import com.google.devtools.build.lib.cmdline.RepositoryName;
 import com.google.devtools.build.lib.cmdline.TargetPattern;
 import com.google.devtools.build.lib.events.Event;
+<<<<<<< HEAD
+=======
+import com.google.devtools.build.lib.events.ExtendedEventHandler.ResolvedEvent;
+import com.google.devtools.build.lib.packages.NoSuchTargetException;
+>>>>>>> f778c7aaf9 (a8dcf15: Sync accepts parameters to filter repositories that should be synced)
 import com.google.devtools.build.lib.packages.Rule;
 import com.google.devtools.build.lib.packages.WorkspaceFileValue;
 import com.google.devtools.build.lib.pkgcache.PackageOptions;
@@ -62,6 +67,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import net.starlark.java.eval.Starlark;
 
 /** Syncs all repositories specified in the workspace file */
@@ -74,8 +80,9 @@ import net.starlark.java.eval.Starlark;
       SyncOptions.class
     },
     help = "resource:sync.txt",
-    shortDescription = "Syncs all repositories specified in the workspace file",
-    allowResidue = false)
+    shortDescription = "Syncs the repositories specified in the workspace file. " +
+        "If no repository names are provided as arguments, syncs all of them.",
+    allowResidue = true)
 public final class SyncCommand implements BlazeCommand {
   public static final String NAME = "sync";
 
@@ -185,7 +192,12 @@ public final class SyncCommand implements BlazeCommand {
 
       // take all Starlark workspace rules and get their values
       ImmutableSet.Builder<SkyKey> repositoriesToFetch = new ImmutableSet.Builder<>();
-      for (Rule rule : fileValue.getPackage().getTargets(Rule.class)) {
+      Iterable<Rule> rules = getRules(options, fileValue, env);
+      if (rules == null) {
+        return blazeCommandResultWithNoBuildReport(
+                env, ExitCode.COMMAND_LINE_ERROR, Code.REPOSITORY_NAME_INVALID, "Received null rules object");
+      }
+      for (Rule rule : rules) {
         if (rule.getRuleClass().equals("bind")) {
           // The bind rule is special in that the name is not that of an external repository.
           // Moreover, it is not affected by the invalidation mechanism as there is nothing to
@@ -341,5 +353,43 @@ public final class SyncCommand implements BlazeCommand {
                 .setSyncCommand(
                     FailureDetails.SyncCommand.newBuilder().setCode(syncCommandCode).build())
                 .build()));
+  }
+
+
+  @Nullable
+  private Iterable<Rule> getRules(
+      OptionsParsingResult options,
+      WorkspaceFileValue workspaceFileValue,
+      CommandEnvironment env) {
+    List<String> residue = options.getResidue();
+    if (residue.isEmpty()) {
+      // This means that no repository names were passes as arguments.
+      // Take all skylark workspace rules and get their values
+      return workspaceFileValue.getPackage().getTargets(Rule.class);
+    } else {
+      ImmutableList.Builder<Rule> rules = new ImmutableList.Builder<>();
+      for (String name : residue) {
+        try {
+          Rule rule = workspaceFileValue.getPackage().getTarget(name).getAssociatedRule();
+          if (rule != null) {
+            rules.add(rule);
+          }
+        } catch (NoSuchTargetException e) {
+          env.getReporter()
+              .handle(
+                  Event.error(
+                      "Error parsing request: repository "
+                          + name
+                          + " is not defined in the WORKSPACE file."));
+          env.getReporter()
+              .post(
+                  new NoBuildRequestFinishedEvent(
+                      ExitCode.COMMAND_LINE_ERROR,
+                      env.getRuntime().getClock().currentTimeMillis()));
+          return null;
+        }
+      }
+      return rules.build();
+    }
   }
 }
