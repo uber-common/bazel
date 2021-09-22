@@ -263,7 +263,7 @@ public class ConfiguredTargetQueryEnvironment
         new BuildOutputFormatterCallback(
             eventHandler, cqueryOptions, out, skyframeExecutor, accessor),
         new JsonOutputFormatterCallback(
-            eventHandler, cqueryOptions, out, skyframeExecutor, accessor));
+            eventHandler, cqueryOptions, out, skyframeExecutor, accessor),
         new GraphOutputFormatterCallback(
             eventHandler,
             cqueryOptions,
