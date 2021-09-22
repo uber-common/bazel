@@ -1,5 +1,5 @@
 
-Usage: %{product} %{command} [<option> ...]
+Usage: %{product} %{command} [<option> ...] [<repositories> ...]
 
 Ensures that all Starlark repository rules of the top-level WORKSPACE
 file are called.
