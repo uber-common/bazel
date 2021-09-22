@@ -258,6 +258,8 @@ public class ConfiguredTargetQueryEnvironment
             trimmingTransitionFactory),
         new BuildOutputFormatterCallback(
             eventHandler, cqueryOptions, out, skyframeExecutor, accessor),
+        new JsonOutputFormatterCallback(
+            eventHandler, cqueryOptions, out, skyframeExecutor, accessor));
         new GraphOutputFormatterCallback(
             eventHandler,
             cqueryOptions,
