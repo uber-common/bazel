@@ -70,6 +70,8 @@ public final class PyCommon {
   /** Name of the version attribute. */
   public static final String PYTHON_VERSION_ATTRIBUTE = "python_version";
 
+  public static final String PYTHON_BUILD_EXECUTABLE_ZIP = "python_build_executable_zip";
+
   /**
    * Name of the tag used by bazelbuild/rules_python to signal that a rule was instantiated through
    * that repo.
@@ -818,7 +820,8 @@ public final class PyCommon {
     NestedSetBuilder<Artifact> filesToBuildBuilder =
         NestedSetBuilder.<Artifact>stableOrder().addAll(srcs).add(executable);
 
-    if (ruleContext.getFragment(PythonConfiguration.class).buildPythonZip()) {
+    if (ruleContext.getFragment(PythonConfiguration.class).buildPythonZip() ||
+        ruleContext.getFeatures().contains(PYTHON_BUILD_EXECUTABLE_ZIP)) {
       filesToBuildBuilder.add(getPythonZipArtifact(executable));
     } else if (OS.getCurrent() == OS.WINDOWS) {
       // TODO(bazel-team): Here we should check target platform instead of using OS.getCurrent().
