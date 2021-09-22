@@ -15,7 +15,10 @@
 package com.google.devtools.build.lib.query2.cquery;
 
 import com.google.common.collect.ImmutableList;
+import com.google.devtools.build.lib.actions.Artifact;
 import com.google.devtools.build.lib.analysis.ConfiguredTarget;
+import com.google.devtools.build.lib.analysis.DefaultInfo;
+import com.google.devtools.build.lib.analysis.OutputGroupInfo;
 import com.google.devtools.build.lib.analysis.configuredtargets.OutputFileConfiguredTarget;
 import com.google.devtools.build.lib.analysis.configuredtargets.RuleConfiguredTarget;
 import com.google.devtools.build.lib.events.ExtendedEventHandler;
@@ -33,9 +36,14 @@ import com.google.devtools.build.lib.rules.AliasConfiguredTarget;
 import com.google.devtools.build.lib.skyframe.SkyframeExecutor;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Cquery implementation of BUILD-style output.
@@ -85,7 +93,7 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
     }
 
     private Object getValues(Attribute attr) {
-      if (abstractAttributeMap == null){
+      if (abstractAttributeMap == null) {
         return null;
       }
       return abstractAttributeMap.get(attr.getName(), attr.getType());
@@ -112,9 +120,44 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
       Rule rule = target.getAssociatedRule();
       AbstractAttributeMapper attributeMap = getAttributeMap(rule, configuredTarget);
       AttributeReader attributeReader = new JsonCQueryAttributeReader(attributeMap);
-      result.add(target.getLabel().getCanonicalForm(),
-          JsonOutputFormatter.createTargetJsonObject(target, attributeReader));
+      JsonObject partial = JsonOutputFormatter.createTargetJsonObject(target, attributeReader);
+
+      partial.add("output groups", createOutputGroupsJsonObject(configuredTarget.getConfiguredTarget(), gson));
+      partial.add("default outputs", createDefaultOutputsJson(configuredTarget.getConfiguredTarget(), gson));
+
+      result.add(target.getLabel().getCanonicalForm(), partial);
     }
     printStream.write(gson.toJson(result));
+  }
+
+  private static JsonElement createDefaultOutputsJson(ConfiguredTarget target, Gson gson) {
+    DefaultInfo provider = target.get(DefaultInfo.PROVIDER);
+    if (provider == null) {
+      return new JsonArray();
+    }
+    List<String> paths = ((Collection<Artifact>) provider.getFiles().toList())
+        .stream()
+        .map(Artifact::getExecPathString)
+        .collect(Collectors.toList());
+
+    return gson.toJsonTree(paths);
+  }
+
+  private static JsonObject createOutputGroupsJsonObject(ConfiguredTarget target, Gson gson) {
+    JsonObject outputGroups = new JsonObject();
+    OutputGroupInfo provider = target.get(OutputGroupInfo.STARLARK_CONSTRUCTOR);
+    if (provider != null) {
+      for (String group : provider) {
+        List<String> outputPaths = provider
+            .getOutputGroup(group)
+            .toList()
+            .stream()
+            .map(Artifact::getExecPathString)
+            .collect(Collectors.toList());
+        outputGroups.add(group, gson.toJsonTree(outputPaths));
+      }
+    }
+
+    return outputGroups;
   }
 }
