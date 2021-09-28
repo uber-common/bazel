@@ -64,22 +64,22 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
     return "json";
   }
 
-  private AbstractAttributeMapper getAttributeMap(Rule rule, KeyedConfiguredTarget kct)
+  private AbstractAttributeMapper getAttributeMap(Rule rule, KeyedConfiguredTarget keyedConfiguredTarget)
       throws InterruptedException {
-    if (rule == null) {
-      return null;
-    }
-    if (kct.getConfiguredTarget() instanceof RuleConfiguredTarget) {
+    ConfiguredTarget configuredTarget = keyedConfiguredTarget.getConfiguredTarget();
+    if (configuredTarget instanceof RuleConfiguredTarget) {
       return ConfiguredAttributeMapper
-          .of(rule, accessor.getGeneratingConfiguredTarget(kct).getConfigConditions());
+          .of(rule, ((RuleConfiguredTarget) configuredTarget).getConfigConditions());
     }
-    if (kct.getConfiguredTarget() instanceof AliasConfiguredTarget) {
+    if (configuredTarget instanceof AliasConfiguredTarget) {
       return ConfiguredAttributeMapper
-          .of(rule, accessor.getGeneratingConfiguredTarget(kct).getConfigConditions());
+          .of(rule, ((AliasConfiguredTarget) configuredTarget).getConfigConditions());
     }
-    if (kct.getConfiguredTarget() instanceof OutputFileConfiguredTarget) {
-      return ConfiguredAttributeMapper.of(
-          rule, accessor.getGeneratingConfiguredTarget(kct).getConfigConditions());
+    if (configuredTarget instanceof OutputFileConfiguredTarget) {
+      return ConfiguredAttributeMapper
+          .of(rule, accessor
+              .getGeneratingConfiguredTarget(keyedConfiguredTarget)
+              .getConfigConditions());
     }
     return null;
   }
@@ -122,18 +122,18 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
       AttributeReader attributeReader = new JsonCQueryAttributeReader(attributeMap);
       JsonObject partial = JsonOutputFormatter.createTargetJsonObject(target, attributeReader);
 
-      partial.add("output groups", createOutputGroupsJsonObject(configuredTarget.getConfiguredTarget(), gson));
-      partial.add("default outputs", createDefaultOutputsJson(configuredTarget.getConfiguredTarget(), gson));
+      partial.add("output groups", createOutputGroupsJsonObject(configuredTarget, gson));
+      partial.add("default outputs", createDefaultOutputsJson(configuredTarget, gson));
 
       result.add(target.getLabel().getCanonicalForm(), partial);
     }
     printStream.write(gson.toJson(result));
   }
 
-  private static JsonElement createDefaultOutputsJson(ConfiguredTarget target, Gson gson) {
+  private static JsonElement createDefaultOutputsJson(KeyedConfiguredTarget target, Gson gson) {
     List<String> paths;
     try {
-      DefaultInfo provider = target.get(DefaultInfo.PROVIDER);
+      DefaultInfo provider = target.getConfiguredTarget().get(DefaultInfo.PROVIDER);
       paths = ((Collection<Artifact>) provider.getFiles().toList())
           .stream()
           .map(Artifact::getExecPathString)
@@ -147,9 +147,9 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
     return gson.toJsonTree(paths);
   }
 
-  private static JsonObject createOutputGroupsJsonObject(ConfiguredTarget target, Gson gson) {
+  private static JsonObject createOutputGroupsJsonObject(KeyedConfiguredTarget target, Gson gson) {
     JsonObject outputGroups = new JsonObject();
-    OutputGroupInfo provider = target.get(OutputGroupInfo.STARLARK_CONSTRUCTOR);
+    OutputGroupInfo provider = target.getConfiguredTarget().get(OutputGroupInfo.STARLARK_CONSTRUCTOR);
     if (provider != null) {
       for (String group : provider) {
         List<String> outputPaths = provider
