@@ -16,6 +16,8 @@ package com.google.devtools.build.lib.query2.query.output;
 import com.google.common.hash.HashFunction;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+import com.google.devtools.build.lib.packages.Type;
 import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.packages.AbstractAttributeMapper;
 import com.google.devtools.build.lib.packages.Attribute;
@@ -107,7 +109,7 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
     }
 
     @Override
-    public PossibleAttributeValues getPossibleValues(Rule rule, Attribute attr) {
+    public Iterable<Object> getPossibleValues(Rule rule, Attribute attr) {
       if (rule.isConfigurableAttribute(attr.getName())) {
         // Multiple selectors can be concatenated when the attribute value is a list.
         // To create a consistent output, we return a list of maps, where each map is
@@ -118,13 +120,23 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
             .stream()
             .map(Selector::getEntries)
             .collect(ImmutableList.toImmutableList());
-        return new PossibleAttributeValues(
-            ImmutableList.of(selectors),
-            AttributeValueSource.forRuleAndAttribute(rule, attr));
+        return selectors;
       }
-      return PossibleAttributeValues.forRuleAndAttribute(rule, attr);
+      boolean treatMultipleAsNone = SCALAR_TYPES.contains(attr.getType());
+      return PossibleAttributeValues.forRuleAndAttribute(rule, attr, treatMultipleAsNone);
     }
   }
+
+  private static final ImmutableSet<Type<?>> SCALAR_TYPES =
+      ImmutableSet.of(
+          Type.INTEGER,
+          Type.STRING,
+          BuildType.LABEL,
+          BuildType.NODEP_LABEL,
+          BuildType.OUTPUT,
+          Type.BOOLEAN,
+          BuildType.TRISTATE,
+          BuildType.LICENSE);
 
   public static JsonObject createTargetJsonObject(Target target, AttributeReader reader) {
     JsonObject result = new JsonObject();
@@ -135,10 +147,14 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
       result.addProperty("base_path", target.getLabel().getPackageName());
       result.addProperty("class", rule.getRuleClass());
       for (Attribute attr : rule.getAttributes()) {
-        PossibleAttributeValues values = reader.getPossibleValues(rule, attr);
-        if (values.getSource() == AttributeValueSource.DEFAULT) {
+        Iterable<Object> values = reader.getPossibleValues(rule, attr);
+
+        AttributeValueSource attributeValueSource =
+             AttributeValueSource.forRuleAndAttribute(rule, attr);
+        if (attributeValueSource == AttributeValueSource.DEFAULT) {
           continue;
         }
+
         for (Object value : values) {
           result.add(attr.getName(), getJsonFromValue(value));
         }
