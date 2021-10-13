@@ -15,6 +15,7 @@ package com.google.devtools.build.lib.query2.query.output;
 
 import com.google.common.hash.HashFunction;
 import com.google.common.base.Preconditions;
+import com.google.devtools.build.lib.cmdline.RepositoryMapping;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.devtools.build.lib.packages.Type;
@@ -62,7 +63,7 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
   public ThreadSafeOutputFormatterCallback<Target> createStreamCallback(
       OutputStream out, QueryOptions options, QueryEnvironment<?> env) {
     return new SynchronizedDelegatingOutputFormatterCallback<>(
-        createPostFactoStreamCallback(out, options));
+        createPostFactoStreamCallback(out, options, env.getMainRepoMapping()));
   }
 
   @Override
@@ -74,8 +75,10 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
 
   @Override
   public OutputFormatterCallback<Target> createPostFactoStreamCallback(
-      final OutputStream out, final QueryOptions options) {
+      final OutputStream out, final QueryOptions options, RepositoryMapping mainRepoMapping) {
     return new OutputFormatterCallback<Target>() {
+
+      
 
       private JsonObject result = new JsonObject();
       private Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
