@@ -97,6 +97,7 @@ public final class RemoteCacheClientFactory {
               Math.toIntExact(options.remoteTimeout.getSeconds()),
               options.remoteMaxConnections,
               options.remoteVerifyDownloads,
+              options.remoteCompressCasUploads,
               ImmutableList.copyOf(options.remoteHeaders),
               digestUtil,
               creds);
@@ -109,6 +110,7 @@ public final class RemoteCacheClientFactory {
             Math.toIntExact(options.remoteTimeout.getSeconds()),
             options.remoteMaxConnections,
             options.remoteVerifyDownloads,
+            options.remoteCompressCasUploads,
             ImmutableList.copyOf(options.remoteHeaders),
             digestUtil,
             creds);

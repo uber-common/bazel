@@ -508,6 +508,15 @@ public final class RemoteOptions extends OptionsBase {
   public boolean remoteVerifyDownloads;
 
   @Option(
+          name = "remote_compress_cas_uploads",
+          defaultValue =  "false",
+          documentationCategory = OptionDocumentationCategory.REMOTE,
+          effectTags = {OptionEffectTag.EXECUTION},
+          help = "If set to true, Bazel will compress CAS blobs before upload and "
+                  + "decompress them on download if using an HTTP cache.")
+  public boolean remoteCompressCasUploads;
+
+  @Option(
       name = "remote_download_symlink_template",
       defaultValue = "",
       category = "remote",
