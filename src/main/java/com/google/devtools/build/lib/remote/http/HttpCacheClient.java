@@ -15,6 +15,7 @@ package com.google.devtools.build.lib.remote.http;
 
 import build.bazel.remote.execution.v2.ActionResult;
 import build.bazel.remote.execution.v2.Digest;
+import build.bazel.remote.execution.v2.RequestMetadata;
 import com.google.auth.Credentials;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -353,6 +354,54 @@ public final class HttpCacheClient implements RemoteCacheClient {
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
+  private Future<Channel> acquireFindMissingDigestChannel() {
+    Promise<Channel> channelReady = eventLoop.next().newPromise();
+    channelPool
+            .acquire()
+            .addListener(
+                    (Future<Channel> channelAcquired) -> {
+                      if (!channelAcquired.isSuccess()) {
+                        channelReady.setFailure(channelAcquired.cause());
+                        return;
+                      }
+
+                      try {
+                        Channel ch = channelAcquired.getNow();
+                        ChannelPipeline p = ch.pipeline();
+
+                        if (!isChannelPipelineEmpty(p)) {
+                          channelReady.setFailure(
+                                  new IllegalStateException("Channel pipeline is not empty."));
+                          return;
+                        }
+
+                        p.addFirst(
+                                "timeout-handler",
+                                new IdleTimeoutHandler(timeoutSeconds, ReadTimeoutException.INSTANCE));
+                        p.addLast(new HttpClientCodec());
+                        synchronized (credentialsLock) {
+                          p.addLast(new HttpFindMissingDigestHandler(creds, extraHttpHeaders));
+                        }
+
+                        if (!ch.eventLoop().inEventLoop()) {
+                          // If addLast is called outside an event loop, then it doesn't complete until the
+                          // event loop is run again. In that case, a message sent to the last handler gets
+                          // delivered to the last non-pending handler, which will most likely end up
+                          // throwing UnsupportedMessageTypeException. Therefore, we only complete the
+                          // promise in the event loop.
+                          ch.eventLoop().execute(() -> channelReady.setSuccess(ch));
+                        } else {
+                          channelReady.setSuccess(ch);
+                        }
+                      } catch (Throwable t) {
+                        channelReady.setFailure(t);
+                      }
+                    });
+
+    return channelReady;
+  }
+
+  @SuppressWarnings("FutureReturnValueIgnored")
   private void releaseUploadChannel(Channel ch) {
     if (ch.isOpen()) {
       try {
@@ -362,6 +411,22 @@ public final class HttpCacheClient implements RemoteCacheClient {
         ch.pipeline().remove(HttpRequestEncoder.class);
         ch.pipeline().remove(ChunkedWriteHandler.class);
         ch.pipeline().remove(HttpUploadHandler.class);
+      } catch (NoSuchElementException e) {
+        // If the channel is in the process of closing but not yet closed, some handlers could have
+        // been removed and would cause NoSuchElement exceptions to be thrown. Because handlers are
+        // removed in reverse-order, if we get a NoSuchElement exception, the following handlers
+        // should have been removed.
+      }
+    }
+    channelPool.release(ch);
+  }
+
+  private void releaseFindMissingDigestChannel(Channel ch) {
+    if (ch.isOpen()) {
+      try {
+        ch.pipeline().remove(IdleTimeoutHandler.class);
+        ch.pipeline().remove(HttpClientCodec.class);
+        ch.pipeline().remove(HttpFindMissingDigestHandler.class);
       } catch (NoSuchElementException e) {
         // If the channel is in the process of closing but not yet closed, some handlers could have
         // been removed and would cause NoSuchElement exceptions to be thrown. Because handlers are
@@ -517,6 +582,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
                       (f) -> {
                         try {
                           if (f.isSuccess()) {
+                            storedBlobs.putIfAbsent(
+                                    (casDownload ? CAS_PREFIX : AC_PREFIX) + digest.getHash(), true);
                             outerF.set(null);
                           } else {
                             Throwable cause = f.cause();
@@ -540,6 +607,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
                                   cause.addSuppressed(e);
                                 }
                               } else if (cacheMiss(response.status())) {
+                                storedBlobs.remove(
+                                        (casDownload ? CAS_PREFIX : AC_PREFIX) + digest.getHash());
                                 outerF.setException(new CacheNotFoundException(digest));
                                 return;
                               }
@@ -718,6 +787,46 @@ public final class HttpCacheClient implements RemoteCacheClient {
             });
   }
 
+  private ListenableFuture<Digest> findMissingDigest(
+          Digest digest, SettableFuture<Digest> future, boolean retryOnTokenExpired) {
+    if (storedBlobs.containsKey(CAS_PREFIX + digest.getHash())) {
+      // We've already pushed this artifact before, we expect it to be in cache
+      // so we save us one request.
+      return Futures.immediateFuture(null);
+    }
+    acquireFindMissingDigestChannel()
+            .addListener(
+                    (Future<Channel> chF) -> {
+                      if (!chF.isSuccess()) {
+                        future.set(digest);
+                        return;
+                      }
+                      Channel ch = chF.getNow();
+                      future.addListener(
+                              () -> releaseFindMissingDigestChannel(ch),
+                              MoreExecutors.directExecutor());
+                      ch.writeAndFlush(new FindMissingDigestCommand(uri, digest.getHash()))
+                              .addListener(
+                                      (f) -> {
+                                        if (f.isSuccess()) {
+                                          storedBlobs.putIfAbsent(CAS_PREFIX + digest.getHash(), true);
+                                          future.set(null);
+                                        } else {
+                                          if (retryOnTokenExpired && f.cause() instanceof HttpException) {
+                                            HttpResponse response = ((HttpException) f.cause()).response();
+                                            if (authTokenExpired(response)) {
+                                              refreshCredentials();
+                                              findMissingDigest(digest, future, false);
+                                              return;
+                                            }
+                                          }
+                                          future.set(digest);
+                                        }
+                                      });
+                    });
+    return future;
+  }
+
   @Override
   public ListenableFuture<Void> uploadFile(
       RemoteActionExecutionContext context, Digest digest, Path file) {
@@ -740,7 +849,37 @@ public final class HttpCacheClient implements RemoteCacheClient {
   @Override
   public ListenableFuture<ImmutableSet<Digest>> findMissingDigests(
       RemoteActionExecutionContext context, Iterable<Digest> digests) {
-    return Futures.immediateFuture(ImmutableSet.copyOf(digests));
+    ImmutableList.Builder<ListenableFuture<Digest>> queries = ImmutableList.builder();
+    for (Digest digest : digests) {
+      queries.add(findMissingDigest(digest, SettableFuture.create(), true));
+    }
+
+    ListenableFuture<ImmutableSet<Digest>> success = Futures.transformAsync(
+            Futures.allAsList(queries.build()),
+            (f) -> {
+              ImmutableSet.Builder<Digest> missingDigests = ImmutableSet.builder();
+              for (Digest digest : f) {
+                if (digest != null) {
+                  missingDigests.add(digest);
+                }
+              }
+              return Futures.immediateFuture(missingDigests.build());
+            },
+            MoreExecutors.directExecutor());
+
+    RequestMetadata requestMetadata = context.getRequestMetadata();
+    return Futures.catchingAsync(
+            success,
+            RuntimeException.class,
+            (e) ->
+                    Futures.immediateFailedFuture(
+                            new IOException(
+                                    String.format(
+                                            "findMissingBlobs for %s: %s",
+                                            requestMetadata.getActionId(),
+                                            e.getMessage()),
+                                    e)),
+            MoreExecutors.directExecutor());
   }
 
   private boolean reset(InputStream in) throws IOException {
