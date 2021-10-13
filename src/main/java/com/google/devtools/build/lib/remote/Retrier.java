@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.ThreadSafe;
@@ -135,6 +136,54 @@ public class Retrier {
         @Override
         public void recordSuccess() {}
       };
+
+  public static class FailureRateCircuitBreaker implements CircuitBreaker {
+
+    // 100 arbitrarily chosen as a fair balance between giving up
+    // too quickly vs trying too much and giving up too late.
+    private static final int DEFAULT_MIN_EXECUTIONS_TO_COMPUTE_FAILURE_RATE = 100;
+
+    private State state;
+    private final AtomicInteger failures;
+    private final AtomicInteger successes;
+    private final double maxFailureRate;
+    private final int minExecutionsToComputeFailureRate;
+
+    public FailureRateCircuitBreaker(double maxFailureRate) {
+      this(maxFailureRate, DEFAULT_MIN_EXECUTIONS_TO_COMPUTE_FAILURE_RATE);
+    }
+
+    public FailureRateCircuitBreaker(double maxFailureRate, int minExecutionsToComputeFailureRate) {
+      this.maxFailureRate = maxFailureRate;
+      this.state = State.ACCEPT_CALLS;
+      this.failures = new AtomicInteger(0);
+      this.successes = new AtomicInteger(0);
+      this.minExecutionsToComputeFailureRate = minExecutionsToComputeFailureRate;
+    }
+
+    @Override
+    public State state() {
+      return state;
+    }
+
+    @Override
+    public void recordFailure() {
+      double currentFailures = failures.incrementAndGet();
+      double currentSuccesses = successes.get();
+      if (currentFailures + currentSuccesses < minExecutionsToComputeFailureRate) {
+        // Execute at least minExecutionsToComputeFailureRate before computing the rate
+        return;
+      }
+      if (currentFailures / (currentFailures + currentSuccesses) > maxFailureRate) {
+        state = State.REJECT_CALLS;
+      }
+    }
+
+    @Override
+    public void recordSuccess() {
+      successes.incrementAndGet();
+    }
+  }
 
   /** Disables retries. */
   public static final Backoff RETRIES_DISABLED =
