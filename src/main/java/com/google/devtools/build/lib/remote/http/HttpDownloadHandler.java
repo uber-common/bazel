@@ -38,6 +38,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Map.Entry;
+import java.util.logging.Logger;
 
 /** ChannelHandler for downloads. */
 final class HttpDownloadHandler extends AbstractHttpHandler<HttpObject> {
@@ -51,6 +52,8 @@ final class HttpDownloadHandler extends AbstractHttpHandler<HttpObject> {
   private long contentLength = -1;
   /** the path header in the http request */
   private String path;
+
+  private static Logger logger = Logger.getLogger(HttpDownloadHandler.class.getName());
 
   public HttpDownloadHandler(
       Credentials credentials, ImmutableList<Entry<String, String>> extraHttpHeaders) {
@@ -109,12 +112,18 @@ final class HttpDownloadHandler extends AbstractHttpHandler<HttpObject> {
       bytesReceived += readableBytes;
       if (msg instanceof LastHttpContent) {
         if (downloadSucceeded) {
+          logger.info(
+                  String.format("Download of %s completed. Received %d bytes.", path, bytesReceived));
           succeedAndReset(ctx);
         } else {
           String errorMsg = response.status() + "\n";
           errorMsg +=
               new String(
                   ((ByteArrayOutputStream) out).toByteArray(), HttpUtil.getCharset(response));
+          logger.info(
+                  String.format(
+                          "Download: of %s failed. Received %d of %d bytes. Error: %s.",
+                          path, bytesReceived, contentLength, errorMsg));
           out.close();
           HttpException error = new HttpException(response, errorMsg, null);
           failAndReset(error, ctx);
@@ -145,6 +154,9 @@ final class HttpDownloadHandler extends AbstractHttpHandler<HttpObject> {
         .addListener(
             (f) -> {
               if (!f.isSuccess()) {
+                logger.info(
+                        String.format(
+                                "Download of %s failed. Writing request raised: %s", path, f.toString()));
                 failAndClose(f.cause(), ctx);
               }
             });
@@ -152,6 +164,7 @@ final class HttpDownloadHandler extends AbstractHttpHandler<HttpObject> {
 
   @Override
   public void exceptionCaught(ChannelHandlerContext ctx, Throwable t) {
+    logger.info(String.format("Download of %s failed. Caught exception: %s", path, t.toString()));
     if (t instanceof ReadTimeoutException) {
       super.exceptionCaught(ctx, new DownloadTimeoutException(path, bytesReceived, contentLength));
     } else {
@@ -160,6 +173,7 @@ final class HttpDownloadHandler extends AbstractHttpHandler<HttpObject> {
   }
 
   private HttpRequest buildRequest(String path, String host) {
+    logger.info(String.format("Download of %s started.", path));
     HttpRequest httpRequest =
         new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, path);
     httpRequest.headers().set(HttpHeaderNames.HOST, host);
@@ -198,6 +212,7 @@ final class HttpDownloadHandler extends AbstractHttpHandler<HttpObject> {
     ChannelPromise promise = userPromise;
     userPromise = null;
     try {
+      logger.info(String.format("Download of %s failed. Cause: %s.", path, t.toString()));
       reset(ctx);
     } finally {
       promise.setFailure(t);
