@@ -111,7 +111,8 @@ public final class RemoteCacheClientFactory {
               ImmutableList.copyOf(options.remoteHeaders),
               digestUtil,
               creds,
-              authAndTlsOptions);
+              authAndTlsOptions,
+              HttpCacheClient.newRetrier(options));
         } else {
           throw new Exception("Remote cache proxy unsupported: " + options.remoteProxy);
         }
@@ -125,7 +126,8 @@ public final class RemoteCacheClientFactory {
             ImmutableList.copyOf(options.remoteHeaders),
             digestUtil,
             creds,
-            authAndTlsOptions);
+            authAndTlsOptions,
+            HttpCacheClient.newRetrier(options));
       }
     } catch (Exception e) {
       throw new RuntimeException(e);
