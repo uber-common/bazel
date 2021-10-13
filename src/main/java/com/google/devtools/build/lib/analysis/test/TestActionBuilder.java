@@ -377,6 +377,7 @@ public final class TestActionBuilder {
     // Use 1-based indices for user friendliness.
     for (int shard = 0; shard < shardRuns; shard++) {
       String shardDir = shardRuns > 1 ? String.format("shard_%d_of_%d", shard + 1, shards) : null;
+      TestRunnerAction lastTestRun = null;
       for (int run = 0; run < runsPerTest; run++) {
         PathFragment dir;
         if (runsPerTest > 1) {
@@ -421,7 +422,10 @@ public final class TestActionBuilder {
         TestRunnerAction testRunnerAction =
             new TestRunnerAction(
                 actionOwner,
-                inputs,
+                testConfiguration.runsPerTestAreSequential() && lastTestRun != null ?
+                        NestedSetBuilder.fromNestedSet(inputs)
+                                .add(lastTestRun.getCacheStatusArtifact()).build() :
+                        inputs,
                 testRunfilesSupplier,
                 testActionExecutable,
                 testXmlGeneratorExecutable,
@@ -456,6 +460,8 @@ public final class TestActionBuilder {
                         ruleContext, "external_network"),
                     PackageSpecificationProvider.EMPTY),
                 ruleContext.isExecutedOnWindows());
+
+        lastTestRun = testRunnerAction;
 
         testOutputs.addAll(testRunnerAction.getSpawnOutputs());
         testOutputs.addAll(testRunnerAction.getOutputs());
