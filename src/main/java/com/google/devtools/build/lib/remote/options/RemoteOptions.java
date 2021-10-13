@@ -323,6 +323,19 @@ public final class RemoteOptions extends OptionsBase {
   public double remoteMaxFailureRate;
 
   @Option(
+          name = "remote_failure_rate_window_size",
+          defaultValue = "0",
+          documentationCategory = OptionDocumentationCategory.REMOTE,
+          effectTags = {OptionEffectTag.UNKNOWN},
+          help =
+                  "The moving time window on which the failure rate of the remote requests is computed."
+                          + " That is, only requests occurred in the last <n> seconds will contribute to the"
+                          + " calculation of the failure rate. "
+                          + " If n=0, the failure rate is computed on the whole duration of the execution."
+                          + " This only works with HTTP cache at the moment.")
+  public int remoteFailureRateTimeWindowSize;
+
+  @Option(
       name = "disk_cache",
       defaultValue = "null",
       documentationCategory = OptionDocumentationCategory.UNCATEGORIZED,
