@@ -25,9 +25,12 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
+import com.google.devtools.build.lib.remote.RemoteRetrier;
+import com.google.devtools.build.lib.remote.Retrier;
 import com.google.devtools.build.lib.remote.common.CacheNotFoundException;
 import com.google.devtools.build.lib.remote.common.RemoteActionExecutionContext;
 import com.google.devtools.build.lib.remote.common.RemoteCacheClient;
+import com.google.devtools.build.lib.remote.options.RemoteOptions;
 import com.google.devtools.build.lib.remote.util.DigestOutputStream;
 import com.google.devtools.build.lib.remote.util.DigestUtil;
 import com.google.devtools.build.lib.remote.util.Utils;
@@ -79,19 +82,24 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
+import java.nio.channels.ClosedChannelException;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.logging.Logger;
 import java.util.regex.Pattern;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterOutputStream;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
 
 /**
  * Implementation of {@link RemoteCacheClient} that can talk to a HTTP/1.1 backend.
@@ -125,6 +133,10 @@ public final class HttpCacheClient implements RemoteCacheClient {
   private static final Pattern INVALID_TOKEN_ERROR =
       Pattern.compile("\\s*error\\s*=\\s*\"?invalid_token\"?");
 
+  private static Pattern RETRYABLE_ERROR_MESSAGE = Pattern.compile(
+          "^.*(?:(?:connection.*(?:reset|closed|abort|broken)|broken.*pipe)|(?:(?:connection|operation|download|upload|read|write).*time.?\\s?out)).*$",
+          Pattern.CASE_INSENSITIVE);
+
   private final ConcurrentHashMap<String, Boolean> storedBlobs = new ConcurrentHashMap<>();
 
   private final EventLoopGroup eventLoop;
@@ -138,6 +150,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
   private final DigestUtil digestUtil;
 
   private final Object closeLock = new Object();
+  private final RemoteRetrier retrier;
 
   @GuardedBy("closeLock")
   private boolean isClosed;
@@ -158,7 +171,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
       boolean compressCasUploads,
       ImmutableList<Entry<String, String>> extraHttpHeaders,
       DigestUtil digestUtil,
-      @Nullable final Credentials creds)
+      @Nullable final Credentials creds,
+      @Nullable RemoteRetrier retrier)
       throws Exception {
     return new HttpCacheClient(
         NioEventLoopGroup::new,
@@ -171,7 +185,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
         extraHttpHeaders,
         digestUtil,
         creds,
-        null);
+        null,
+        retrier);
   }
 
   public static HttpCacheClient create(
@@ -183,7 +198,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
       boolean compressCasUploads,
       ImmutableList<Entry<String, String>> extraHttpHeaders,
       DigestUtil digestUtil,
-      @Nullable final Credentials creds)
+      @Nullable final Credentials creds,
+      @Nullable RemoteRetrier retrier)
       throws Exception {
 
     if (KQueue.isAvailable()) {
@@ -198,7 +214,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
           extraHttpHeaders,
           digestUtil,
           creds,
-          domainSocketAddress);
+          domainSocketAddress,
+          retrier);
     } else if (Epoll.isAvailable()) {
       return new HttpCacheClient(
           EpollEventLoopGroup::new,
@@ -211,7 +228,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
           extraHttpHeaders,
           digestUtil,
           creds,
-          domainSocketAddress);
+          domainSocketAddress,
+          retrier);
     } else {
       throw new Exception("Unix domain sockets are unsupported on this platform");
     }
@@ -228,7 +246,8 @@ public final class HttpCacheClient implements RemoteCacheClient {
       ImmutableList<Entry<String, String>> extraHttpHeaders,
       DigestUtil digestUtil,
       @Nullable final Credentials creds,
-      @Nullable SocketAddress socketAddress)
+      @Nullable SocketAddress socketAddress,
+      @Nullable RemoteRetrier retrier)
       throws Exception {
     useTls = uri.getScheme().equals("https");
     if (uri.getPort() == -1) {
@@ -296,6 +315,48 @@ public final class HttpCacheClient implements RemoteCacheClient {
     this.verifyDownloads = verifyDownloads;
     this.compressCasUploads = compressCasUploads;
     this.digestUtil = digestUtil;
+    this.retrier = retrier != null ? retrier : newRetrier(null);
+  }
+
+  public static RemoteRetrier newRetrier(RemoteOptions options) {
+    if (options == null || options.remoteMaxRetryAttempts <= 0) {
+      return new RemoteRetrier(
+              () -> Retrier.RETRIES_DISABLED,
+              (Exception e) -> false,
+              MoreExecutors.listeningDecorator(Executors.newScheduledThreadPool(1)),
+              Retrier.ALLOW_ALL_CALLS);
+    }
+    return new RemoteRetrier(
+            () -> new RemoteRetrier.ExponentialBackoff(options),
+            (Exception e) -> shouldRetry(e),
+            MoreExecutors.listeningDecorator(Executors.newScheduledThreadPool(1)),
+            Retrier.ALLOW_ALL_CALLS);
+  }
+
+  private static boolean shouldRetry(Exception e) {
+    if (e instanceof HttpException) {
+      HttpResponse response = ((HttpException) e).response();
+      if (response.status().equals(HttpResponseStatus.INTERNAL_SERVER_ERROR)
+              || response.status().equals(HttpResponseStatus.BAD_GATEWAY)
+              || response.status().equals(HttpResponseStatus.SERVICE_UNAVAILABLE)) {
+        logger.atInfo().log(String.format("Retrying: HttpException: %s.", response.status().toString()));
+        return true;
+      }
+    } else if (e instanceof ClosedChannelException
+            || e instanceof SSLException
+            || e instanceof DownloadTimeoutException
+            || e instanceof UploadTimeoutException) {
+      logger.atInfo().log(String.format("Retrying: %s: %s.", e.getClass().getSimpleName(), e.getMessage()));
+      return true;
+    } else if (e instanceof IOException) {
+      String message = e.getMessage();
+      if (RETRYABLE_ERROR_MESSAGE.asPredicate().test(message)) {
+        logger.atInfo().log(String.format("Retrying: IOException: %s.", message));
+        return true;
+      }
+    }
+    logger.atWarning().log(String.format("Failed: %s: %s.", e.getClass().getSimpleName(), e.getMessage()));
+    return false;
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
@@ -518,7 +579,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
     final DigestOutputStream digestOut =
         verifyDownloads ? digestUtil.newDigestOutputStream(out) : null;
     return Futures.transformAsync(
-        get(digest, digestOut != null ? digestOut : out, /* casDownload= */ true),
+            retrier.executeAsync(() -> get(digest, digestOut != null ? digestOut : out, /* casDownload= */ true)),
         (v) -> {
           try {
             if (digestOut != null) {
@@ -663,7 +724,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
       RemoteActionExecutionContext context, ActionKey actionKey, boolean inlineOutErr) {
     return Futures.transform(
         Utils.downloadAsActionResult(
-            actionKey, (digest, out) -> get(digest, out, /* casDownload= */ false)),
+            actionKey, (digest, out) -> retrier.executeAsync(() -> get(digest, out, /* casDownload= */ false))
         CachedActionResult::remote,
         MoreExecutors.directExecutor());
   }
@@ -830,20 +891,15 @@ public final class HttpCacheClient implements RemoteCacheClient {
   @Override
   public ListenableFuture<Void> uploadFile(
       RemoteActionExecutionContext context, Digest digest, Path file) {
-    try {
-      return uploadAsync(
-          digest.getHash(), digest.getSizeBytes(), file.getInputStream(), /* casUpload= */ true);
-    } catch (IOException e) {
-      // Can be thrown from file.getInputStream.
-      return Futures.immediateFailedFuture(e);
-    }
+    return retrier.executeAsync(() -> uploadAsync(
+            digest.getHash(), digest.getSizeBytes(), file.getInputStream(), /* casUpload= */ true));
   }
 
   @Override
   public ListenableFuture<Void> uploadBlob(
       RemoteActionExecutionContext context, Digest digest, ByteString data) {
-    return uploadAsync(
-        digest.getHash(), digest.getSizeBytes(), data.newInput(), /* casUpload= */ true);
+    return retrier.executeAsync(() -> uploadAsync(
+            digest.getHash(), digest.getSizeBytes(), data.newInput(), /* casUpload= */ true));
   }
 
   @Override
@@ -851,7 +907,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
       RemoteActionExecutionContext context, Iterable<Digest> digests) {
     ImmutableList.Builder<ListenableFuture<Digest>> queries = ImmutableList.builder();
     for (Digest digest : digests) {
-      queries.add(findMissingDigest(digest, SettableFuture.create(), true));
+      queries.add(retrier.executeAsync(() -> findMissingDigest(digest, SettableFuture.create(), true)));
     }
 
     ListenableFuture<ImmutableSet<Digest>> success = Futures.transformAsync(
@@ -899,12 +955,14 @@ public final class HttpCacheClient implements RemoteCacheClient {
   public ListenableFuture<Void> uploadActionResult(
       RemoteActionExecutionContext context, ActionKey actionKey, ActionResult actionResult) {
     ByteString serialized = actionResult.toByteString();
-    return uploadAsync(
-        actionKey.getDigest().getHash(),
-        serialized.size(),
-        serialized.newInput(),
-        /* casUpload= */ false);
-  }
+    ListenableFuture<Void> uploadFuture =
+        retrier.executeAsync(() ->
+                uploadAsync(
+                        actionKey.getDigest().getHash(),
+                        serialized.size(),
+                        serialized.newInput(),
+                        /* casUpload= */ false));
+ }
 
   /**
    * It's safe to suppress this warning because all methods on Netty futures return {@code this}. So
