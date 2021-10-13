@@ -272,7 +272,8 @@ public class HttpCacheClientTest {
           remoteVerifyDownloads,
           ImmutableList.of(),
           DIGEST_UTIL,
-          creds);
+          creds,
+          null);
     } else if (socketAddress instanceof InetSocketAddress) {
       InetSocketAddress inetSocketAddress = (InetSocketAddress) socketAddress;
       URI uri = new URI("http://localhost:" + inetSocketAddress.getPort());
@@ -283,7 +284,8 @@ public class HttpCacheClientTest {
           remoteVerifyDownloads,
           ImmutableList.of(),
           DIGEST_UTIL,
-          creds);
+          creds,
+          null);
     } else {
       throw new IllegalStateException(
           "unsupported socket address class " + socketAddress.getClass());
