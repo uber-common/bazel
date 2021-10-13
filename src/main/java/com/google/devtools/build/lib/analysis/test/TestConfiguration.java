@@ -217,6 +217,16 @@ public class TestConfiguration extends Fragment {
     public List<PerLabelOptions> runsPerTest;
 
     @Option(
+            name = "sequential_runs_per_test",
+            defaultValue = "false",
+            documentationCategory = OptionDocumentationCategory.UNCATEGORIZED,
+            effectTags = {OptionEffectTag.UNKNOWN},
+            help =
+                    "If true, multiple runs of the same tests are executed sequentially, that is "
+                            + "there is never a time when there are concurrent runs of the same test.")
+    public boolean runsPerTestAreSequential;
+
+    @Option(
         name = "runs_per_test_detects_flakes",
         defaultValue = "false",
         documentationCategory = OptionDocumentationCategory.UNCATEGORIZED,
@@ -388,6 +398,10 @@ public class TestConfiguration extends Fragment {
       }
     }
     return 1;
+  }
+
+  public boolean runsPerTestAreSequential() {
+    return options.runsPerTestAreSequential;
   }
 
   public boolean runsPerTestDetectsFlakes() {
