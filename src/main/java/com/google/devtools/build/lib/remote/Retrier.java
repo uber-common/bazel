@@ -16,6 +16,7 @@ package com.google.devtools.build.lib.remote;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.AsyncCallable;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -29,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
 /**
@@ -101,7 +103,7 @@ public class Retrier {
     State state();
 
     /** Called after an execution failed. */
-    void recordFailure();
+    void recordFailure(@Nullable Throwable t);
 
     /** Called after an execution succeeded. */
     void recordSuccess();
@@ -131,7 +133,7 @@ public class Retrier {
         }
 
         @Override
-        public void recordFailure() {}
+        public void recordFailure(@Nullable Throwable t) {}
 
         @Override
         public void recordSuccess() {}
@@ -141,24 +143,33 @@ public class Retrier {
 
     // 100 arbitrarily chosen as a fair balance between giving up
     // too quickly vs trying too much and giving up too late.
-    private static final int DEFAULT_MIN_EXECUTIONS_TO_COMPUTE_FAILURE_RATE = 100;
+    public static final int DEFAULT_MIN_EXECUTIONS_TO_COMPUTE_FAILURE_RATE = 100;
 
     private State state;
     private final AtomicInteger failures;
     private final AtomicInteger successes;
     private final double maxFailureRate;
     private final int minExecutionsToComputeFailureRate;
+    private final ImmutableSet<Class> ignoredErrors;
 
     public FailureRateCircuitBreaker(double maxFailureRate) {
-      this(maxFailureRate, DEFAULT_MIN_EXECUTIONS_TO_COMPUTE_FAILURE_RATE);
+      this(maxFailureRate, DEFAULT_MIN_EXECUTIONS_TO_COMPUTE_FAILURE_RATE, ImmutableSet.of());
     }
 
-    public FailureRateCircuitBreaker(double maxFailureRate, int minExecutionsToComputeFailureRate) {
+    public FailureRateCircuitBreaker(double maxFailureRate, Iterable<Class> ignoredErrors) {
+      this(maxFailureRate, DEFAULT_MIN_EXECUTIONS_TO_COMPUTE_FAILURE_RATE, ignoredErrors);
+    }
+
+    public FailureRateCircuitBreaker(
+            double maxFailureRate,
+            int minExecutionsToComputeFailureRate,
+            Iterable<Class> ignoredErrors) {
       this.maxFailureRate = maxFailureRate;
       this.state = State.ACCEPT_CALLS;
       this.failures = new AtomicInteger(0);
       this.successes = new AtomicInteger(0);
       this.minExecutionsToComputeFailureRate = minExecutionsToComputeFailureRate;
+      this.ignoredErrors = ImmutableSet.copyOf(ignoredErrors);
     }
 
     @Override
@@ -167,7 +178,10 @@ public class Retrier {
     }
 
     @Override
-    public void recordFailure() {
+    public void recordFailure(@Nullable Throwable t) {
+      if (t != null && ignoredErrors.contains(t.getClass())) {
+        return;
+      }
       double currentFailures = failures.incrementAndGet();
       double currentSuccesses = successes.get();
       if (currentFailures + currentSuccesses < minExecutionsToComputeFailureRate) {
@@ -294,7 +308,7 @@ public class Retrier {
         circuitBreaker.recordSuccess();
         return r;
       } catch (Exception e) {
-        circuitBreaker.recordFailure();
+        circuitBreaker.recordFailure(e);
         Throwables.throwIfInstanceOf(e, InterruptedException.class);
         if (State.TRIAL_CALL.equals(circuitState)) {
           throw e;
