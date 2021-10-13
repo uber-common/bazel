@@ -71,6 +71,7 @@ import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -85,6 +86,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.regex.Pattern;
+import java.util.zip.DeflaterOutputStream;
+import java.util.zip.InflaterOutputStream;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.net.ssl.SSLEngine;
@@ -128,6 +131,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
   private final ImmutableList<Entry<String, String>> extraHttpHeaders;
   private final boolean useTls;
   private final boolean verifyDownloads;
+  private final boolean compressCasUploads;
   private final DigestUtil digestUtil;
 
   private final Object closeLock = new Object();
@@ -148,6 +152,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
       int timeoutSeconds,
       int remoteMaxConnections,
       boolean verifyDownloads,
+      boolean compressCasUploads,
       ImmutableList<Entry<String, String>> extraHttpHeaders,
       DigestUtil digestUtil,
       @Nullable final Credentials creds,
@@ -160,6 +165,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
         timeoutSeconds,
         remoteMaxConnections,
         verifyDownloads,
+        compressCasUploads,
         extraHttpHeaders,
         digestUtil,
         creds,
@@ -173,6 +179,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
       int timeoutSeconds,
       int remoteMaxConnections,
       boolean verifyDownloads,
+      boolean compressCasUploads,
       ImmutableList<Entry<String, String>> extraHttpHeaders,
       DigestUtil digestUtil,
       @Nullable final Credentials creds,
@@ -187,6 +194,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
           timeoutSeconds,
           remoteMaxConnections,
           verifyDownloads,
+          compressCasUploads,
           extraHttpHeaders,
           digestUtil,
           creds,
@@ -200,6 +208,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
           timeoutSeconds,
           remoteMaxConnections,
           verifyDownloads,
+          compressCasUploads,
           extraHttpHeaders,
           digestUtil,
           creds,
@@ -217,6 +226,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
       int timeoutSeconds,
       int remoteMaxConnections,
       boolean verifyDownloads,
+      boolean compressCasUploads,
       ImmutableList<Entry<String, String>> extraHttpHeaders,
       DigestUtil digestUtil,
       @Nullable final Credentials creds,
@@ -283,6 +293,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
     this.timeoutSeconds = timeoutSeconds;
     this.extraHttpHeaders = extraHttpHeaders;
     this.verifyDownloads = verifyDownloads;
+    this.compressCasUploads = compressCasUploads;
     this.digestUtil = digestUtil;
   }
 
@@ -459,6 +470,13 @@ public final class HttpCacheClient implements RemoteCacheClient {
 
   @SuppressWarnings("FutureReturnValueIgnored")
   private ListenableFuture<Void> get(Digest digest, final OutputStream out, boolean casDownload) {
+    final OutputStream outputStream;
+    if (casDownload && this.compressCasUploads) {
+      outputStream = new InflaterOutputStream(out);
+    } else {
+      outputStream = out;
+    }
+
     final AtomicBoolean dataWritten = new AtomicBoolean();
     OutputStream wrappedOut =
         new OutputStream() {
@@ -469,18 +487,18 @@ public final class HttpCacheClient implements RemoteCacheClient {
           @Override
           public void write(byte[] b, int offset, int length) throws IOException {
             dataWritten.set(true);
-            out.write(b, offset, length);
+            outputStream.write(b, offset, length);
           }
 
           @Override
           public void write(int b) throws IOException {
             dataWritten.set(true);
-            out.write(b);
+            outputStream.write(b);
           }
 
           @Override
           public void flush() throws IOException {
-            out.flush();
+            outputStream.flush();
           }
         };
     DownloadCommand downloadCmd = new DownloadCommand(uri, casDownload, digest, wrappedOut);
@@ -584,8 +602,22 @@ public final class HttpCacheClient implements RemoteCacheClient {
   @SuppressWarnings("FutureReturnValueIgnored")
   private ListenableFuture<Void> uploadAsync(
       String key, long length, InputStream in, boolean casUpload) {
+    InputStream input = in;
+    long inputLength = length;
+    File compressedUpload = null;
+
+    if (casUpload && this.compressCasUploads) {
+      try {
+        compressedUpload = createCompressedUpload(key, in);
+        in.close();
+        input = new FileInputStream(compressedUpload);
+        inputLength = compressedUpload.length();
+      } catch (Exception e) {
+      }
+    }
+
     InputStream wrappedIn =
-        new FilterInputStream(in) {
+        new FilterInputStream(input) {
           @Override
           public void close() {
             // Ensure that the InputStream can't be closed somewhere in the Netty
@@ -593,39 +625,46 @@ public final class HttpCacheClient implements RemoteCacheClient {
             // the finally block below.
           }
         };
-    UploadCommand upload = new UploadCommand(uri, casUpload, key, wrappedIn, length);
-    SettableFuture<Void> result = SettableFuture.create();
-    acquireUploadChannel()
-        .addListener(
-            (Future<Channel> channelPromise) -> {
-              if (!channelPromise.isSuccess()) {
-                result.setException(channelPromise.cause());
-                return;
-              }
 
-              Channel ch = channelPromise.getNow();
-              ch.writeAndFlush(upload)
-                  .addListener(
-                      (f) -> {
-                        releaseUploadChannel(ch);
-                        if (f.isSuccess()) {
-                          result.set(null);
-                        } else {
-                          Throwable cause = f.cause();
-                          if (cause instanceof HttpException) {
-                            HttpResponse response = ((HttpException) cause).response();
-                            try {
-                              // If the error is due to an expired auth token and we can reset
-                              // the input stream, then try again.
-                              if (authTokenExpired(response) && reset(in)) {
-                                try {
-                                  refreshCredentials();
-                                  uploadAfterCredentialRefresh(upload, result);
-                                } catch (IOException e) {
-                                  result.setException(e);
-                                } catch (RuntimeException e) {
-                                  logger.atWarning().withCause(e).log("Unexpected exception");
-                                  result.setException(e);
+    InputStream finalInput = input;
+    UploadCommand upload = new UploadCommand(uri, casUpload, key, wrappedIn, inputLength);
+    if (storedBlobs.putIfAbsent((casUpload ? CAS_PREFIX : AC_PREFIX) + key, true) == null) {
+      SettableFuture<Void> result = SettableFuture.create();
+
+      acquireUploadChannel()
+          .addListener(
+              (Future<Channel> channelPromise) -> {
+                if (!channelPromise.isSuccess()) {
+                  result.setException(channelPromise.cause());
+                  return;
+                }
+
+                Channel ch = channelPromise.getNow();
+                ch.writeAndFlush(upload)
+                    .addListener(
+                        (f) -> {
+                          releaseUploadChannel(ch);
+                          if (f.isSuccess()) {
+                            result.set(null);
+                          } else {
+                            Throwable cause = f.cause();
+                            if (cause instanceof HttpException) {
+                              HttpResponse response = ((HttpException) cause).response();
+                              try {
+                                // If the error is due to an expired auth token and we can reset
+                                // the input stream, then try again.
+                                if (authTokenExpired(response) && reset(finalInput)) {
+                                  try {
+                                    refreshCredentials();
+                                    uploadAfterCredentialRefresh(upload, result);
+                                  } catch (IOException e) {
+                                    result.setException(e);
+                                  } catch (RuntimeException e) {
+                                    logger.atWarning().withCause(e).log("Unexpected exception");
+                                    result.setException(e);
+                                  }
+                                } else {
+                                  result.setException(cause);
                                 }
                               } else {
                                 result.setException(cause);
@@ -636,11 +675,25 @@ public final class HttpCacheClient implements RemoteCacheClient {
                           } else {
                             result.setException(cause);
                           }
-                        }
-                      });
-            });
-    result.addListener(() -> Closeables.closeQuietly(in), MoreExecutors.directExecutor());
-    return result;
+                        });
+              });
+      File finalCompressedUpload = compressedUpload;
+      result.addListener(() ->  {
+
+        Closeables.closeQuietly(finalInput);
+        if (finalCompressedUpload != null) {
+          finalCompressedUpload.delete();
+        }
+      }, MoreExecutors.directExecutor());
+
+      return result;
+    } else {
+      Closeables.closeQuietly(input);
+      if (compressedUpload != null) {
+        compressedUpload.delete();
+      }
+      return Futures.immediateFuture(null);
+    }
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
@@ -808,5 +861,19 @@ public final class HttpCacheClient implements RemoteCacheClient {
     }
 
     return sslContextBuilder.build();
+    
+  }
+
+  private File createCompressedUpload(String name, InputStream input) throws IOException {
+    File compressedOutput = File.createTempFile(name, ".gz");
+    compressedOutput.deleteOnExit();
+    OutputStream out = new DeflaterOutputStream(new FileOutputStream(compressedOutput));
+    byte[] buffer = new byte[131072];
+    int len;
+    while ((len = input.read(buffer)) > 0) {
+      out.write(buffer, 0, len);
+    }
+    out.close();
+    return compressedOutput;
   }
 }
