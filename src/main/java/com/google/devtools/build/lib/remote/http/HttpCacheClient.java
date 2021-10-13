@@ -26,6 +26,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.devtools.build.lib.remote.RemoteRetrier;
+import com.google.devtools.build.lib.remote.Retrier.CircuitBreaker;
 import com.google.devtools.build.lib.remote.Retrier;
 import com.google.devtools.build.lib.remote.common.CacheNotFoundException;
 import com.google.devtools.build.lib.remote.common.RemoteActionExecutionContext;
@@ -319,18 +320,26 @@ public final class HttpCacheClient implements RemoteCacheClient {
   }
 
   public static RemoteRetrier newRetrier(RemoteOptions options) {
+    CircuitBreaker circuitBreaker =
+            options != null && options.remoteMaxFailureRate > 0
+                    ? new Retrier.FailureRateCircuitBreaker(options.remoteMaxFailureRate)
+                    : Retrier.ALLOW_ALL_CALLS;
+    return newRetrier(options, circuitBreaker);
+  }
+
+  public static RemoteRetrier newRetrier(RemoteOptions options, CircuitBreaker circuitBreaker) {
     if (options == null || options.remoteMaxRetryAttempts <= 0) {
       return new RemoteRetrier(
               () -> Retrier.RETRIES_DISABLED,
               (Exception e) -> false,
               MoreExecutors.listeningDecorator(Executors.newScheduledThreadPool(1)),
-              Retrier.ALLOW_ALL_CALLS);
+              circuitBreaker);
     }
     return new RemoteRetrier(
             () -> new RemoteRetrier.ExponentialBackoff(options),
             (Exception e) -> shouldRetry(e),
             MoreExecutors.listeningDecorator(Executors.newScheduledThreadPool(1)),
-            Retrier.ALLOW_ALL_CALLS);
+            circuitBreaker);
   }
 
   private static boolean shouldRetry(Exception e) {
