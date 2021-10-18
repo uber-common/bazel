@@ -651,7 +651,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
         .addListener(
             (Future<Channel> channelPromise) -> {
               if (!channelPromise.isSuccess()) {
-                outerF.setException(new IOException(channelPromise.cause()));
+                outerF.setException(channelPromise.cause());
                 return;
               }
 
@@ -692,7 +692,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
                                 return;
                               }
                             }
-                            outerF.setException(new IOException(cause));
+                            outerF.setException(cause);
                           }
                         } finally {
                           releaseDownloadChannel(ch);
@@ -759,6 +759,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
         input = new FileInputStream(compressedUpload);
         inputLength = compressedUpload.length();
       } catch (Exception e) {
+        logger.atWarning().withCause(e).log("Continue without compression");
       }
     }
 
@@ -816,7 +817,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
                                 result.setException(e);
                               }
                             } else {
-                              result.setException(new IOException(cause));
+                              result.setException(cause);
                             }
                           }
                         });
