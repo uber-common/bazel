@@ -179,7 +179,7 @@ public class Retrier {
     }
 
     @Override
-    public void recordFailure(@Nullable Throwable t) {
+    public synchronized void recordFailure(@Nullable Throwable t) {
       if (t != null && ignoredErrors.contains(t.getClass())) {
         return;
       }
@@ -203,7 +203,7 @@ public class Retrier {
     }
 
     @Override
-    public void recordSuccess() {
+    public synchronized void recordSuccess() {
       successes.incrementAndGet();
       if (timeWindow > 0) {
         scheduler.schedule(successes::decrementAndGet, timeWindow, TimeUnit.SECONDS);
@@ -347,22 +347,37 @@ public class Retrier {
    * backoff.
    */
   public <T> ListenableFuture<T> executeAsync(AsyncCallable<T> call, Backoff backoff) {
+    State circuitState = circuitBreaker.state();
+    if (circuitState.equals(State.REJECT_CALLS)) {
+      return Futures.immediateFailedFuture(new CircuitBreakerException());
+    }
     try {
+      ListenableFuture<T> future = Futures.transformAsync(
+              call.call(),
+              (f) -> {
+                circuitBreaker.recordSuccess();
+                return Futures.immediateFuture(f);
+              },
+              MoreExecutors.directExecutor()
+      );
       return Futures.catchingAsync(
-          call.call(),
-          Exception.class,
-          t -> onExecuteAsyncFailure(t, call, backoff),
-          MoreExecutors.directExecutor());
+              future,
+              Exception.class,
+              t -> onExecuteAsyncFailure(t, call, backoff, circuitState),
+              MoreExecutors.directExecutor());
     } catch (Exception e) {
-      return onExecuteAsyncFailure(e, call, backoff);
+      return onExecuteAsyncFailure(e, call, backoff, circuitState);
     }
   }
 
   private <T> ListenableFuture<T> onExecuteAsyncFailure(
-      Exception t, AsyncCallable<T> call, Backoff backoff) {
-    if (isRetriable(t)) {
-      long waitMillis = backoff.nextDelayMillis(t);
-      if (waitMillis >= 0) {
+      Exception t, AsyncCallable<T> call, Backoff backoff, State circuitState) {
+    circuitBreaker.recordFailure(t);
+    if (circuitState.equals(State.TRIAL_CALL)) {
+      return Futures.immediateFailedFuture(t);
+    }
+    long waitMillis = backoff.nextDelayMillis(t);
+    if (waitMillis >= 0 && isRetriable(t)) {
         try {
           return Futures.scheduleAsync(
               () -> executeAsync(call, backoff), waitMillis, TimeUnit.MILLISECONDS, retryService);
@@ -373,9 +388,6 @@ public class Retrier {
       } else {
         return Futures.immediateFailedFuture(t);
       }
-    } else {
-      return Futures.immediateFailedFuture(t);
-    }
   }
 
   public Backoff newBackoff() {
