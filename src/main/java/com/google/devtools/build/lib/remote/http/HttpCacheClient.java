@@ -760,6 +760,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
         input = new FileInputStream(compressedUpload);
         inputLength = compressedUpload.length();
       } catch (Exception e) {
+        logger.atWarning().withCause(e).log("Continue without compression");
       }
     }
 
