@@ -15,6 +15,7 @@ package com.google.devtools.build.lib.remote.http;
 
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.devtools.build.lib.remote.util.Utils.getFromFuture;
+import static com.google.devtools.build.lib.remote.util.Utils.refreshIfUnauthenticatedAsync;
 import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.fail;
@@ -32,16 +33,25 @@ import com.google.auth.Credentials;
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.devtools.build.lib.remote.common.RemoteActionExecutionContext;
 import com.google.devtools.build.lib.remote.util.DigestUtil;
 import com.google.devtools.build.lib.remote.util.TracingMetadataUtils;
 import com.google.devtools.build.lib.vfs.DigestHashFunction;
 import com.google.devtools.build.remote.worker.http.HttpCacheServerHandler;
+import com.google.devtools.common.options.Options;
 import com.google.protobuf.ByteString;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.devtools.build.lib.remote.RemoteRetrier;
+import com.google.devtools.build.lib.remote.Retrier.FailureRateCircuitBreaker;
+import com.google.devtools.build.lib.remote.Retrier.CircuitBreakerException;
+import com.google.devtools.build.lib.remote.common.CacheNotFoundException;
+import com.google.devtools.build.lib.remote.options.RemoteOptions;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandler.Sharable;
@@ -66,6 +76,7 @@ import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpServerCodec;
@@ -87,6 +98,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
 import javax.annotation.Nullable;
 import org.junit.Before;
@@ -257,7 +270,8 @@ public class HttpCacheClientTest {
       ServerChannel serverChannel,
       int timeoutSeconds,
       boolean remoteVerifyDownloads,
-      @Nullable final Credentials creds)
+      @Nullable final Credentials creds,
+      @Nullable RemoteRetrier retrier)
       throws Exception {
     SocketAddress socketAddress = serverChannel.localAddress();
     if (socketAddress instanceof DomainSocketAddress) {
@@ -269,10 +283,11 @@ public class HttpCacheClientTest {
           timeoutSeconds,
           /* remoteMaxConnections= */ 0,
           remoteVerifyDownloads,
+          false,
           ImmutableList.of(),
           DIGEST_UTIL,
           creds,
-          null);
+          retrier);
     } else if (socketAddress instanceof InetSocketAddress) {
       InetSocketAddress inetSocketAddress = (InetSocketAddress) socketAddress;
       URI uri = new URI("http://localhost:" + inetSocketAddress.getPort());
@@ -281,14 +296,23 @@ public class HttpCacheClientTest {
           timeoutSeconds,
           /* remoteMaxConnections= */ 0,
           remoteVerifyDownloads,
+          false,
           ImmutableList.of(),
           DIGEST_UTIL,
           creds,
-          null);
+          retrier);
     } else {
       throw new IllegalStateException(
           "unsupported socket address class " + socketAddress.getClass());
     }
+  }
+
+  private HttpCacheClient createHttpBlobStore(
+          ServerChannel serverChannel,
+          int timeoutSeconds,
+          boolean remoteVerifyDownloads,
+          @Nullable final Credentials creds) throws Exception {
+    return createHttpBlobStore(serverChannel, timeoutSeconds, remoteVerifyDownloads, creds, null);
   }
 
   private HttpCacheClient createHttpBlobStore(
@@ -298,12 +322,250 @@ public class HttpCacheClientTest {
         serverChannel, timeoutSeconds, /* remoteVerifyDownloads= */ true, creds);
   }
 
+  @Test
+  public void testRetriesDisabled() throws Exception {
+    ServerChannel server = null;
+    try {
+      AtomicInteger hitCounter = new AtomicInteger(0);
+      server =
+              testServer.start(
+                      new SimpleChannelInboundHandler<FullHttpRequest>() {
+
+                        @Override
+                        protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
+                          hitCounter.incrementAndGet();
+
+                          FullHttpResponse response =
+                                  new DefaultFullHttpResponse(
+                                          HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+                          HttpUtil.setContentLength(response, 0);
+                          ctx.writeAndFlush(response);
+                        }
+                      });
+
+      HttpCacheClient blobStore =
+              createHttpBlobStore(server, /* timeoutSeconds= */ 1, /* credentials= */ null);
+
+      ByteString data = ByteString.copyFrom("foo bar", StandardCharsets.UTF_8);
+      Digest digest = DIGEST_UTIL.compute(data.toByteArray());
+
+      for (int i = 1; i < 3; i++) {
+        ListenableFuture<Void> future = blobStore.downloadBlob(remoteActionExecutionContext,digest, new ByteArrayOutputStream());
+
+        ExecutionException e = assertThrows(ExecutionException.class, () -> future.get());
+        assertThat(e.getCause()).isInstanceOf(HttpException.class);
+
+        assertThat(hitCounter.get()).isEqualTo(i);
+      }
+    } finally {
+      testServer.stop(server);
+    }
+  }
+
+  @Test
+  public void testRetries() throws Exception {
+    ServerChannel server = null;
+    try {
+      Map<String, Integer> hitCounters = new ConcurrentHashMap<>();
+      server =
+              testServer.start(
+                      new SimpleChannelInboundHandler<FullHttpRequest>() {
+
+                        @Override
+                        protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
+                          Integer current = hitCounters.getOrDefault(request.uri(), 0);
+                          hitCounters.put(request.uri(), current + 1);
+                          FullHttpResponse response;
+
+                          // Return 500 every time the digest is requested for the first time
+                          // to force a retry. Return 200 in any other case
+                          if (current > 0) {
+                            response =
+                                    new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+                          } else {
+                            response =
+                                    new DefaultFullHttpResponse(
+                                            HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR);
+                          }
+                          HttpUtil.setContentLength(response, 0);
+                          ctx.writeAndFlush(response);
+                        }
+                      });
+
+      HttpCacheClient blobStore =
+              createHttpBlobStore(
+                      server,
+                      /* timeoutSeconds= */ 1,
+                      /* verify download */ false,
+                      /* credentials= */ null,
+                      HttpCacheClient.newRetrier(Options.getDefaults(RemoteOptions.class)));
+
+      ByteString a = ByteString.copyFrom("a", StandardCharsets.UTF_8);
+      Digest aDigest = DIGEST_UTIL.compute(a.toByteArray());
+      ByteString b = ByteString.copyFrom("b", StandardCharsets.UTF_8);
+      Digest bDigest = DIGEST_UTIL.compute(b.toByteArray());
+      ByteString c = ByteString.copyFrom("c", StandardCharsets.UTF_8);
+      Digest cDigest = DIGEST_UTIL.compute(c.toByteArray());
+
+      blobStore.downloadBlob(remoteActionExecutionContext, aDigest, new ByteArrayOutputStream()).get();
+      blobStore.downloadBlob(remoteActionExecutionContext, bDigest, new ByteArrayOutputStream()).get();
+      blobStore.downloadBlob(remoteActionExecutionContext, cDigest, new ByteArrayOutputStream()).get();
+      blobStore.downloadBlob(remoteActionExecutionContext, cDigest, new ByteArrayOutputStream()).get();
+
+      assertThat(hitCounters.get("/" + HttpCacheClient.CAS_PREFIX + aDigest.getHash()))
+              .isEqualTo(2);
+      assertThat(hitCounters.get("/" + HttpCacheClient.CAS_PREFIX + bDigest.getHash()))
+              .isEqualTo(2);
+      assertThat(hitCounters.get("/" + HttpCacheClient.CAS_PREFIX + cDigest.getHash()))
+              .isEqualTo(3);
+    } finally {
+      testServer.stop(server);
+    }
+  }
+
+  @Test
+  public void testMaxFailureRate() throws Exception {
+    ServerChannel server = null;
+    try {
+      AtomicInteger hitCounter = new AtomicInteger(0);
+      HttpResponseStatus status = HttpResponseStatus.NOT_FOUND;
+      server =
+              testServer.start(
+                      new SimpleChannelInboundHandler<FullHttpRequest>() {
+
+                        @Override
+                        protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
+                          int count = hitCounter.incrementAndGet();
+                          FullHttpResponse response =
+                                  new DefaultFullHttpResponse(
+                                          HttpVersion.HTTP_1_1,
+                                          count > 1 ?
+                                                  HttpResponseStatus.INTERNAL_SERVER_ERROR :
+                                                  HttpResponseStatus.NOT_FOUND);
+                          HttpUtil.setContentLength(response, 0);
+                          ctx.writeAndFlush(response);
+                        }
+                      });
+
+      RemoteOptions options = Options.getDefaults(RemoteOptions.class);
+      options.remoteMaxFailureRate = 0.2;
+      options.remoteMaxRetryAttempts = 3;
+      FailureRateCircuitBreaker circuitBreaker= new FailureRateCircuitBreaker(
+              /* maxFailureRate */ options.remoteMaxFailureRate,
+              /* minExecutionsToComputeFailureRate */ 3,
+              /* failureRateTimeWindowSize */ 0,
+              ImmutableList.of(CacheNotFoundException.class)
+      );
+      HttpCacheClient blobStore =
+              createHttpBlobStore(
+                      server,
+                      /* timeoutSeconds= */ 1,
+                      /* verify download */ false,
+                      /* credentials= */ null,
+                      HttpCacheClient.newRetrier(options, circuitBreaker));
+
+      ByteString data = ByteString.copyFrom("foo", StandardCharsets.UTF_8);
+      Digest digest = DIGEST_UTIL.compute(data.toByteArray());
+
+      ExecutionException e = assertThrows(
+              ExecutionException.class,
+              () -> blobStore.downloadBlob(remoteActionExecutionContext, digest, new ByteArrayOutputStream()).get()
+      );
+
+      assertThat(e.getCause()).isInstanceOf(CacheNotFoundException.class);
+      assertThat(hitCounter.get()).isEqualTo(1);
+
+      e = assertThrows(
+              ExecutionException.class,
+              () -> blobStore.downloadBlob(remoteActionExecutionContext, digest, new ByteArrayOutputStream()).get()
+      );
+      assertThat(e.getCause()).isInstanceOf(CircuitBreakerException.class);
+      assertThat(hitCounter.get()).isEqualTo(4);
+    } finally {
+      testServer.stop(server);
+    }
+  }
+
   @Before
   public void setUp() throws Exception {
     remoteActionExecutionContext =
         RemoteActionExecutionContext.create(
             TracingMetadataUtils.buildMetadata(
                 "none", "none", Digest.getDefaultInstance().getHash(), null));
+  }
+
+  @Test
+  public void testFindMissingDigestsUnsupported() throws Exception {
+    ServerChannel server = null;
+    try {
+      server =
+              testServer.start(
+                      new SimpleChannelInboundHandler<FullHttpRequest>() {
+                        @Override
+                        protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest msg) {
+                          FullHttpResponse response =
+                                  new DefaultFullHttpResponse(
+                                          HttpVersion.HTTP_1_1, HttpResponseStatus.METHOD_NOT_ALLOWED);
+                          ctx.writeAndFlush(response);
+                        }
+                      });
+      HttpCacheClient blobStore = createHttpBlobStore(server, 1, null);
+      ImmutableSet<Digest> digests = ImmutableSet.of(DIGEST_UTIL.compute(new byte[0]));
+      assertThat(blobStore.findMissingDigests(remoteActionExecutionContext, digests).get()).isEqualTo(digests);
+    } finally {
+      testServer.stop(server);
+    }
+  }
+
+  @Test
+  public void testFindMissingDigests() throws Exception {
+    ServerChannel server = null;
+    AtomicInteger headCounter = new AtomicInteger(0);
+    Digest zero = DIGEST_UTIL.compute(new byte[0]);
+    Digest a = DIGEST_UTIL.compute(new byte[] {'a'});
+    Digest b = DIGEST_UTIL.compute(new byte[] {'b', 'b'});
+    Digest c = DIGEST_UTIL.compute(new byte[] {'c', 'c', 'c'});
+    ConcurrentHashMap<String, byte[]> cache = new ConcurrentHashMap<>();
+    cache.put("/" + HttpCacheClient.CAS_PREFIX + zero.getHash(), new byte[0]);
+    cache.put("/" + HttpCacheClient.CAS_PREFIX + a.getHash(), new byte[0]);
+    cache.put("/" + HttpCacheClient.CAS_PREFIX + b.getHash(), new byte[0]);
+    try {
+      server =
+              testServer.start(
+                      new HttpCacheServerHandler(cache) {
+                        @Override
+                        protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
+                          if (request.method().equals(HttpMethod.HEAD)) {
+                            headCounter.incrementAndGet();
+                            FullHttpResponse response;
+                            if (cache.containsKey(request.uri())) {
+                              response =
+                                      new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+                            } else {
+                              response =
+                                      new DefaultFullHttpResponse(
+                                              HttpVersion.HTTP_1_1, HttpResponseStatus.NOT_FOUND);
+                            }
+                            ctx.writeAndFlush(response);
+                          } else {
+                            super.channelRead0(ctx, request);
+                          }
+                        }
+                      });
+      HttpCacheClient blobStore = createHttpBlobStore(server, 1, false, null);
+
+      blobStore.downloadBlob(remoteActionExecutionContext,a, new ByteArrayOutputStream()).get();
+      assertThat(blobStore.findMissingDigests(remoteActionExecutionContext, ImmutableSet.of(zero, a, c)).get())
+              .isEqualTo(ImmutableSet.of(c));
+      assertThat(headCounter.get()).isEqualTo(2);
+
+      blobStore.uploadBlob(remoteActionExecutionContext, c, ByteString.copyFrom(c.toByteArray()));
+      assertThat(blobStore.findMissingDigests(remoteActionExecutionContext, ImmutableSet.of(zero, a, b)).get())
+              .isEqualTo(ImmutableSet.of());
+      assertThat(headCounter.get()).isEqualTo(3);
+    } finally {
+      testServer.stop(server);
+    }
   }
 
   @Test
