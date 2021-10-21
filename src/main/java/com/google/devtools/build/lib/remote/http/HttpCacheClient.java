@@ -20,6 +20,7 @@ import com.google.auth.Credentials;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.flogger.GoogleLogger;
 import com.google.common.io.Closeables;
 import com.google.common.util.concurrent.Futures;
@@ -758,8 +759,13 @@ public final class HttpCacheClient implements RemoteCacheClient {
         in.close();
         input = new FileInputStream(compressedUpload);
         inputLength = compressedUpload.length();
-      } catch (Exception e) {
-        logger.atWarning().withCause(e).log("Continue without compression");
+      } catch (IOException e) {
+        logger.atWarning().withCause(e).log("Failed to compress");
+        Closeables.closeQuietly(input);
+        if (compressedUpload != null) {
+          compressedUpload.delete();
+        }
+        return Futures.immediateFuture(null);
       }
     }
 
@@ -908,8 +914,13 @@ public final class HttpCacheClient implements RemoteCacheClient {
   @Override
   public ListenableFuture<Void> uploadFile(
       RemoteActionExecutionContext context, Digest digest, Path file) {
-    return retrier.executeAsync(() -> uploadAsync(
-            digest.getHash(), digest.getSizeBytes(), file.getInputStream(), /* casUpload= */ true));
+    try (InputStream in = file.getInputStream()) {
+      return retrier.executeAsync(() -> uploadAsync(
+              digest.getHash(), digest.getSizeBytes(), in, /* casUpload= */ true));
+    }  catch (IOException e) {
+      // Can be thrown from file.getInputStream.
+      return Futures.immediateFailedFuture(e);
+    }
   }
 
   @Override
@@ -922,6 +933,9 @@ public final class HttpCacheClient implements RemoteCacheClient {
   @Override
   public ListenableFuture<ImmutableSet<Digest>> findMissingDigests(
       RemoteActionExecutionContext context, Iterable<Digest> digests) {
+    if (Iterables.isEmpty(digests)) {
+      return Futures.immediateFuture(ImmutableSet.of());
+    }
     ImmutableList.Builder<ListenableFuture<Digest>> queries = ImmutableList.builder();
     for (Digest digest : digests) {
       queries.add(retrier.executeAsync(() -> findMissingDigest(digest, SettableFuture.create(), true)));
