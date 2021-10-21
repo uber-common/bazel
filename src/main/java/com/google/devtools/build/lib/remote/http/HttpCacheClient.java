@@ -19,6 +19,7 @@ import build.bazel.remote.execution.v2.RequestMetadata;
 import com.google.auth.Credentials;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.flogger.GoogleLogger;
 import com.google.common.io.Closeables;
 import com.google.common.util.concurrent.Futures;
@@ -190,6 +191,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
         digestUtil,
         creds,
         authAndTlsOptions,
+        null,
         retrier);
   }
 
@@ -358,23 +360,23 @@ public final class HttpCacheClient implements RemoteCacheClient {
       if (response.status().equals(HttpResponseStatus.INTERNAL_SERVER_ERROR)
               || response.status().equals(HttpResponseStatus.BAD_GATEWAY)
               || response.status().equals(HttpResponseStatus.SERVICE_UNAVAILABLE)) {
-        logger.atInfo().log(String.format("Retrying: HttpException: %s.", response.status().toString()));
+        logger.atInfo().log("Retrying: HttpException: %s.", response.status().toString());
         return true;
       }
     } else if (e instanceof ClosedChannelException
             || e instanceof SSLException
             || e instanceof DownloadTimeoutException
             || e instanceof UploadTimeoutException) {
-      logger.atInfo().log(String.format("Retrying: %s: %s.", e.getClass().getSimpleName(), e.getMessage()));
+      logger.atInfo().log("Retrying: %s: %s.", e.getClass().getSimpleName(), e.getMessage());
       return true;
     } else if (e instanceof IOException) {
       String message = e.getMessage();
       if (RETRYABLE_ERROR_MESSAGE.asPredicate().test(message)) {
-        logger.atInfo().log(String.format("Retrying: IOException: %s.", message));
+        logger.atInfo().log("Retrying: IOException: %s.", message);
         return true;
       }
     }
-    logger.atWarning().log(String.format("Failed: %s: %s.", e.getClass().getSimpleName(), e.getMessage()));
+    logger.atWarning().log("Failed: %s: %s.", e.getClass().getSimpleName(), e.getMessage());
     return false;
   }
 
@@ -743,7 +745,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
       RemoteActionExecutionContext context, ActionKey actionKey, boolean inlineOutErr) {
     return Futures.transform(
         Utils.downloadAsActionResult(
-            actionKey, (digest, out) -> retrier.executeAsync(() -> get(digest, out, /* casDownload= */ false))
+            actionKey, (digest, out) -> retrier.executeAsync(() -> get(digest, out, /* casDownload= */ false))),
         CachedActionResult::remote,
         MoreExecutors.directExecutor());
   }
@@ -761,8 +763,13 @@ public final class HttpCacheClient implements RemoteCacheClient {
         in.close();
         input = new FileInputStream(compressedUpload);
         inputLength = compressedUpload.length();
-      } catch (Exception e) {
-        logger.atWarning().withCause(e).log("Continue without compression");
+      } catch (IOException e) {
+        logger.atWarning().withCause(e).log("Failed to compress");
+        Closeables.closeQuietly(input);
+        if (compressedUpload != null) {
+          compressedUpload.delete();
+        }
+        return Futures.immediateFailedFuture(e);
       }
     }
 
@@ -816,14 +823,12 @@ public final class HttpCacheClient implements RemoteCacheClient {
                                 } else {
                                   result.setException(cause);
                                 }
-                              } else {
-                                result.setException(cause);
+                              } catch (IOException e) {
+                                result.setException(e);
                               }
-                            } catch (IOException e) {
-                              result.setException(e);
+                            } else {
+                              result.setException(cause);
                             }
-                          } else {
-                            result.setException(cause);
                           }
                         });
               });
@@ -913,8 +918,13 @@ public final class HttpCacheClient implements RemoteCacheClient {
   @Override
   public ListenableFuture<Void> uploadFile(
       RemoteActionExecutionContext context, Digest digest, Path file) {
-    return retrier.executeAsync(() -> uploadAsync(
-            digest.getHash(), digest.getSizeBytes(), file.getInputStream(), /* casUpload= */ true));
+    try (InputStream in = file.getInputStream()) {
+      return retrier.executeAsync(() -> uploadAsync(
+              digest.getHash(), digest.getSizeBytes(), in, /* casUpload= */ true));
+    }  catch (IOException e) {
+      // Can be thrown from file.getInputStream.
+      return Futures.immediateFailedFuture(e);
+    }
   }
 
   @Override
@@ -927,6 +937,9 @@ public final class HttpCacheClient implements RemoteCacheClient {
   @Override
   public ListenableFuture<ImmutableSet<Digest>> findMissingDigests(
       RemoteActionExecutionContext context, Iterable<Digest> digests) {
+    if (Iterables.isEmpty(digests)) {
+      return Futures.immediateFuture(ImmutableSet.of());
+    }
     ImmutableList.Builder<ListenableFuture<Digest>> queries = ImmutableList.builder();
     for (Digest digest : digests) {
       queries.add(retrier.executeAsync(() -> findMissingDigest(digest, SettableFuture.create(), true)));
@@ -984,6 +997,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
                         serialized.size(),
                         serialized.newInput(),
                         /* casUpload= */ false));
+    return uploadFuture;
  }
 
   /**
