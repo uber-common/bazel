@@ -56,7 +56,7 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
       OutputStream out,
       SkyframeExecutor skyframeExecutor,
       TargetAccessor<KeyedConfiguredTarget> accessor) {
-    super(eventHandler, options, out, skyframeExecutor, accessor);
+    super(eventHandler, options, out, skyframeExecutor, accessor, /*uniquifyResults=*/ false);
   }
 
   @Override
