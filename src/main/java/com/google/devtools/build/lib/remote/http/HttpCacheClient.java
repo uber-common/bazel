@@ -22,6 +22,7 @@ import build.bazel.remote.execution.v2.RequestMetadata;
 import com.google.auth.Credentials;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.flogger.GoogleLogger;
 import com.google.common.io.Closeables;
 import com.google.common.util.concurrent.Futures;
@@ -727,7 +728,13 @@ public final class HttpCacheClient implements RemoteCacheClient {
         in.close();
         input = new FileInputStream(compressedUpload);
         inputLength = compressedUpload.length();
-      } catch (Exception e) {
+      } catch (IOException e) {
+        logger.atWarning().withCause(e).log("Failed to compress");
+        Closeables.closeQuietly(input);
+        if (compressedUpload != null) {
+          compressedUpload.delete();
+        }
+        return Futures.immediateFailedFuture(e);
       }
     }
 
@@ -781,14 +788,12 @@ public final class HttpCacheClient implements RemoteCacheClient {
                                 } else {
                                   result.setException(cause);
                                 }
-                              } else {
-                                result.setException(cause);
+                              } catch (IOException e) {
+                                result.setException(e);
                               }
-                            } catch (IOException e) {
-                              result.setException(e);
+                            } else {
+                              result.setException(cause);
                             }
-                          } else {
-                            result.setException(cause);
                           }
                         });
               });
@@ -905,6 +910,9 @@ public final class HttpCacheClient implements RemoteCacheClient {
   @Override
   public ListenableFuture<ImmutableSet<Digest>> findMissingDigests(
       RemoteActionExecutionContext context, Iterable<Digest> digests) {
+    if (Iterables.isEmpty(digests)) {
+      return Futures.immediateFuture(ImmutableSet.of());
+    }
     ImmutableList.Builder<ListenableFuture<Digest>> queries = ImmutableList.builder();
     for (Digest digest : digests) {
       queries.add(findMissingDigest(digest, SettableFuture.create(), true));
