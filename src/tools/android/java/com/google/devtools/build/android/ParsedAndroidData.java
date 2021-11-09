@@ -178,7 +178,7 @@ public class ParsedAndroidData {
     }
 
     OverwritableConsumer(Map<K, V> target, Set<MergeConflict> conflicts) {
-      this(target, conflicts, true);
+      this(target, conflicts, false);
     }
 
     @Override
