@@ -392,7 +392,8 @@ class AndroidDataMerger {
         if (throwOnResourceConflict) {
           throw MergeConflictException.withMessage(Joiner.on("\n").join(messages));
         } else {
-          logger.warning(Joiner.on("\n").join(messages));
+          // Suppress noisy warnings
+          //logger.warning(Joiner.on("\n").join(messages));
         }
       }
     } catch (IOException e) {
