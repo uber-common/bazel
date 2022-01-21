@@ -128,7 +128,7 @@ public class BazelCppSemantics implements AspectLegalCppSemantics {
 
   @Override
   public boolean needsIncludeValidation() {
-    return language != Language.OBJC;
+    return false;
   }
 
   @Override
