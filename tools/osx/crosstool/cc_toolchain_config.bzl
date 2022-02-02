@@ -55,59 +55,6 @@ def _deterministic_libtool_flags(ctx):
     return []
 
 def _impl(ctx):
-    if (ctx.attr.cpu == "darwin_x86_64"):
-        toolchain_identifier = "darwin_x86_64"
-    elif (ctx.attr.cpu == "darwin_arm64"):
-        toolchain_identifier = "darwin_arm64"
-    elif (ctx.attr.cpu == "darwin_arm64e"):
-        toolchain_identifier = "darwin_arm64e"
-    elif (ctx.attr.cpu == "ios_arm64"):
-        toolchain_identifier = "ios_arm64"
-    elif (ctx.attr.cpu == "ios_arm64e"):
-        toolchain_identifier = "ios_arm64e"
-    elif (ctx.attr.cpu == "ios_armv7"):
-        toolchain_identifier = "ios_armv7"
-    elif (ctx.attr.cpu == "ios_i386"):
-        toolchain_identifier = "ios_i386"
-    elif (ctx.attr.cpu == "ios_x86_64"):
-        toolchain_identifier = "ios_x86_64"
-    elif (ctx.attr.cpu == "armeabi-v7a"):
-        toolchain_identifier = "stub_armeabi-v7a"
-    elif (ctx.attr.cpu == "tvos_arm64"):
-        toolchain_identifier = "tvos_arm64"
-    elif (ctx.attr.cpu == "tvos_x86_64"):
-        toolchain_identifier = "tvos_x86_64"
-    elif (ctx.attr.cpu == "watchos_arm64_32"):
-        toolchain_identifier = "watchos_arm64_32"
-    elif (ctx.attr.cpu == "watchos_armv7k"):
-        toolchain_identifier = "watchos_armv7k"
-    elif (ctx.attr.cpu == "watchos_i386"):
-        toolchain_identifier = "watchos_i386"
-    elif (ctx.attr.cpu == "watchos_x86_64"):
-        toolchain_identifier = "watchos_x86_64"
-    else:
-        fail("Unreachable")
-
-    if (ctx.attr.cpu == "armeabi-v7a"):
-        host_system_name = "armeabi-v7a"
-    elif (ctx.attr.cpu == "darwin_x86_64" or
-          ctx.attr.cpu == "darwin_arm64" or
-          ctx.attr.cpu == "darwin_arm64e" or
-          ctx.attr.cpu == "ios_arm64" or
-          ctx.attr.cpu == "ios_arm64e" or
-          ctx.attr.cpu == "ios_armv7" or
-          ctx.attr.cpu == "ios_i386" or
-          ctx.attr.cpu == "ios_x86_64" or
-          ctx.attr.cpu == "tvos_arm64" or
-          ctx.attr.cpu == "tvos_x86_64" or
-          ctx.attr.cpu == "watchos_arm64_32" or
-          ctx.attr.cpu == "watchos_armv7k" or
-          ctx.attr.cpu == "watchos_i386" or
-          ctx.attr.cpu == "watchos_x86_64"):
-        host_system_name = "x86_64-apple-macosx"
-    else:
-        fail("Unreachable")
-
     if (ctx.attr.cpu == "ios_arm64"):
         target_system_name = "arm64-apple-ios"
     elif (ctx.attr.cpu == "tvos_arm64"):
@@ -128,6 +75,8 @@ def _impl(ctx):
         target_system_name = "i386-apple-watchos"
     elif (ctx.attr.cpu == "ios_x86_64"):
         target_system_name = "x86_64-apple-ios"
+    elif (ctx.attr.cpu == "ios_sim_arm64"):
+        target_system_name = "arm64-apple-ios-simulator"
     elif (ctx.attr.cpu == "darwin_x86_64"):
         target_system_name = "x86_64-apple-macosx"
     elif (ctx.attr.cpu == "darwin_arm64"):
@@ -140,109 +89,28 @@ def _impl(ctx):
         target_system_name = "x86_64-apple-watchos"
     else:
         fail("Unreachable")
-
-    if (ctx.attr.cpu == "armeabi-v7a"):
-        target_cpu = "armeabi-v7a"
-    elif (ctx.attr.cpu == "darwin_x86_64"):
-        target_cpu = "darwin_x86_64"
-    elif (ctx.attr.cpu == "darwin_arm64"):
-        target_cpu = "darwin_arm64"
-    elif (ctx.attr.cpu == "darwin_arm64e"):
-        target_cpu = "darwin_arm64e"
-    elif (ctx.attr.cpu == "ios_arm64"):
-        target_cpu = "ios_arm64"
-    elif (ctx.attr.cpu == "ios_arm64e"):
-        target_cpu = "ios_arm64e"
-    elif (ctx.attr.cpu == "ios_armv7"):
-        target_cpu = "ios_armv7"
-    elif (ctx.attr.cpu == "ios_i386"):
-        target_cpu = "ios_i386"
-    elif (ctx.attr.cpu == "ios_x86_64"):
-        target_cpu = "ios_x86_64"
-    elif (ctx.attr.cpu == "tvos_arm64"):
-        target_cpu = "tvos_arm64"
-    elif (ctx.attr.cpu == "tvos_x86_64"):
-        target_cpu = "tvos_x86_64"
-    elif (ctx.attr.cpu == "watchos_arm64_32"):
-        target_cpu = "watchos_arm64_32"
-    elif (ctx.attr.cpu == "watchos_armv7k"):
-        target_cpu = "watchos_armv7k"
-    elif (ctx.attr.cpu == "watchos_i386"):
-        target_cpu = "watchos_i386"
-    elif (ctx.attr.cpu == "watchos_x86_64"):
-        target_cpu = "watchos_x86_64"
-    else:
-        fail("Unreachable")
-
-    if (ctx.attr.cpu == "armeabi-v7a"):
-        target_libc = "armeabi-v7a"
-    elif (ctx.attr.cpu == "ios_arm64" or
-          ctx.attr.cpu == "ios_arm64e" or
-          ctx.attr.cpu == "ios_armv7" or
-          ctx.attr.cpu == "ios_i386" or
-          ctx.attr.cpu == "ios_x86_64"):
-        target_libc = "ios"
-    elif (ctx.attr.cpu == "darwin_x86_64" or
-          ctx.attr.cpu == "darwin_arm64" or
-          ctx.attr.cpu == "darwin_arm64e"):
+    
+    if ctx.attr.cpu.startswith("darwin_"):
         target_libc = "macosx"
-    elif (ctx.attr.cpu == "tvos_arm64" or
-          ctx.attr.cpu == "tvos_x86_64"):
-        target_libc = "tvos"
-    elif (ctx.attr.cpu == "watchos_arm64_32" or
-          ctx.attr.cpu == "watchos_armv7k" or
-          ctx.attr.cpu == "watchos_i386" or
-          ctx.attr.cpu == "watchos_x86_64"):
-        target_libc = "watchos"
     else:
-        fail("Unreachable")
+        target_libc = ctx.attr.cpu.split("_")[0]
 
     compiler = "compiler"
 
-    if (ctx.attr.cpu == "armeabi-v7a"):
-        abi_version = "armeabi-v7a"
-    elif (ctx.attr.cpu == "darwin_x86_64"):
-        abi_version = "darwin_x86_64"
-    elif (ctx.attr.cpu == "darwin_arm64" or
-          ctx.attr.cpu == "darwin_arm64e" or
-          ctx.attr.cpu == "ios_arm64" or
-          ctx.attr.cpu == "ios_arm64e" or
-          ctx.attr.cpu == "ios_armv7" or
-          ctx.attr.cpu == "ios_i386" or
-          ctx.attr.cpu == "ios_x86_64" or
-          ctx.attr.cpu == "tvos_arm64" or
-          ctx.attr.cpu == "tvos_x86_64" or
-          ctx.attr.cpu == "watchos_arm64_32" or
-          ctx.attr.cpu == "watchos_armv7k" or
-          ctx.attr.cpu == "watchos_i386" or
-          ctx.attr.cpu == "watchos_x86_64"):
-        abi_version = "local"
-    else:
-        fail("Unreachable")
-
-    if (ctx.attr.cpu == "armeabi-v7a"):
-        abi_libc_version = "armeabi-v7a"
-    elif (ctx.attr.cpu == "darwin_x86_64"):
+    if ctx.attr.cpu == "darwin_x86_64":
         abi_libc_version = "darwin_x86_64"
-    elif (ctx.attr.cpu == "darwin_arm64" or
-          ctx.attr.cpu == "darwin_arm64e" or
-          ctx.attr.cpu == "ios_arm64" or
-          ctx.attr.cpu == "ios_arm64e" or
-          ctx.attr.cpu == "ios_armv7" or
-          ctx.attr.cpu == "ios_i386" or
-          ctx.attr.cpu == "ios_x86_64" or
-          ctx.attr.cpu == "tvos_arm64" or
-          ctx.attr.cpu == "tvos_x86_64" or
-          ctx.attr.cpu == "watchos_arm64_32" or
-          ctx.attr.cpu == "watchos_armv7k" or
-          ctx.attr.cpu == "watchos_i386" or
-          ctx.attr.cpu == "watchos_x86_64"):
-        abi_libc_version = "local"
+        abi_version = "darwin_x86_64"
     else:
-        fail("Unreachable")
+        abi_libc_version = "local"
+        abi_version = "local"
 
+    toolchain_identifier = ctx.attr.cpu
+    host_system_name = "x86_64-apple-macosx"
+    arch = ctx.attr.cpu.split("_", 1)[-1]
+    if ctx.attr.cpu == "ios_sim_arm64":
+        arch = "arm64"
+    target_cpu = ctx.attr.cpu
     cc_target_os = "apple"
-
     builtin_sysroot = None
 
     all_compile_actions = [
@@ -347,6 +215,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "watchos_arm64_32" or
           ctx.attr.cpu == "watchos_armv7k" or
           ctx.attr.cpu == "watchos_i386" or
@@ -381,7 +250,7 @@ def _impl(ctx):
             action_name = ACTION_NAMES.objc_compile,
             flag_sets = [
                 flag_set(
-                    flag_groups = [flag_group(flags = ["-arch", "<architecture>"])],
+                    flag_groups = [flag_group(flags = ["-arch", arch])],
                 ),
             ],
             implies = [
@@ -413,7 +282,7 @@ def _impl(ctx):
             action_name = ACTION_NAMES.objc_compile,
             flag_sets = [
                 flag_set(
-                    flag_groups = [flag_group(flags = ["-arch", "arm64_32"])],
+                    flag_groups = [flag_group(flags = ["-arch", arch])],
                 ),
             ],
             implies = [
@@ -447,7 +316,7 @@ def _impl(ctx):
             action_name = ACTION_NAMES.objc_compile,
             flag_sets = [
                 flag_set(
-                    flag_groups = [flag_group(flags = ["-arch", "arm64"])],
+                    flag_groups = [flag_group(flags = ["-arch", arch])],
                 ),
             ],
             implies = [
@@ -480,7 +349,7 @@ def _impl(ctx):
             action_name = ACTION_NAMES.objc_compile,
             flag_sets = [
                 flag_set(
-                    flag_groups = [flag_group(flags = ["-arch", "arm64e"])],
+                    flag_groups = [flag_group(flags = ["-arch", arch])],
                 ),
             ],
             implies = [
@@ -512,7 +381,7 @@ def _impl(ctx):
             action_name = ACTION_NAMES.objc_compile,
             flag_sets = [
                 flag_set(
-                    flag_groups = [flag_group(flags = ["-arch", "armv7"])],
+                    flag_groups = [flag_group(flags = ["-arch", arch])],
                 ),
             ],
             implies = [
@@ -544,7 +413,7 @@ def _impl(ctx):
             action_name = ACTION_NAMES.objc_compile,
             flag_sets = [
                 flag_set(
-                    flag_groups = [flag_group(flags = ["-arch", "armv7k"])],
+                    flag_groups = [flag_group(flags = ["-arch", arch])],
                 ),
             ],
             implies = [
@@ -577,7 +446,7 @@ def _impl(ctx):
             action_name = ACTION_NAMES.objc_compile,
             flag_sets = [
                 flag_set(
-                    flag_groups = [flag_group(flags = ["-arch", "i386"])],
+                    flag_groups = [flag_group(flags = ["-arch", arch])],
                 ),
             ],
             implies = [
@@ -606,13 +475,14 @@ def _impl(ctx):
             ],
         )
     elif (ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "tvos_x86_64" or
           ctx.attr.cpu == "watchos_x86_64"):
         objc_compile_action = action_config(
             action_name = ACTION_NAMES.objc_compile,
             flag_sets = [
                 flag_set(
-                    flag_groups = [flag_group(flags = ["-arch", "x86_64"])],
+                    flag_groups = [flag_group(flags = ["-arch", arch])],
                 ),
             ],
             implies = [
@@ -645,7 +515,7 @@ def _impl(ctx):
             action_name = ACTION_NAMES.objc_compile,
             flag_sets = [
                 flag_set(
-                    flag_groups = [flag_group(flags = ["-arch", "x86_64"])],
+                    flag_groups = [flag_group(flags = ["-arch", arch])],
                 ),
             ],
             implies = [
@@ -682,7 +552,7 @@ def _impl(ctx):
                 flag_set(
                     flag_groups = [
                         flag_group(flags = ["-stdlib=libc++", "-std=gnu++11"]),
-                        flag_group(flags = ["-arch", "<architecture>"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = [
                                 "-Xlinker",
@@ -744,7 +614,7 @@ def _impl(ctx):
                 flag_set(
                     flag_groups = [
                         flag_group(flags = ["-stdlib=libc++", "-std=gnu++11"]),
-                        flag_group(flags = ["-arch", "arm64_32"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = [
                                 "-Xlinker",
@@ -808,7 +678,7 @@ def _impl(ctx):
                 flag_set(
                     flag_groups = [
                         flag_group(flags = ["-stdlib=libc++", "-std=gnu++11"]),
-                        flag_group(flags = ["-arch", "arm64"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = [
                                 "-Xlinker",
@@ -871,7 +741,7 @@ def _impl(ctx):
                 flag_set(
                     flag_groups = [
                         flag_group(flags = ["-stdlib=libc++", "-std=gnu++11"]),
-                        flag_group(flags = ["-arch", "arm64e"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = [
                                 "-Xlinker",
@@ -933,7 +803,7 @@ def _impl(ctx):
                 flag_set(
                     flag_groups = [
                         flag_group(flags = ["-stdlib=libc++", "-std=gnu++11"]),
-                        flag_group(flags = ["-arch", "armv7"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = [
                                 "-Xlinker",
@@ -995,7 +865,7 @@ def _impl(ctx):
                 flag_set(
                     flag_groups = [
                         flag_group(flags = ["-stdlib=libc++", "-std=gnu++11"]),
-                        flag_group(flags = ["-arch", "armv7k"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = [
                                 "-Xlinker",
@@ -1058,7 +928,7 @@ def _impl(ctx):
                 flag_set(
                     flag_groups = [
                         flag_group(flags = ["-stdlib=libc++", "-std=gnu++11"]),
-                        flag_group(flags = ["-arch", "i386"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = [
                                 "-Xlinker",
@@ -1115,6 +985,7 @@ def _impl(ctx):
         )
     elif (ctx.attr.cpu == "darwin_x86_64" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "tvos_x86_64" or
           ctx.attr.cpu == "watchos_x86_64"):
         objcpp_executable_action = action_config(
@@ -1123,7 +994,7 @@ def _impl(ctx):
                 flag_set(
                     flag_groups = [
                         flag_group(flags = ["-stdlib=libc++", "-std=gnu++11"]),
-                        flag_group(flags = ["-arch", "x86_64"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = [
                                 "-Xlinker",
@@ -1217,6 +1088,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "watchos_arm64_32" or
           ctx.attr.cpu == "watchos_armv7k" or
           ctx.attr.cpu == "watchos_i386" or
@@ -1299,6 +1171,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "watchos_arm64_32" or
           ctx.attr.cpu == "watchos_armv7k" or
           ctx.attr.cpu == "watchos_i386" or
@@ -1362,6 +1235,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "watchos_arm64_32" or
           ctx.attr.cpu == "watchos_armv7k" or
           ctx.attr.cpu == "watchos_i386" or
@@ -1400,7 +1274,7 @@ def _impl(ctx):
                         flag_group(
                             flags = [
                                 "-arch",
-                                "<architecture>",
+                                arch,
                                 "-stdlib=libc++",
                                 "-std=gnu++11",
                             ],
@@ -1440,7 +1314,7 @@ def _impl(ctx):
                         flag_group(
                             flags = [
                                 "-arch",
-                                "arm64_32",
+                                arch,
                                 "-stdlib=libc++",
                                 "-std=gnu++11",
                             ],
@@ -1480,7 +1354,7 @@ def _impl(ctx):
                 flag_set(
                     flag_groups = [
                         flag_group(
-                            flags = ["-arch", "arm64", "-stdlib=libc++", "-std=gnu++11"],
+                            flags = ["-arch", arch, "-stdlib=libc++", "-std=gnu++11"],
                         ),
                     ],
                 ),
@@ -1516,7 +1390,7 @@ def _impl(ctx):
                 flag_set(
                     flag_groups = [
                         flag_group(
-                            flags = ["-arch", "arm64e", "-stdlib=libc++", "-std=gnu++11"],
+                            flags = ["-arch", arch, "-stdlib=libc++", "-std=gnu++11"],
                         ),
                     ],
                 ),
@@ -1551,7 +1425,7 @@ def _impl(ctx):
                 flag_set(
                     flag_groups = [
                         flag_group(
-                            flags = ["-arch", "armv7", "-stdlib=libc++", "-std=gnu++11"],
+                            flags = ["-arch", arch, "-stdlib=libc++", "-std=gnu++11"],
                         ),
                     ],
                 ),
@@ -1586,7 +1460,7 @@ def _impl(ctx):
                 flag_set(
                     flag_groups = [
                         flag_group(
-                            flags = ["-arch", "armv7k", "-stdlib=libc++", "-std=gnu++11"],
+                            flags = ["-arch", arch, "-stdlib=libc++", "-std=gnu++11"],
                         ),
                     ],
                 ),
@@ -1622,7 +1496,7 @@ def _impl(ctx):
                 flag_set(
                     flag_groups = [
                         flag_group(
-                            flags = ["-arch", "i386", "-stdlib=libc++", "-std=gnu++11"],
+                            flags = ["-arch", arch, "-stdlib=libc++", "-std=gnu++11"],
                         ),
                     ],
                 ),
@@ -1652,6 +1526,7 @@ def _impl(ctx):
             ],
         )
     elif (ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "tvos_x86_64" or
           ctx.attr.cpu == "watchos_x86_64"):
         objcpp_compile_action = action_config(
@@ -1660,7 +1535,7 @@ def _impl(ctx):
                 flag_set(
                     flag_groups = [
                         flag_group(
-                            flags = ["-arch", "x86_64", "-stdlib=libc++", "-std=gnu++11"],
+                            flags = ["-arch", arch, "-stdlib=libc++", "-std=gnu++11"],
                         ),
                     ],
                 ),
@@ -1696,7 +1571,7 @@ def _impl(ctx):
                 flag_set(
                     flag_groups = [
                         flag_group(
-                            flags = ["-arch", "x86_64", "-stdlib=libc++", "-std=gnu++11"],
+                            flags = ["-arch", arch, "-stdlib=libc++", "-std=gnu++11"],
                         ),
                     ],
                 ),
@@ -1759,6 +1634,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "watchos_arm64_32" or
           ctx.attr.cpu == "watchos_armv7k" or
           ctx.attr.cpu == "watchos_i386" or
@@ -1820,6 +1696,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "watchos_arm64_32" or
           ctx.attr.cpu == "watchos_armv7k" or
           ctx.attr.cpu == "watchos_i386" or
@@ -2072,6 +1949,7 @@ def _impl(ctx):
         )
     elif (ctx.attr.cpu == "darwin_x86_64" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "tvos_x86_64" or
           ctx.attr.cpu == "watchos_x86_64"):
         objc_archive_action = action_config(
@@ -2086,7 +1964,7 @@ def _impl(ctx):
                                 "-filelist",
                                 "%{obj_list_path}",
                                 "-arch_only",
-                                "x86_64",
+                                arch,
                                 "-syslibroot",
                                 "%{sdk_dir}",
                                 "-o",
@@ -2128,7 +2006,7 @@ def _impl(ctx):
                 ),
                 flag_set(
                     flag_groups = [
-                        flag_group(flags = ["-arch", "<architecture>"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = ["-framework", "%{framework_names}"],
                             iterate_over = "framework_names",
@@ -2194,7 +2072,7 @@ def _impl(ctx):
                 ),
                 flag_set(
                     flag_groups = [
-                        flag_group(flags = ["-arch", "arm64_32"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = ["-framework", "%{framework_names}"],
                             iterate_over = "framework_names",
@@ -2262,7 +2140,7 @@ def _impl(ctx):
                 ),
                 flag_set(
                     flag_groups = [
-                        flag_group(flags = ["-arch", "arm64"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = ["-framework", "%{framework_names}"],
                             iterate_over = "framework_names",
@@ -2329,7 +2207,7 @@ def _impl(ctx):
                 ),
                 flag_set(
                     flag_groups = [
-                        flag_group(flags = ["-arch", "arm64e"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = ["-framework", "%{framework_names}"],
                             iterate_over = "framework_names",
@@ -2395,7 +2273,7 @@ def _impl(ctx):
                 ),
                 flag_set(
                     flag_groups = [
-                        flag_group(flags = ["-arch", "armv7"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = ["-framework", "%{framework_names}"],
                             iterate_over = "framework_names",
@@ -2461,7 +2339,7 @@ def _impl(ctx):
                 ),
                 flag_set(
                     flag_groups = [
-                        flag_group(flags = ["-arch", "armv7k"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = ["-framework", "%{framework_names}"],
                             iterate_over = "framework_names",
@@ -2528,7 +2406,7 @@ def _impl(ctx):
                 ),
                 flag_set(
                     flag_groups = [
-                        flag_group(flags = ["-arch", "i386"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = ["-framework", "%{framework_names}"],
                             iterate_over = "framework_names",
@@ -2575,6 +2453,7 @@ def _impl(ctx):
         )
     elif (ctx.attr.cpu == "darwin_x86_64" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "tvos_x86_64" or
           ctx.attr.cpu == "watchos_x86_64"):
         objc_executable_action = action_config(
@@ -2597,7 +2476,7 @@ def _impl(ctx):
                 ),
                 flag_set(
                     flag_groups = [
-                        flag_group(flags = ["-arch", "x86_64"]),
+                        flag_group(flags = ["-arch", arch]),
                         flag_group(
                             flags = ["-framework", "%{framework_names}"],
                             iterate_over = "framework_names",
@@ -2680,6 +2559,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "watchos_arm64_32" or
           ctx.attr.cpu == "watchos_armv7k" or
           ctx.attr.cpu == "watchos_i386" or
@@ -2767,6 +2647,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "watchos_arm64_32" or
           ctx.attr.cpu == "watchos_armv7k" or
           ctx.attr.cpu == "watchos_i386" or
@@ -2832,6 +2713,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "watchos_arm64_32" or
           ctx.attr.cpu == "watchos_armv7k" or
           ctx.attr.cpu == "watchos_i386" or
@@ -3156,6 +3038,7 @@ def _impl(ctx):
           ctx.attr.cpu == "darwin_arm64" or
           ctx.attr.cpu == "darwin_arm64e" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "tvos_x86_64" or
           ctx.attr.cpu == "watchos_x86_64"):
         objc_fully_link_action = action_config(
@@ -3168,7 +3051,7 @@ def _impl(ctx):
                                 "-no_warning_for_no_symbols",
                                 "-static",
                                 "-arch_only",
-                                "x86_64",
+                                arch,
                                 "-syslibroot",
                                 "%{sdk_dir}",
                                 "-o",
@@ -3215,6 +3098,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "tvos_arm64" or
           ctx.attr.cpu == "tvos_x86_64" or
           ctx.attr.cpu == "watchos_arm64_32" or
@@ -3257,6 +3141,7 @@ def _impl(ctx):
         ctx.attr.cpu == "ios_armv7" or
         ctx.attr.cpu == "ios_i386" or
         ctx.attr.cpu == "ios_x86_64" or
+        ctx.attr.cpu == "ios_sim_arm64" or
         ctx.attr.cpu == "watchos_arm64_32" or
         ctx.attr.cpu == "watchos_armv7k" or
         ctx.attr.cpu == "watchos_i386" or
@@ -3413,6 +3298,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "watchos_arm64_32" or
           ctx.attr.cpu == "watchos_armv7k" or
           ctx.attr.cpu == "watchos_i386" or
@@ -3478,6 +3364,7 @@ def _impl(ctx):
 
     if (ctx.attr.cpu == "ios_i386" or
         ctx.attr.cpu == "ios_x86_64" or
+        ctx.attr.cpu == "ios_sim_arm64" or
         ctx.attr.cpu == "tvos_x86_64" or
         ctx.attr.cpu == "watchos_i386" or
         ctx.attr.cpu == "watchos_x86_64"):
@@ -3558,6 +3445,7 @@ def _impl(ctx):
         ctx.attr.cpu == "ios_armv7" or
         ctx.attr.cpu == "ios_i386" or
         ctx.attr.cpu == "ios_x86_64" or
+        ctx.attr.cpu == "ios_sim_arm64" or
         ctx.attr.cpu == "tvos_arm64" or
         ctx.attr.cpu == "tvos_x86_64" or
         ctx.attr.cpu == "watchos_arm64_32" or
@@ -3801,7 +3689,7 @@ def _impl(ctx):
                 ),
             ],
         )
-    elif (ctx.attr.cpu == "ios_x86_64"):
+    elif (ctx.attr.cpu == "ios_x86_64" or ctx.attr.cpu == "ios_sim_arm64"):
         default_link_flags_feature = feature(
             name = "default_link_flags",
             enabled = True,
@@ -3814,7 +3702,7 @@ def _impl(ctx):
                             flags = [
                                 "-no-canonical-prefixes",
                                 "-target",
-                                "x86_64-apple-ios",
+                                target_system_name,
                             ],
                         ),
                     ],
@@ -4055,7 +3943,8 @@ def _impl(ctx):
         # This stub doesn't have a sensible value for this feature
         version_min_feature = feature(name = "version_min")
     elif (ctx.attr.cpu == "ios_i386" or
-          ctx.attr.cpu == "ios_x86_64"):
+          ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64"):
         version_min_feature = feature(
             name = "version_min",
             flag_sets = [
@@ -4570,6 +4459,7 @@ def _impl(ctx):
         ctx.attr.cpu == "ios_armv7" or
         ctx.attr.cpu == "ios_i386" or
         ctx.attr.cpu == "ios_x86_64" or
+        ctx.attr.cpu == "ios_sim_arm64" or
         ctx.attr.cpu == "tvos_arm64" or
         ctx.attr.cpu == "tvos_x86_64" or
         ctx.attr.cpu == "watchos_arm64_32" or
@@ -5010,7 +4900,8 @@ def _impl(ctx):
                 ),
             ],
         )
-    elif (ctx.attr.cpu == "ios_x86_64"):
+    elif (ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64"):
         unfiltered_compile_flags_feature = feature(
             name = "unfiltered_compile_flags",
             flag_sets = [
@@ -5034,7 +4925,7 @@ def _impl(ctx):
                                 "-D__TIMESTAMP__=\"redacted\"",
                                 "-D__TIME__=\"redacted\"",
                                 "-target",
-                                "x86_64-apple-ios",
+                                target_system_name,
                             ],
                         ),
                     ],
@@ -5375,6 +5266,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "watchos_arm64_32" or
           ctx.attr.cpu == "watchos_armv7k" or
           ctx.attr.cpu == "watchos_i386" or
@@ -5628,6 +5520,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "watchos_armv7k" or
           ctx.attr.cpu == "watchos_i386"):
         default_compile_flags_feature = feature(
@@ -5861,6 +5754,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "tvos_arm64" or
           ctx.attr.cpu == "tvos_x86_64" or
           ctx.attr.cpu == "watchos_arm64_32" or
@@ -5992,6 +5886,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "tvos_arm64" or
           ctx.attr.cpu == "tvos_x86_64" or
           ctx.attr.cpu == "watchos_arm64_32" or
@@ -6300,6 +6195,7 @@ def _impl(ctx):
         ctx.attr.cpu == "ios_armv7" or
         ctx.attr.cpu == "ios_i386" or
         ctx.attr.cpu == "ios_x86_64" or
+        ctx.attr.cpu == "ios_sim_arm64" or
         ctx.attr.cpu == "tvos_arm64" or
         ctx.attr.cpu == "tvos_x86_64" or
         ctx.attr.cpu == "watchos_arm64_32" or
@@ -6585,6 +6481,7 @@ def _impl(ctx):
           ctx.attr.cpu == "ios_armv7" or
           ctx.attr.cpu == "ios_i386" or
           ctx.attr.cpu == "ios_x86_64" or
+          ctx.attr.cpu == "ios_sim_arm64" or
           ctx.attr.cpu == "tvos_arm64" or
           ctx.attr.cpu == "tvos_x86_64" or
           ctx.attr.cpu == "watchos_arm64_32" or
