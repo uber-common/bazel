@@ -371,13 +371,6 @@ function create_and_run_classpath_jar() {
   exit $exit_code
 }
 
-# If the user didn't specify a --classpath_limit, use the default value.
-if [ -z "$CLASSPATH_LIMIT" ]; then
-  # Windows per-arg limit MAX_ARG_STRLEN == 8k
-  # Linux per-arg limit MAX_ARG_STRLEN == 128k
-  is_windows && CLASSPATH_LIMIT=7000 || CLASSPATH_LIMIT=120000
-fi
-
 # On non-macOS Unix, without any locale variable set, the JVM would use
 # using ASCII rather than UTF-8 as the encoding for file system paths.
 if ! is_macos; then
@@ -389,9 +382,26 @@ if ! is_macos; then
   fi
 fi
 
+# If the user didn't specify a --classpath_limit, use the default value.
+if [ -z "$CLASSPATH_LIMIT" ]; then
+  # Windows per-arg limit MAX_ARG_STRLEN == 8k
+  # Linux per-arg limit MAX_ARG_STRLEN == 128k
+  is_windows && CLASSPATH_LIMIT=7000 || CLASSPATH_LIMIT=120000
+fi
+
 if (("${#CLASSPATH}" > ${CLASSPATH_LIMIT})); then
-  export JACOCO_IS_JAR_WRAPPED=1
-  create_and_run_classpath_jar
+  java_ver=$(JAVABIN --version 2>&1) | head -1
+  if [[ "$java_ver" =~ [^.0-9]1[.][1-8] ]]; then
+    # Arguments file is not supported by Java SDK version 1.8 and earlier, use classpath jar as fallback
+    export JACOCO_IS_JAR_WRAPPED=1
+    create_and_run_classpath_jar
+  else
+    # Using argument file is more robust and efficient than Classpath jar
+    ARGS_FILE="$(mktemp -t XXXXXXXX.args)"
+    echo "-cp "$CLASSPATH >> $ARGS_FILE
+    exec $JAVABIN @$ARGS_FILE "${ARGS[@]}"
+  fi
 else
   exec $JAVABIN -classpath $CLASSPATH "${ARGS[@]}"
 fi
+
