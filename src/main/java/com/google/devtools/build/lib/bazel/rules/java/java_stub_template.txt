@@ -382,6 +382,13 @@ if ! is_macos; then
   fi
 fi
 
+# If the user didn't specify a --classpath_limit, use the default value.
+if [ -z "$CLASSPATH_LIMIT" ]; then
+  # Windows per-arg limit MAX_ARG_STRLEN == 8k
+  # Linux per-arg limit MAX_ARG_STRLEN == 128k
+  is_windows && CLASSPATH_LIMIT=7000 || CLASSPATH_LIMIT=120000
+fi
+
 if (("${#CLASSPATH}" > ${CLASSPATH_LIMIT})); then
   java_ver=$(JAVABIN --version 2>&1) | head -1
   if [[ "$java_ver" =~ [^.0-9]1[.][1-8] ]]; then
