@@ -323,7 +323,7 @@ final class WorkerSpawnRunner implements SpawnRunner {
 
   private static UserExecException createUnparsableResponseException(
       String recordingStreamMessage, Path logfile, Exception e) {
-    String message =
+    ErrorMessage.Builder builder =
         ErrorMessage.builder()
             .message(
                 "Worker process returned an unparseable WorkResponse!\n\n"
@@ -333,12 +333,11 @@ final class WorkerSpawnRunner implements SpawnRunner {
                     + "---8<---8<--- Start of response ---8<---8<---\n"
                     + recordingStreamMessage
                     + "---8<---8<--- End of response ---8<---8<---\n\n")
-            .logFile(logfile)
-            .logSizeLimit(8192)
-            .exception(e)
-            .build()
-            .toString();
-    return createUserExecException(message, Code.PARSE_RESPONSE_FAILURE);
+            .exception(e);
+    if (logfile != null) {
+         builder.logFile(logfile);
+    }
+    return createUserExecException(builder.build().toString(), Code.PARSE_RESPONSE_FAILURE);
   }
 
   @VisibleForTesting
