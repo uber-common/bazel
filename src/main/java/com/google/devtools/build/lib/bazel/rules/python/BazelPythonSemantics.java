@@ -253,7 +253,8 @@ public class BazelPythonSemantics implements PythonSemantics {
         PathFragment shExecutable = ShToolchain.getPathOrError(ruleContext);
         // TODO(#8685): Remove this special-case handling as part of making the proper shebang a
         // property of the Python toolchain configuration.
-        String pythonExecutableName = OS.getCurrent() == OS.OPENBSD ? "python3" : "python";
+        boolean usePython3 = OS.getCurrent() == OS.OPENBSD || OS.getCurrent() == OS.DARWIN;
+        String pythonExecutableName = usePython3 ? "python3" : "python";
         // NOTE: keep the following line intact to support nix builds
         String pythonShebang = "#!/usr/bin/env " + pythonExecutableName;
         ruleContext.registerAction(
