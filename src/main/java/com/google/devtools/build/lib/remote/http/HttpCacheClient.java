@@ -23,6 +23,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.flogger.GoogleLogger;
 import com.google.common.io.Closeables;
 import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
@@ -65,6 +66,8 @@ import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
+import com.google.devtools.build.lib.profiler.Profiler;
+import com.google.devtools.build.lib.profiler.ProfilerTask;
 import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
@@ -594,9 +597,11 @@ public final class HttpCacheClient implements RemoteCacheClient {
   @Override
   public ListenableFuture<Void> downloadBlob(
       RemoteActionExecutionContext context, Digest digest, OutputStream out) {
+    String profiler_id = CAS_PREFIX + digest.getHash().toString();
+    Profiler.instance().logEventAtTime(Profiler.nanoTimeMaybe(), ProfilerTask.REMOTE_CACHE_CAS_DOWNLOAD, String.format("id=%s", profiler_id)); 
     final DigestOutputStream digestOut =
         verifyDownloads ? digestUtil.newDigestOutputStream(out) : null;
-    return Futures.transformAsync(
+    ListenableFuture<Void> outerF = Futures.transformAsync(
             retrier.executeAsync(() -> get(digest, digestOut != null ? digestOut : out, /* casDownload= */ true)),
         (v) -> {
           try {
@@ -610,6 +615,22 @@ public final class HttpCacheClient implements RemoteCacheClient {
           }
         },
         MoreExecutors.directExecutor());
+
+    Futures.addCallback(
+        outerF,
+        new FutureCallback<Void>() {
+          @Override
+          public void onSuccess(Void result) {
+            Profiler.instance().logEventAtTime(Profiler.nanoTimeMaybe(), ProfilerTask.REMOTE_CACHE_CAS_DOWNLOAD_SUCCESS, String.format("id=%s", profiler_id)); 
+          }
+
+          @Override
+          public void onFailure(Throwable t) {
+            Profiler.instance().logEventAtTime(Profiler.nanoTimeMaybe(), ProfilerTask.REMOTE_CACHE_CAS_DOWNLOAD_FAILURE, String.format("id=%s,cause=%s", profiler_id, t.toString()));
+          }
+        },
+        MoreExecutors.directExecutor());
+    return outerF;
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")
@@ -740,11 +761,34 @@ public final class HttpCacheClient implements RemoteCacheClient {
   @Override
   public ListenableFuture<CachedActionResult> downloadActionResult(
       RemoteActionExecutionContext context, ActionKey actionKey, boolean inlineOutErr) {
-    return Futures.transform(
+    String profiler_id = AC_PREFIX + actionKey.getDigest().getHash().toString();
+    Profiler.instance().logEventAtTime(Profiler.nanoTimeMaybe(), ProfilerTask.REMOTE_CACHE_AC_DOWNLOAD, String.format("id=%s", profiler_id)); 
+
+    ListenableFuture<CachedActionResult> outerF = Futures.transform(
         Utils.downloadAsActionResult(
             actionKey, (digest, out) -> retrier.executeAsync(() -> get(digest, out, /* casDownload= */ false))),
         CachedActionResult::remote,
         MoreExecutors.directExecutor());
+    
+    Futures.addCallback(
+        outerF,
+        new FutureCallback<CachedActionResult>() {
+          @Override
+          public void onSuccess(CachedActionResult result) {
+            if (result != null) {
+              Profiler.instance().logEventAtTime(Profiler.nanoTimeMaybe(), ProfilerTask.REMOTE_CACHE_AC_DOWNLOAD_SUCCESS, String.format("id=%s", profiler_id)); 
+            } else {
+              Profiler.instance().logEventAtTime(Profiler.nanoTimeMaybe(), ProfilerTask.REMOTE_CACHE_AC_DOWNLOAD_FAILURE, String.format("id=%s,cause=not_found", profiler_id));
+            }
+          }
+
+          @Override
+          public void onFailure(Throwable t) {
+            Profiler.instance().logEventAtTime(Profiler.nanoTimeMaybe(), ProfilerTask.REMOTE_CACHE_AC_DOWNLOAD_FAILURE, String.format("id=%s,cause=%s", profiler_id, t.toString()));
+          }
+        },
+        MoreExecutors.directExecutor());
+    return outerF;
   }
 
   @SuppressWarnings("FutureReturnValueIgnored")

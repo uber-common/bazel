@@ -14,6 +14,7 @@
 package com.google.devtools.build.lib.metrics;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.devtools.build.lib.profiler.ProfilerTask;
 import com.google.common.eventbus.AllowConcurrentEvents;
 import com.google.common.eventbus.Subscribe;
 import com.google.devtools.build.lib.actions.ActionCompletionEvent;
@@ -252,12 +253,16 @@ class MetricsCollector {
 
     ImmutableMap<String, Integer> spawnSummary = spawnStats.getSummary();
     actionSummary.setActionsExecuted(spawnSummary.getOrDefault("total", 0));
+    StringBuilder reportedStats = new StringBuilder("");
     spawnSummary
         .entrySet()
         .forEach(
-            e ->
+            e -> {
                 actionSummary.addRunnerCount(
-                    RunnerCount.newBuilder().setName(e.getKey()).setCount(e.getValue()).build()));
+                    RunnerCount.newBuilder().setName(e.getKey()).setCount(e.getValue()).build());
+                    reportedStats.append(String.format("%s=%s,",e.getKey(), e.getValue()));
+               }); 
+    Profiler.instance().logEventAtTime(Profiler.nanoTimeMaybe(), ProfilerTask.REPORTED_STATS, reportedStats.toString());
     return actionSummary.build();
   }
 
