@@ -135,6 +135,10 @@ def compile_action(
       or resources present, whereas runfiles in this case are empty.
     """
 
+    # Enable header compilation override on a per-target basis
+    enable_compile_jar_action = "force_java_header_compilation" in ctx.attr.tags or (
+        enable_compile_jar_action and "force_nojava_header_compilation" not in ctx.attr.tags)
+
     java_info = java_common.compile(
         ctx,
         source_files = source_files,
