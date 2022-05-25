@@ -43,6 +43,7 @@ import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
 import com.google.devtools.build.lib.collect.nestedset.Order;
 import com.google.devtools.build.lib.packages.TargetUtils;
+import com.google.devtools.build.lib.packages.Type;
 import com.google.devtools.build.lib.rules.java.JavaConfiguration.JavaClasspathMode;
 import com.google.devtools.build.lib.rules.java.JavaPluginInfo.JavaPluginData;
 import com.google.devtools.build.lib.rules.java.JavaRuleOutputJarsProvider.JavaOutput;
@@ -710,10 +711,16 @@ public final class JavaCompilationHelper {
    * @return the header jar (if requested), or ijar (if requested), or else the class jar
    */
   public Artifact createCompileTimeJarAction(
-      Artifact runtimeJar, JavaCompilationArtifacts.Builder builder) throws InterruptedException {
+      RuleContext ruleContext,
+      Artifact runtimeJar,
+      JavaCompilationArtifacts.Builder builder) throws InterruptedException {
     Artifact jar;
     boolean isFullJar = false;
-    if (shouldUseHeaderCompilation()) {
+    boolean forceJavaHeaderCompilation = ruleContext.attributes().get("tags", Type.STRING_LIST).contains("force_java_header_compilation");
+    boolean forceNoJavaHeaderCompilation = ruleContext.attributes().get("tags", Type.STRING_LIST).contains("force_nojava_header_compilation");
+
+    if (forceJavaHeaderCompilation || (shouldUseHeaderCompilation() && !forceNoJavaHeaderCompilation)) {
+      JavaTargetAttributes attributes = getAttributes();
       jar = createHeaderCompilationAction(runtimeJar, builder);
     } else if (getJavaConfiguration().getUseIjars()) {
       JavaTargetAttributes attributes = getAttributes();
