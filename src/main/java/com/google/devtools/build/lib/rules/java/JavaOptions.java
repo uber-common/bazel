@@ -604,6 +604,15 @@ public class JavaOptions extends FragmentOptions {
   public boolean disallowJavaImportEmptyJars;
 
   @Option(
+      name = "compile_with_transitive_deps",
+      defaultValue = "true",
+      documentationCategory = OptionDocumentationCategory.BUILD_TIME_OPTIMIZATION,
+      effectTags = {OptionEffectTag.LOADING_AND_ANALYSIS, OptionEffectTag.EXECUTION, OptionEffectTag.AFFECTS_OUTPUTS},
+      metadataTags = {OptionMetadataTag.EXPERIMENTAL},
+      help = "If enabled, compilation is performed against only direct dependencies.")
+  public boolean compileWithTransitiveDeps;
+
+  @Option(
       name = "experimental_enable_jspecify",
       defaultValue = "true",
       documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,

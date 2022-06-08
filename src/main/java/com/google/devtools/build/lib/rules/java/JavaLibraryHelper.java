@@ -26,6 +26,7 @@ import com.google.devtools.build.lib.analysis.RuleContext;
 import com.google.devtools.build.lib.analysis.config.CoreOptionConverters.StrictDepsMode;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
 import com.google.devtools.build.lib.collect.nestedset.Order;
+import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.rules.java.JavaConfiguration.JavaClasspathMode;
 import com.google.devtools.build.lib.rules.java.JavaRuleOutputJarsProvider.JavaOutput;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
@@ -404,7 +405,13 @@ public final class JavaLibraryHelper {
       attributes.addDirectJars(mergedDeps.getDirectCompileTimeJars());
     }
 
-    attributes.addCompileTimeClassPathEntries(mergedDeps.getTransitiveCompileTimeJars());
+    boolean isRuleExternal = ruleContext.getLabel().toString().startsWith("@");
+    boolean compileWithTransitiveDeps = isRuleExternal || ruleContext.getFragment(JavaConfiguration.class).compileWithTransitiveDeps();
+    NestedSet<Artifact> localCompileTimeDeps = compileWithTransitiveDeps
+            ? mergedDeps.getTransitiveCompileTimeJars()
+            : mergedDeps.getDirectCompileTimeJars();
+
+    attributes.addCompileTimeClassPathEntries(localCompileTimeDeps);
     attributes.addRuntimeClassPathEntries(mergedRuntimeDeps.getRuntimeJars());
     attributes.addRuntimeClassPathEntries(mergedDeps.getRuntimeJars());
   }
