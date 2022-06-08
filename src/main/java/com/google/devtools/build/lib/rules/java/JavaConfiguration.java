@@ -115,6 +115,8 @@ public final class JavaConfiguration extends Fragment implements JavaConfigurati
   private final boolean disallowJavaImportExports;
   private final boolean disallowJavaImportEmptyJars;
   private final boolean autoCreateDeployJarForJavaTests;
+  private final boolean compileWithTransitiveDeps;
+  private final boolean compileWithTransitiveResourcesDeps;
 
   // TODO(dmarting): remove once we have a proper solution for #2539
   private final boolean useLegacyBazelJavaTest;
@@ -156,6 +158,9 @@ public final class JavaConfiguration extends Fragment implements JavaConfigurati
     this.disallowJavaImportExports = javaOptions.disallowJavaImportExports;
     this.disallowJavaImportEmptyJars = javaOptions.disallowJavaImportEmptyJars;
     this.autoCreateDeployJarForJavaTests = javaOptions.autoCreateDeployJarForJavaTests;
+    this.compileWithTransitiveDeps = javaOptions.compileWithTransitiveDeps;
+    this.compileWithTransitiveResourcesDeps = javaOptions.compileWithTransitiveResourcesDeps;
+
     Map<String, Label> optimizers = javaOptions.bytecodeOptimizers;
     if (optimizers.size() != 1) {
       throw new InvalidConfigurationException(
@@ -552,4 +557,8 @@ public final class JavaConfiguration extends Fragment implements JavaConfigurati
     BuiltinRestriction.failIfCalledOutsideBuiltins(thread);
     return autoCreateDeployJarForJavaTests;
   }
+
+  public boolean compileWithTransitiveDeps() { return compileWithTransitiveDeps; }
+
+  public boolean compileWithTransitiveResourcesDeps() { return compileWithTransitiveResourcesDeps; }
 }

@@ -161,6 +161,7 @@ public class JavaCommon {
       List<JavaCompilationArgsProvider> deps,
       List<JavaCompilationArgsProvider> runtimeDeps,
       List<JavaCompilationArgsProvider> exports) {
+
     ClasspathType type = isNeverLink ? ClasspathType.COMPILE_ONLY : ClasspathType.BOTH;
     JavaCompilationArgsProvider.Builder builder =
         JavaCompilationArgsProvider.builder().merge(compilationArtifacts, isNeverLink);
