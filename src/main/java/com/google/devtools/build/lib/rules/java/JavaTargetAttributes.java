@@ -128,9 +128,9 @@ public class JavaTargetAttributes {
     }
 
     @CanIgnoreReturnValue
-    public Builder merge(JavaCompilationArgsProvider context) {
+    public Builder merge(JavaCompilationArgsProvider context, boolean compileWithTransitiveDeps) {
       Preconditions.checkArgument(!built);
-      addCompileTimeClassPathEntries(context.getTransitiveCompileTimeJars());
+      addCompileTimeClassPathEntries(compileWithTransitiveDeps ? context.getTransitiveCompileTimeJars() : context.getDirectCompileTimeJars());
       addRuntimeClassPathEntries(context.getRuntimeJars());
       return this;
     }

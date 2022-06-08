@@ -60,6 +60,7 @@ import com.google.devtools.build.lib.rules.java.JavaCompilationArgsProvider.Clas
 import com.google.devtools.build.lib.rules.java.JavaCompilationArtifacts;
 import com.google.devtools.build.lib.rules.java.JavaCompilationHelper;
 import com.google.devtools.build.lib.rules.java.JavaCompileOutputs;
+import com.google.devtools.build.lib.rules.java.JavaConfiguration;
 import com.google.devtools.build.lib.rules.java.JavaInfo;
 import com.google.devtools.build.lib.rules.java.JavaRuleOutputJarsProvider;
 import com.google.devtools.build.lib.rules.java.JavaRuleOutputJarsProvider.JavaOutput;
@@ -405,7 +406,19 @@ public class AndroidCommon {
     // We don't actually use the ijar. That is almost the same as the resource class jar
     // except for <clinit>, but it takes time to build and waiting for that to build would
     // just delay building the rest of the library.
-    artifactsBuilder.addCompileTimeJarAsFullJar(resourceJavaClassJar);
+    //
+    // In order to achieve compilation avoidance for resource changes incremental build, we
+    // introduced an (experimental) config to suppress exposing the resources.jar dependency
+    // to consumer.
+    boolean compileWithTransitiveResourcesDeps =
+            ruleContext.getFragment(JavaConfiguration.class).compileWithTransitiveResourcesDeps();
+    boolean hasIncompatibleTag = ruleContext
+                    .attributes()
+                    .get("tags", Type.STRING_LIST)
+                    .contains("incompatible_compile_without_transitive_resources_deps");
+    if (compileWithTransitiveResourcesDeps || hasIncompatibleTag) {
+      artifactsBuilder.addCompileTimeJarAsFullJar(resourceJavaClassJar);
+    }
 
     // Add the compiled resource jar as a declared output of the rule.
     filesBuilder.add(resourceSourceJar);
