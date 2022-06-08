@@ -761,8 +761,8 @@ public final class JavaCompilationHelper {
     if (directJars != null) {
       attributes.addDirectJars(directJars);
     }
-
-    attributes.merge(args);
+    boolean compileWithTransitiveDeps = ruleContext.getFragment(JavaConfiguration.class).compileWithTransitiveDeps();
+    attributes.merge(args, compileWithTransitiveDeps);
   }
 
   private void addLibrariesToAttributesInternal(Iterable<? extends TransitiveInfoCollection> deps)
