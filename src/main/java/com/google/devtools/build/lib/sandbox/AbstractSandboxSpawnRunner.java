@@ -94,28 +94,27 @@ abstract class AbstractSandboxSpawnRunner implements SpawnRunner {
       }
 
       try (ResourceHandle ignored =
-          resourceManager.acquireResources(
-              owner,
-              spawn.getLocalResources(),
-              context.speculating()
-                  ? ResourcePriority.DYNAMIC_STANDALONE
-                  : ResourcePriority.LOCAL)) {
+                   resourceManager.acquireResources(
+                           owner,
+                           spawn.getMnemonic(),
+                           spawn.getLocalResources(),
+                           context.speculating() ? ResourcePriority.DYNAMIC_STANDALONE : ResourcePriority.LOCAL)) {
         context.report(SpawnExecutingEvent.create(getName()));
         SandboxedSpawn sandbox = prepareSpawn(spawn, context);
         return runSpawn(spawn, sandbox, context);
       }
     } catch (IOException e) {
-      FailureDetail failureDetail =
-          createFailureDetail(
-              "I/O exception during sandboxed execution", Code.EXECUTION_IO_EXCEPTION);
-      throw new UserExecException(e, failureDetail);
-    } catch (ForbiddenActionInputException e) {
-      FailureDetail failureDetail =
-          createFailureDetail(
-              "Forbidden input found during sandboxed execution", Code.FORBIDDEN_INPUT);
-      throw new UserExecException(e, failureDetail);
+        FailureDetail failureDetail =
+                createFailureDetail(
+                        "I/O exception during sandboxed execution", Code.EXECUTION_IO_EXCEPTION);
+        throw new UserExecException(e, failureDetail);
+      } catch (ForbiddenActionInputException e) {
+        FailureDetail failureDetail =
+                createFailureDetail(
+                        "Forbidden input found during sandboxed execution", Code.FORBIDDEN_INPUT);
+        throw new UserExecException(e, failureDetail);
+      }
     }
-  }
 
   @Override
   public boolean canExec(Spawn spawn) {

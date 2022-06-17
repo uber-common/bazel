@@ -18,6 +18,7 @@ import static com.google.devtools.build.lib.profiler.AutoProfiler.profiled;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.devtools.build.lib.concurrent.ThreadSafety.ThreadSafe;
 import com.google.devtools.build.lib.profiler.AutoProfiler;
 import com.google.devtools.build.lib.profiler.ProfilerTask;
@@ -25,6 +26,7 @@ import com.google.devtools.build.lib.util.Pair;
 import com.google.devtools.build.lib.worker.Worker;
 import com.google.devtools.build.lib.worker.WorkerKey;
 import com.google.devtools.build.lib.worker.WorkerPool;
+
 import java.io.IOException;
 import java.util.Deque;
 import java.util.HashMap;
@@ -34,6 +36,8 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import javax.annotation.Nullable;
 
@@ -167,6 +171,8 @@ public class ResourceManager {
   // LocalHostCapacity.getLocalHostCapacity() as an argument.
   @VisibleForTesting public ResourceSet availableResources = null;
 
+  private ImmutableMap<String, ResourceSet> mnemonicResourceOverride = ImmutableMap.of();
+
   // Used amount of CPU capacity (where 1.0 corresponds to the one fully
   // occupied CPU core. Corresponds to the CPU resource definition in the
   // ResourceSet class.
@@ -226,6 +232,26 @@ public class ResourceManager {
     availableResources = resources;
   }
 
+  public void setMnemonicResourceOverride(List<Map.Entry<String, String>> mnemonic_resource_override)
+          throws NumberFormatException {
+    if (mnemonic_resource_override == null){
+      return;
+    }
+    ImmutableMap.Builder<String, ResourceSet> buildData = ImmutableMap.builder();
+    for (Map.Entry<String,String> keyValue : mnemonic_resource_override){
+      String[] values = keyValue.getValue().split(",");
+
+      try {
+        double memory = Double.valueOf(values[0]);
+        double cpu = Double.valueOf(values[1]);
+        buildData.put(keyValue.getKey(), ResourceSet.createWithRamCpu(memory, cpu));
+      } catch (NumberFormatException e) {
+        throw new NumberFormatException("mnemonic_resource_override does not have 2 integer values.");
+      }
+    }
+    this.mnemonicResourceOverride = buildData.build();
+  }
+
   /** Sets worker pool for taking the workers. Must be called before requesting the workers. */
   public void setWorkerPool(WorkerPool workerPool) {
     this.workerPool = workerPool;
@@ -241,7 +267,7 @@ public class ResourceManager {
    * be thread-safe!
    */
   public ResourceHandle acquireResources(
-      ActionExecutionMetadata owner, ResourceSet resources, ResourcePriority priority)
+      ActionExecutionMetadata owner, String mnemonic, ResourceSet resources, ResourcePriority priority)
       throws InterruptedException, IOException {
     Preconditions.checkNotNull(
         resources, "acquireResources called with resources == NULL during %s", owner);
@@ -249,6 +275,7 @@ public class ResourceManager {
         !threadHasResources(), "acquireResources with existing resource lock during %s", owner);
 
     LatchWithWorker latchWithWorker = null;
+    resources = tryAcquireUserEstimatesForResources(mnemonic, resources);
 
     AutoProfiler p =
         profiled("Acquiring resources for: " + owner.describe(), ProfilerTask.ACTION_LOCK);
@@ -287,6 +314,16 @@ public class ResourceManager {
     }
 
     return new ResourceHandle(this, owner, resources, worker);
+  }
+
+  /**
+   * Acquires requested resource set that is estimated by the user via option mnemonic_resource_override
+   */
+  private ResourceSet tryAcquireUserEstimatesForResources(String mnemonic, ResourceSet resourceSet) {
+    if (mnemonicResourceOverride.containsKey(mnemonic)) {
+      return mnemonicResourceOverride.get(mnemonic);
+    }
+    return resourceSet;
   }
 
   @Nullable

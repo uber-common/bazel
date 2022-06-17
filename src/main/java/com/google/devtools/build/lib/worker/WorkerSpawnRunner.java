@@ -414,6 +414,7 @@ final class WorkerSpawnRunner implements SpawnRunner {
       handle =
           resourceManager.acquireResources(
               owner,
+              spawn.getMnemonic(),
               resourceSet,
               context.speculating() ? ResourcePriority.DYNAMIC_WORKER : ResourcePriority.LOCAL);
       workerOwner.setWorker(handle.getWorker());
@@ -550,7 +551,6 @@ final class WorkerSpawnRunner implements SpawnRunner {
       spawnMetrics.setSetupTime(setupInputsTime);
 
       Stopwatch queueStopwatch = Stopwatch.createStarted();
-
       try (SilentCloseable c =
           Profiler.instance().profile(ProfilerTask.WORKER_BORROW, "Waiting to borrow worker")) {
         workerOwner.setWorker(workers.borrowObject(key));
@@ -566,6 +566,7 @@ final class WorkerSpawnRunner implements SpawnRunner {
       try (ResourceHandle handle =
           resourceManager.acquireResources(
               owner,
+              spawn.getMnemonic(),
               spawn.getLocalResources(),
               context.speculating() ? ResourcePriority.DYNAMIC_WORKER : ResourcePriority.LOCAL)) {
         // We acquired a worker and resources -- mark that as queuing time.
