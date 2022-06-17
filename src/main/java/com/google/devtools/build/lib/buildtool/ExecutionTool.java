@@ -14,6 +14,7 @@
 package com.google.devtools.build.lib.buildtool;
 
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
+import static com.google.devtools.build.lib.util.ExitCode.PARSING_FAILURE;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
@@ -102,6 +103,8 @@ import com.google.devtools.build.lib.vfs.OutputService;
 import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.build.lib.vfs.PathFragment;
 import com.google.devtools.build.lib.vfs.Root;
+import com.google.devtools.common.options.OptionsParsingException;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -980,7 +983,8 @@ public class ExecutionTool {
   }
 
   @VisibleForTesting
-  public static void configureResourceManager(ResourceManager resourceMgr, BuildRequest request) {
+  public static void configureResourceManager(ResourceManager resourceMgr, BuildRequest request)  throws AbruptExitException {
+
     ExecutionOptions options = request.getOptions(ExecutionOptions.class);
     resourceMgr.setPrioritizeLocalActions(options.prioritizeLocalActions);
     ImmutableMap<String, Float> extraResources =
@@ -989,6 +993,15 @@ public class ExecutionTool {
                 ImmutableMap.toImmutableMap(
                     Map.Entry::getKey, Map.Entry::getValue, (v1, v2) -> v2));
 
+    try {
+      resourceMgr.setMnemonicResourceOverride(options.mnemonic_resource_override);
+    } catch (NumberFormatException e) {
+      throw new AbruptExitException(
+              DetailedExitCode.of(PARSING_FAILURE,
+                      FailureDetail.newBuilder()
+                              .setMessage(e.getMessage())
+                              .build()));
+    }
     resourceMgr.setAvailableResources(
         ResourceSet.create(
             options.localRamResources,

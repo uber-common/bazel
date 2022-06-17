@@ -411,6 +411,7 @@ final class WorkerSpawnRunner implements SpawnRunner {
       handle =
           resourceManager.acquireResources(
               owner,
+              spawn.getMnemonic(),
               resourceSet,
               context.speculating() ? ResourcePriority.DYNAMIC_WORKER : ResourcePriority.LOCAL);
       workerOwner = new WorkerOwner(handle.getWorker());
