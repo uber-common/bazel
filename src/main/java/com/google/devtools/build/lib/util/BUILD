@@ -120,7 +120,7 @@ java_library(
 java_library(
     name = "resource_converter",
     srcs = [
-        "ResourceConverter.java",
+        "ResourceConverter.java"
     ],
     deps = [
         "//src/main/java/com/google/devtools/build/lib/actions:localhost_capacity",
@@ -139,6 +139,27 @@ java_library(
         ":resource_converter",
         "//src/main/java/com/google/devtools/build/lib/actions:localhost_capacity",
         "//third_party:guava",
+    ],
+)
+
+java_library(
+    name = "map_resource_converter",
+    srcs = [
+        "MapResourceConverter.java"
+    ],
+    deps = [
+        ":ram_resource_converter",
+        ":cpu_resource_converter",
+        ":map_resource_converter_resource_estimation",
+        "//src/main/java/com/google/devtools/common/options:options_internal",
+        "//third_party:guava_checked_in"
+    ],
+)
+
+java_library(
+    name = "map_resource_converter_resource_estimation",
+    srcs = [
+        "ResourceEstimation.java"
     ],
 )
 

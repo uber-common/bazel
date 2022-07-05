@@ -18,10 +18,13 @@ import com.google.devtools.build.lib.actions.ActionExecutionContext;
 import com.google.devtools.build.lib.actions.ActionExecutionContext.ShowSubcommands;
 import com.google.devtools.build.lib.analysis.config.PerLabelOptions;
 import com.google.devtools.build.lib.util.CpuResourceConverter;
+import com.google.devtools.build.lib.util.MapResourceConverter;
 import com.google.devtools.build.lib.util.OptionsUtils;
+import com.google.devtools.build.lib.util.Pair;
 import com.google.devtools.build.lib.util.RamResourceConverter;
 import com.google.devtools.build.lib.util.RegexFilter;
 import com.google.devtools.build.lib.util.ResourceConverter;
+import com.google.devtools.build.lib.util.ResourceEstimation;
 import com.google.devtools.build.lib.vfs.PathFragment;
 import com.google.devtools.common.options.BoolOrEnumConverter;
 import com.google.devtools.common.options.Converters;
@@ -339,7 +342,7 @@ public class ExecutionOptions extends OptionsBase {
   @Option(
           name = "mnemonic_resource_override",
           allowMultiple = true,
-          converter = Converters.AssignmentConverter.class,
+          converter = MapResourceConverter.class,
           defaultValue = "null",
           documentationCategory = OptionDocumentationCategory.EXECUTION_STRATEGY,
           effectTags = {OptionEffectTag.EXECUTION},
@@ -348,7 +351,7 @@ public class ExecutionOptions extends OptionsBase {
                   + "is 2 integers separated by a comma. The first integer represents the RAM and "
                   + "the second represents the CPU. This option may be used multiple times."
   )
-  public List<Map.Entry<String, String>> mnemonic_resource_override;
+  public List<Map.Entry<String, ResourceEstimation>> mnemonic_resource_override;
 
   @Option(
       name = "local_test_jobs",

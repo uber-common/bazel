@@ -26,6 +26,7 @@ import com.google.devtools.build.lib.util.Pair;
 import com.google.devtools.build.lib.worker.Worker;
 import com.google.devtools.build.lib.worker.WorkerKey;
 import com.google.devtools.build.lib.worker.WorkerPool;
+import com.google.devtools.build.lib.util.ResourceEstimation;
 
 import java.io.IOException;
 import java.util.Deque;
@@ -244,22 +245,16 @@ public class ResourceManager implements ResourceEstimator {
     availableResources = resources;
   }
 
-  public void setMnemonicResourceOverride(List<Map.Entry<String, String>> mnemonic_resource_override)
+  public void setMnemonicResourceOverride(List<Map.Entry<String, ResourceEstimation>> mnemonic_resource_override)
           throws NumberFormatException {
     if (mnemonic_resource_override == null){
       return;
     }
     ImmutableMap.Builder<String, ResourceSet> buildData = ImmutableMap.builder();
-    for (Map.Entry<String,String> keyValue : mnemonic_resource_override){
-      String[] values = keyValue.getValue().split(",");
-
-      try {
-        double memory = Double.valueOf(values[0]);
-        double cpu = Double.valueOf(values[1]);
-        buildData.put(keyValue.getKey(), ResourceSet.createWithRamCpu(memory, cpu));
-      } catch (NumberFormatException e) {
-        throw new NumberFormatException("mnemonic_resource_override does not have 2 integer values.");
-      }
+    for (Map.Entry<String,ResourceEstimation> keyValue : mnemonic_resource_override){
+      double memory = Double.valueOf( keyValue.getValue().getRam());
+      double cpu = Double.valueOf( keyValue.getValue().getCpu());
+      buildData.put(keyValue.getKey(), ResourceSet.createWithRamCpu(memory, cpu));
     }
     this.mnemonicResourceOverride = buildData.build();
   }
