@@ -120,8 +120,7 @@ public class AndroidResourceMergingActionBuilder {
   @CanIgnoreReturnValue
   public AndroidResourceMergingActionBuilder setOmitTransitiveDependenciesFromAndroidRClasses(
       boolean omitTransitiveDependenciesFromAndroidRClasses) {
-    this.omitTransitiveDependenciesFromAndroidRClasses =
-        omitTransitiveDependenciesFromAndroidRClasses;
+    this.omitTransitiveDependenciesFromAndroidRClasses = omitTransitiveDependenciesFromAndroidRClasses;
     return this;
   }
 
@@ -147,6 +146,7 @@ public class AndroidResourceMergingActionBuilder {
           "--directData",
           dependencies.getDirectResourceContainers(),
           AndroidDataConverter.COMPILED_RESOURCE_CONVERTER);
+
 
       if (omitTransitiveDependenciesFromAndroidRClasses) {
         for (ValidatedAndroidResources resources :
