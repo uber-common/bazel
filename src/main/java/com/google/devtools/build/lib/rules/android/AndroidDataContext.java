@@ -30,6 +30,7 @@ import com.google.devtools.build.lib.packages.BuildType;
 import com.google.devtools.build.lib.packages.ImplicitOutputsFunction.SafeImplicitOutputsFunction;
 import com.google.devtools.build.lib.packages.TargetUtils;
 import com.google.devtools.build.lib.packages.TriState;
+import com.google.devtools.build.lib.rules.java.JavaConfiguration;
 import com.google.devtools.build.lib.starlarkbuildapi.android.AndroidDataContextApi;
 import com.google.devtools.build.lib.vfs.PathFragment;
 import javax.annotation.Nullable;
@@ -247,7 +248,8 @@ public class AndroidDataContext implements AndroidDataContextApi {
   }
 
   boolean omitTransitiveResourcesFromAndroidRClasses() {
-    return ruleContext.getFeatures().contains(OMIT_TRANSITIVE_RESOURCES_FROM_ANDROID_R_CLASSES);
+    return ruleContext.getFeatures().contains(OMIT_TRANSITIVE_RESOURCES_FROM_ANDROID_R_CLASSES) ||
+            !ruleContext.getFragment(JavaConfiguration.class).compileWithTransitiveResourcesDeps();
   }
 
   /** Returns true if the context dictates that resource shrinking should be performed. */
