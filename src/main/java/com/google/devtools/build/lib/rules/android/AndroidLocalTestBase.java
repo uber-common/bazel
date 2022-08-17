@@ -265,7 +265,9 @@ public abstract class AndroidLocalTestBase implements RuleConfiguredTargetFactor
 
     JavaTargetAttributes attributes = attributesBuilder.build();
     addJavaClassJarToArtifactsBuilder(javaArtifactsBuilder, attributes, classJar);
-
+    NestedSet<Artifact> additionalResourceArtifacts = collectTransitiveResourceJars(ruleContext)
+            .add(resourceApk.getResourceJavaClassJar()).build();
+    helper.setAdditionalResourceArtifacts(additionalResourceArtifacts);
     helper.createCompileAction(outputs);
     helper.createSourceJarAction(srcJar, outputs.genSource());
 
@@ -456,6 +458,25 @@ public abstract class AndroidLocalTestBase implements RuleConfiguredTargetFactor
             JavaSemantics.DIRECT_SOURCE_JARS_OUTPUT_GROUP,
             NestedSetBuilder.wrap(Order.STABLE_ORDER, sourceJarsProvider.getSourceJars()))
         .build();
+  }
+
+  /**
+   * Collects resources from every transitive dependency. This is needed because Bazel assumes that
+   * resources for a test module are available through its corresponding source module and that resource
+   * module is retrieved as a transitive dependency. There is an optimization to not expose the resources
+   * to the consumer via compileWithTransitiveResourcesDeps. However, this makes the resource not available
+   * to the test consumer. So we will have to replicate what the JavaCompile rule does and create our own
+   * resource jar that transitively collects resources and make them available for tests.
+   */
+  private NestedSetBuilder<Artifact> collectTransitiveResourceJars(RuleContext ruleContext) {
+    NestedSetBuilder<Artifact> builder = NestedSetBuilder.naiveLinkOrder();
+    Iterable<AndroidLibraryResourceClassJarProvider> providers =
+            AndroidCommon.getTransitivePrerequisites(
+                    ruleContext, AndroidLibraryResourceClassJarProvider.PROVIDER);
+    for (AndroidLibraryResourceClassJarProvider resourceJarProvider : providers) {
+      builder.addTransitive(resourceJarProvider.getResourceClassJars());
+    }
+    return builder;
   }
 
   @Override

@@ -79,6 +79,7 @@ public final class JavaCompilationHelper {
   private boolean enableJspecify = true;
   private boolean enableDirectClasspath = true;
   private final String execGroup;
+  private NestedSet<Artifact> additionalResourceArtifacts;
 
   public JavaCompilationHelper(
       RuleContext ruleContext,
@@ -329,6 +330,10 @@ public final class JavaCompilationHelper {
     builder.setCoverageArtifact(coverageArtifact);
     BootClassPathInfo bootClassPathInfo = getBootclasspathOrDefault();
     builder.setBootClassPath(bootClassPathInfo);
+    if (!ruleContext.getFragment(JavaConfiguration.class).compileWithTransitiveResourcesDeps() && additionalResourceArtifacts != null) {
+      builder.setAdditionalResourceArtifacts(additionalResourceArtifacts);
+    }
+
     NestedSet<Artifact> classpath =
         NestedSetBuilder.<Artifact>naiveLinkOrder()
             .addTransitive(bootClassPathInfo.auxiliary())
@@ -832,6 +837,10 @@ public final class JavaCompilationHelper {
    */
   private ImmutableList<String> getJavacOpts() {
     return customJavacOpts;
+  }
+
+  public void setAdditionalResourceArtifacts(NestedSet<Artifact> additionalResourceArtifacts) {
+    this.additionalResourceArtifacts = additionalResourceArtifacts;
   }
 
   /**
