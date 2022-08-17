@@ -206,7 +206,7 @@ public final class JavaCompileActionBuilder {
     NestedSetBuilder<Artifact> toolsBuilder = NestedSetBuilder.compileOrder();
 
     CustomCommandLine.Builder executableLine =
-        javaBuilder.buildCommandLine(toolchain, toolsBuilder);
+        javaBuilder.buildCommandLine(ruleContext, toolchain, toolsBuilder);
     toolsBuilder.addTransitive(toolsJars);
 
     ActionEnvironment actionEnvironment =

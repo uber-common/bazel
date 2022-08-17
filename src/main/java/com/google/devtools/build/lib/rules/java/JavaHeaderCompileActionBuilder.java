@@ -356,7 +356,7 @@ public class JavaHeaderCompileActionBuilder {
     // The header compiler is either a jar file that needs to be executed using
     // `java -jar <path>`, or an executable that can be run directly.
     CustomCommandLine.Builder executableLine =
-        headerCompiler.buildCommandLine(javaToolchain, mandatoryInputsBuilder);
+        headerCompiler.buildCommandLine(ruleContext, javaToolchain, mandatoryInputsBuilder);
     CustomCommandLine.Builder commandLine =
         CustomCommandLine.builder()
             .addExecPath("--output", outputJar)

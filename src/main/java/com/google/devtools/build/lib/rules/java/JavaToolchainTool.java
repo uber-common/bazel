@@ -30,6 +30,8 @@ import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
 import com.google.devtools.build.lib.collect.nestedset.Order;
+import com.google.devtools.build.lib.rules.java.JavaUtil;
+import com.google.errorprone.annotations.CompileTimeConstant;
 import javax.annotation.Nullable;
 
 /** An executable tool that is part of {@code java_toolchain}. */
@@ -97,11 +99,14 @@ public abstract class JavaToolchainTool {
    * <p>For a Java command, the executable command line will include {@code java -jar deploy.jar} as
    * well as any JVM flags.
    *
+   * @param ruleContext The context in which this check is being executed
    * @param command the executable command line builder for the tool
    * @param toolchain {@code java_toolchain} for the action being constructed
    * @param inputs inputs for the action being constructed
    */
+  @SuppressWarnings("CompileTimeConstant")
   void buildCommandLine(
+      RuleContext ruleContext,
       CustomCommandLine.Builder command,
       JavaToolchainProvider toolchain,
       NestedSetBuilder<Artifact> inputs) {
@@ -115,7 +120,15 @@ public abstract class JavaToolchainTool {
       command
           .addPath(toolchain.getJavaRuntime().javaBinaryExecPathFragment())
           .addAll(toolchain.getJvmOptions())
-          .addAll(jvmOpts())
+          .addAll(jvmOpts());
+
+      // Hook for debugging specific java compilation compilation
+      String debugJavaOpts = JavaUtil.getDebuggerJavaOpts(ruleContext);
+      if (debugJavaOpts != "") {
+        command.add(debugJavaOpts);
+      }
+
+      command
           .add("-jar")
           .addPath(executable.getExecPath());
     }
@@ -127,9 +140,9 @@ public abstract class JavaToolchainTool {
    * NestedSetBuilder)}.
    */
   CustomCommandLine.Builder buildCommandLine(
-      JavaToolchainProvider toolchain, NestedSetBuilder<Artifact> inputs) {
+      RuleContext ruleContext, JavaToolchainProvider toolchain, NestedSetBuilder<Artifact> inputs) {
     CustomCommandLine.Builder command = CustomCommandLine.builder();
-    buildCommandLine(command, toolchain, inputs);
+    buildCommandLine(ruleContext, command, toolchain, inputs);
     return command;
   }
 }

@@ -16,6 +16,8 @@ package com.google.devtools.build.lib.rules.java;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.devtools.build.lib.analysis.RuleContext;
+import com.google.devtools.build.lib.packages.Type;
 import com.google.devtools.build.lib.vfs.FileSystemUtils;
 import com.google.devtools.build.lib.vfs.PathFragment;
 import javax.annotation.Nullable;
@@ -180,5 +182,30 @@ public final class JavaUtil {
       return path.subFragment(0, index + 1);
     }
     return null;
+  }
+
+  // Only start debugger once per process
+  private static boolean DEBUG_STARTED = false;
+
+  /**
+   * Return java opts to launch java debugger in case rule is tagged as 'debug'.
+   */
+  public static String getDebuggerJavaOpts(RuleContext ruleContext) {
+    return getDebuggerJavaOpts(ruleContext, false, 5005);
+  }
+
+  public static String getDebuggerJavaOpts(RuleContext ruleContext, boolean force, int port) {
+    String opts = "";
+    if (!DEBUG_STARTED && (force || ruleContext.attributes().get("tags", Type.STRING_LIST).contains("debug"))) {
+      opts = String.format("-agentlib:jdwp=transport=dt_socket,server=y,suspend=%s,address=%d", force ? "n" : "y", port);
+
+      // Output message to user
+      if (!force) {
+        String msg = String.format("Waiting debugger to attach on port %d for debugging rule %s...", port, ruleContext.getLabel());
+        System.err.println(msg);
+      }
+      DEBUG_STARTED = true;
+    }
+    return opts;
   }
 }

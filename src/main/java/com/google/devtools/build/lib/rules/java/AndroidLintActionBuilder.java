@@ -116,7 +116,7 @@ class AndroidLintActionBuilder {
     cmd.addExecPath("--xml", result);
 
     NestedSetBuilder<Artifact> toolInputs = NestedSetBuilder.stableOrder();
-    androidLint.tool().buildCommandLine(spawnAction.executableArguments(), toolchain, toolInputs);
+    androidLint.tool().buildCommandLine(ruleContext, spawnAction.executableArguments(), toolchain, toolInputs);
     semantics.setLintProgressMessage(spawnAction);
     ruleContext.registerAction(
         spawnAction
