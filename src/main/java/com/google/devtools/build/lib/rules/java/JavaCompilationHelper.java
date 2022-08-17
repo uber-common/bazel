@@ -76,6 +76,7 @@ public final class JavaCompilationHelper {
   private final String fixDepsTool;
   private boolean enableJspecify = true;
   private boolean enableDirectClasspath = true;
+  private NestedSet<Artifact> additionalResourceArtifacts;
 
   public JavaCompilationHelper(
       RuleContext ruleContext,
@@ -197,7 +198,7 @@ public final class JavaCompilationHelper {
   }
 
   public void createCompileAction(JavaCompileOutputs<Artifact> outputs)
-      throws InterruptedException {
+          throws InterruptedException {
     if (outputs.genClass() != null) {
       createGenJarAction(
           outputs.output(),
@@ -311,6 +312,10 @@ public final class JavaCompilationHelper {
     builder.setCoverageArtifact(coverageArtifact);
     BootClassPathInfo bootClassPathInfo = getBootclasspathOrDefault();
     builder.setBootClassPath(bootClassPathInfo);
+    if (!ruleContext.getFragment(JavaConfiguration.class).compileWithTransitiveResourcesDeps() && additionalResourceArtifacts != null) {
+      builder.setAdditionalResourceArtifacts(additionalResourceArtifacts);
+    }
+
     NestedSet<Artifact> classpath =
         NestedSetBuilder.<Artifact>naiveLinkOrder()
             .addTransitive(bootClassPathInfo.auxiliary())
@@ -871,6 +876,10 @@ public final class JavaCompilationHelper {
   private ImmutableList<Artifact> getTranslations() {
     translationsFrozen = true;
     return ImmutableList.copyOf(translations);
+  }
+
+  public void setAdditionalResourceArtifacts(NestedSet<Artifact> additionalResourceArtifacts) {
+    this.additionalResourceArtifacts = additionalResourceArtifacts;
   }
 
   /**

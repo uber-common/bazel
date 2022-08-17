@@ -170,6 +170,7 @@ public final class JavaCompileActionBuilder {
   private JavaCompileOutputs<Artifact> outputs;
   private JavaClasspathMode classpathMode;
   private Artifact manifestOutput;
+  private NestedSet<Artifact> additionalResourceArtifacts = NestedSetBuilder.emptySet(Order.NAIVE_LINK_ORDER);
 
   public JavaCompileActionBuilder(RuleContext ruleContext, JavaToolchainProvider toolchain) {
     this.ruleContext = ruleContext;
@@ -177,6 +178,9 @@ public final class JavaCompileActionBuilder {
   }
 
   public JavaCompileAction build() {
+    NestedSet<Artifact> classpathEntries = NestedSetBuilder.<Artifact>naiveLinkOrder().addTransitive(additionalResourceArtifacts).addTransitive(this.classpathEntries).build();
+    NestedSet<Artifact> directJars = NestedSetBuilder.<Artifact>naiveLinkOrder().addTransitive(additionalResourceArtifacts).addTransitive(this.directJars).build();
+
     // TODO(bazel-team): all the params should be calculated before getting here, and the various
     // aggregation code below should go away.
     ImmutableList<String> internedJcopts =
@@ -290,7 +294,7 @@ public final class JavaCompileActionBuilder {
         /* executionInfo= */ executionInfo,
         /* extraActionInfoSupplier= */ extraActionInfoSupplier,
         /* executableLine= */ executableLine.build(),
-        /* flagLine= */ buildParamFileContents(internedJcopts, stripOutputPaths),
+        /* flagLine= */ buildParamFileContents(internedJcopts, stripOutputPaths, directJars),
         /* configuration= */ ruleContext.getConfiguration(),
         /* dependencyArtifacts= */ compileTimeDependencyArtifacts,
         /* outputDepsProto= */ outputs.depsProto(),
@@ -309,7 +313,7 @@ public final class JavaCompileActionBuilder {
   }
 
   private CustomCommandLine buildParamFileContents(
-      ImmutableList<String> javacOpts, boolean stripOutputPaths) {
+      ImmutableList<String> javacOpts, boolean stripOutputPaths, NestedSet<Artifact> directJars) {
 
     CustomCommandLine.Builder result = CustomCommandLine.builder();
     if (stripOutputPaths) {
@@ -422,6 +426,13 @@ public final class JavaCompileActionBuilder {
   @CanIgnoreReturnValue
   public JavaCompileActionBuilder setDirectJars(NestedSet<Artifact> directJars) {
     this.directJars = checkNotNull(directJars, "directJars must not be null");
+    return this;
+  }
+
+  /** Explicitly sets the resources used by a compile command. */
+  @CanIgnoreReturnValue
+  public JavaCompileActionBuilder setAdditionalResourceArtifacts(NestedSet<Artifact> additionalResourceArtifacts) {
+    this.additionalResourceArtifacts = checkNotNull(additionalResourceArtifacts, "additionalResourceArtifacts must not be null");
     return this;
   }
 
