@@ -539,7 +539,6 @@ public class JavaHeaderCompileActionBuilder {
 
     ImmutableMap.Builder<String, String> workerInfo = ImmutableMap.builder();
     workerInfo.put(ExecutionRequirements.SUPPORTS_WORKERS, "1");
-    workerInfo.put(ExecutionRequirements.SUPPORTS_MULTIPLEX_WORKERS, "1");
 
     executionInfo.putAll(ruleContext.getConfiguration().modifiedExecutionInfo(workerInfo.buildOrThrow(), "Turbine"));
     executionInfo.putAll(TargetUtils.getExecutionInfo(ruleContext.getRule(), ruleContext.isAllowTagsPropagation()));
