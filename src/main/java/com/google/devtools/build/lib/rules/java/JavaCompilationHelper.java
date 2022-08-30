@@ -724,10 +724,17 @@ public final class JavaCompilationHelper {
     boolean forceJavaHeaderCompilation = ruleContext.attributes().get("tags", Type.STRING_LIST).contains("force_java_header_compilation");
     boolean forceNoJavaHeaderCompilation = ruleContext.attributes().get("tags", Type.STRING_LIST).contains("force_nojava_header_compilation");
 
+    // Disable header compilation for kotlin java compile action, due to a bug with kaptish+turbine
+    if (shouldUseHeaderCompilation()) {
+      if (ruleContext.getRule().getLabel().getName().endsWith("_kt")) {
+        forceNoJavaHeaderCompilation = true;
+      }
+    }
+
     if (forceJavaHeaderCompilation || (shouldUseHeaderCompilation() && !forceNoJavaHeaderCompilation)) {
       JavaTargetAttributes attributes = getAttributes();
       jar = createHeaderCompilationAction(runtimeJar, builder);
-    } else if (getJavaConfiguration().getUseIjars()) {
+    } else if (getJavaConfiguration().getUseIjars() || forceNoJavaHeaderCompilation) {
       JavaTargetAttributes attributes = getAttributes();
       jar =
           createIjarAction(
