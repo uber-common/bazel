@@ -79,6 +79,7 @@ public final class JavaConfiguration extends Fragment implements JavaConfigurati
   private final boolean enforceOneVersionOnJavaTests;
   private final JavaClasspathMode javaClasspath;
   private final boolean inmemoryJdepsFiles;
+  private final boolean experimentalTrackClassUsage;
   private final ImmutableList<String> defaultJvmFlags;
   private final StrictDepsMode strictJavaDeps;
   private final String fixDepsTool;
@@ -113,6 +114,7 @@ public final class JavaConfiguration extends Fragment implements JavaConfigurati
         javaOptions.javaDeps || javaOptions.javaClasspath != JavaClasspathMode.OFF;
     this.javaClasspath = javaOptions.javaClasspath;
     this.inmemoryJdepsFiles = javaOptions.inmemoryJdepsFiles;
+    this.experimentalTrackClassUsage = javaOptions.experimentalTrackClassUsage;
     this.defaultJvmFlags = ImmutableList.copyOf(javaOptions.jvmOpts);
     this.strictJavaDeps = javaOptions.strictJavaDeps;
     this.fixDepsTool = javaOptions.fixDepsTool;
@@ -265,6 +267,10 @@ public final class JavaConfiguration extends Fragment implements JavaConfigurati
 
   public boolean inmemoryJdepsFiles() {
     return inmemoryJdepsFiles;
+  }
+
+  public boolean experimentalTrackClassUsage() {
+    return experimentalTrackClassUsage;
   }
 
   @Override
