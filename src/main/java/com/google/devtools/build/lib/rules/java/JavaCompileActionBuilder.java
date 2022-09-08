@@ -143,6 +143,7 @@ public final class JavaCompileActionBuilder {
   private ImmutableList<Artifact> sourceJars = ImmutableList.of();
   private StrictDepsMode strictJavaDeps = StrictDepsMode.ERROR;
   private String fixDepsTool = "add_dep";
+  private boolean experimentalTrackClassUsage = false;
   private NestedSet<Artifact> directJars = NestedSetBuilder.emptySet(Order.NAIVE_LINK_ORDER);
   private NestedSet<Artifact> compileTimeDependencyArtifacts =
       NestedSetBuilder.emptySet(Order.STABLE_ORDER);
@@ -320,6 +321,9 @@ public final class JavaCompileActionBuilder {
       result.addExecPaths("--direct_dependencies", directJars);
     }
     result.add("--experimental_fix_deps_tool", fixDepsTool);
+    if (experimentalTrackClassUsage) {
+      result.add("--experimental_track_class_usage");
+    }
 
     // Chose what artifact to pass to JavaBuilder, as input to jacoco instrumentation processor.
     if (coverageArtifact != null) {
@@ -362,6 +366,13 @@ public final class JavaCompileActionBuilder {
   @CanIgnoreReturnValue
   public JavaCompileActionBuilder setFixDepsTool(String depsTool) {
     fixDepsTool = depsTool;
+    return this;
+  }
+
+  /** Sets the class tracking mode. */
+  @CanIgnoreReturnValue
+  public JavaCompileActionBuilder setExperimentalTrackClassUsage(boolean experimentalTrackClassUsage) {
+    this.experimentalTrackClassUsage = experimentalTrackClassUsage;
     return this;
   }
 
