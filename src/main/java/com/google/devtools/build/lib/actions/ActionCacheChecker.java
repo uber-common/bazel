@@ -34,6 +34,8 @@ import com.google.devtools.build.lib.actions.cache.ActionCache.Entry.Serializabl
 import com.google.devtools.build.lib.actions.cache.MetadataDigestUtils;
 import com.google.devtools.build.lib.actions.cache.OutputMetadataStore;
 import com.google.devtools.build.lib.actions.cache.Protos.ActionCacheStatistics.MissReason;
+import com.google.devtools.build.lib.actions.usage.ActionInputUsageTracker;
+import com.google.devtools.build.lib.actions.usage.TrackingInfo;
 import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
 import com.google.devtools.build.lib.collect.nestedset.Order;
@@ -74,6 +76,7 @@ public class ActionCacheChecker {
   private final ActionKeyContext actionKeyContext;
   private final Predicate<? super Action> executionFilter;
   private final ArtifactResolver artifactResolver;
+  private final ActionInputUsageTracker actionInputUsageTracker;
   private final CacheConfig cacheConfig;
 
   @Nullable private final ActionCache actionCache; // Null when not enabled.
@@ -107,12 +110,14 @@ public class ActionCacheChecker {
   public ActionCacheChecker(
       @Nullable ActionCache actionCache,
       ArtifactResolver artifactResolver,
+      ActionInputUsageTracker actionInputUsageTracker,
       ActionKeyContext actionKeyContext,
       Predicate<? super Action> executionFilter,
       @Nullable CacheConfig cacheConfig) {
     this.executionFilter = executionFilter;
     this.actionKeyContext = actionKeyContext;
     this.artifactResolver = artifactResolver;
+    this.actionInputUsageTracker = actionInputUsageTracker;
     this.cacheConfig =
         cacheConfig != null
             ? cacheConfig
@@ -192,7 +197,7 @@ public class ActionCacheChecker {
    * @param remoteArtifactChecker used to check whether remote metadata should be trusted.
    * @return true if at least one artifact has changed, false - otherwise.
    */
-  private static boolean validateArtifacts(
+  private boolean validateArtifacts(
       ActionCache.Entry entry,
       Action action,
       NestedSet<Artifact> actionInputs,
@@ -231,10 +236,31 @@ public class ActionCacheChecker {
         }
       }
     }
+
     for (Artifact artifact : actionInputs.toList()) {
-      mdMap.put(
-          artifact.getExecPathString(), getInputMetadataMaybe(inputMetadataProvider, artifact));
+      // Request tracking info with fresh hashes from direct dependencies, since we want to compare
+      // these against the hashes that were used at previous compilation time.
+      TrackingInfo trackingInfo = actionInputUsageTracker.getTrackingInfo(action, artifact, true);
+
+      if (trackingInfo.isUnused()) {
+        // Input artifact is not used, exclude it from action cache key computation
+        continue;
+      } else if (trackingInfo.tracksUsedClasses()) {
+        // A subset of input artifact is used, include individual used classes for action cache key computation
+        trackingInfo.getUsedClasses().forEach(usedClass ->
+          mdMap.put(usedClass.getInternalPath(), usedClass.getDependencyFileArtifactValue())
+        );
+      } else {
+        // Standard case, track input artifact itself
+        mdMap.put(artifact.getExecPathString(), getInputMetadataMaybe(inputMetadataProvider, artifact));
+      }
     }
+
+    // Output debug info about action if needed
+    if (actionInputUsageTracker.supportsInputTracking(action) && false) {
+      System.out.println(actionInputUsageTracker.dump(action));
+    }
+
     return !Arrays.equals(MetadataDigestUtils.fromMetadata(mdMap), entry.getFileDigest());
   }
 
@@ -551,6 +577,9 @@ public class ActionCacheChecker {
       cachedOutputMetadata = loadCachedOutputMetadata(action, entry, outputMetadataStore);
     }
 
+    // Load tracking info from action output .jdeps file
+    actionInputUsageTracker.refreshInputTrackingInfo(action);
+
     if (mustExecute(
         action,
         entry,
@@ -716,6 +745,10 @@ public class ActionCacheChecker {
       // This cache entry has already been updated by a shared action. We don't need to do it again.
       return;
     }
+
+    // Action has been executed, and output .jdeps file has been re-generated, so we need to update tracking info.
+    actionInputUsageTracker.refreshInputTrackingInfo(action);
+
     Map<String, String> usedEnvironment =
         computeUsedEnv(action, clientEnv, remoteDefaultPlatformProperties);
     ActionCache.Entry entry =
@@ -756,10 +789,20 @@ public class ActionCacheChecker {
             : ImmutableSet.of();
 
     for (Artifact input : action.getInputs().toList()) {
+      TrackingInfo trackingInfo = actionInputUsageTracker.getTrackingInfo(action, input, false);
+
       entry.addInputFile(
           input.getExecPath(),
           getInputMetadataMaybe(inputMetadataProvider, input),
-          /* saveExecPath= */ !excludePathsFromActionCache.contains(input));
+          /* saveExecPath= */ !excludePathsFromActionCache.contains(input),
+          /* excludeFromDigest= */ trackingInfo.isUnused() || trackingInfo.tracksUsedClasses());
+
+      if (trackingInfo.tracksUsedClasses()) {
+        // A subset of input artifact is used, include individual used classes to action cache key computation
+        trackingInfo.getUsedClasses().forEach(usedClass ->
+                entry.addHash(usedClass.getInternalPath(), usedClass.getCompileTimeFileArtifactValue())
+        );
+      }
     }
     entry.getFileDigest();
     actionCache.put(key, entry);
@@ -883,9 +926,7 @@ public class ActionCacheChecker {
       entry = new ActionCache.Entry("", ImmutableMap.of(), false, OutputPermissions.READONLY);
       for (Artifact input : action.getInputs().toList()) {
         entry.addInputFile(
-            input.getExecPath(),
-            getInputMetadataMaybe(inputMetadataProvider, input),
-            /* saveExecPath= */ true);
+            input.getExecPath(), getInputMetadataMaybe(inputMetadataProvider, input), /*saveExecPath=*/ true, false);
       }
     }
 
