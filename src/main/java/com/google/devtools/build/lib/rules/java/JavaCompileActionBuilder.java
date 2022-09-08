@@ -284,7 +284,8 @@ public final class JavaCompileActionBuilder {
         /* configuration= */ ruleContext.getConfiguration(),
         /* dependencyArtifacts= */ compileTimeDependencyArtifacts,
         /* outputDepsProto= */ outputs.depsProto(),
-        /* classpathMode= */ classpathMode);
+        /* classpathMode= */ classpathMode,
+        /* compileWithUnusedDeps= */ ruleContext.getFragment(JavaConfiguration.class).compileWithUnusedDeps());
   }
 
   private ImmutableSet<Artifact> allOutputs() {

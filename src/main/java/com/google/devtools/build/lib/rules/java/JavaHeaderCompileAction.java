@@ -566,7 +566,8 @@ public final class JavaHeaderCompileAction extends SpawnAction {
               /* configuration= */ ruleContext.getConfiguration(),
               /* dependencyArtifacts= */ compileTimeDependencyArtifacts,
               /* outputDepsProto= */ outputDepsProto,
-              /* classpathMode= */ classpathMode));
+              /* classpathMode= */ classpathMode,
+              /* compileWithUnusedDeps= */ ruleContext.getFragment(JavaConfiguration.class).compileWithUnusedDeps()));
     }
   }
 }
