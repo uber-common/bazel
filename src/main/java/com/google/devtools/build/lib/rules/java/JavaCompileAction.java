@@ -42,6 +42,7 @@ import com.google.devtools.build.lib.actions.ActionKeyContext;
 import com.google.devtools.build.lib.actions.ActionOwner;
 import com.google.devtools.build.lib.actions.ActionResult;
 import com.google.devtools.build.lib.actions.Artifact;
+import com.google.devtools.build.lib.actions.ArtifactPathResolver;
 import com.google.devtools.build.lib.actions.BaseSpawn;
 import com.google.devtools.build.lib.actions.CommandAction;
 import com.google.devtools.build.lib.actions.CommandLine;
@@ -89,6 +90,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import javax.annotation.Nullable;
 import net.starlark.java.eval.EvalException;
@@ -141,6 +143,15 @@ public final class JavaCompileAction extends AbstractAction implements CommandAc
   private final JavaClasspathMode classpathMode;
 
   @Nullable private final ExtraActionInfoSupplier extraActionInfoSupplier;
+
+  /* The list of unused input discovered by the action. This list may change anytime action is executed,
+   * it should ideally be stored in a separate (state) class.
+   */
+  @Nullable
+  private Set<String> unusedArtifactsPath;
+
+  @Nullable
+  private Map<String, Map<String, byte[]>> usedClassesMap;
 
   public JavaCompileAction(
       CompilationType compilationType,
@@ -392,6 +403,7 @@ public final class JavaCompileAction extends AbstractAction implements CommandAc
       throws ActionExecutionException, InterruptedException {
     ReducedClasspath reducedClasspath;
     Spawn spawn;
+
     try {
       if (classpathMode == JavaClasspathMode.BAZEL) {
         JavaCompileActionContext context =
