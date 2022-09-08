@@ -760,12 +760,14 @@ public final class JavaCompileAction extends AbstractAction implements CommandAc
     return false;
   }
 
-  /* Returns whether artifact is eligible to be treated as unused. Here, we optimization is built
-   * upon compiling against ABI jars, therefore we only support ijar/hjar.
+  /* Returns whether artifact is eligible to be treated as unused. For java, our optimization is built
+   * upon compiling against ABI jars, therefore we only support ijar/hjar/kotlin ABI.
    */
   private static boolean canArtifactBeUnused(Artifact artifact) {
     String artifactExecPath = artifact.getExecPathString();
-    return artifactExecPath.endsWith("-ijar.jar") || artifactExecPath.endsWith("-hjar.jar");
+    return artifactExecPath.endsWith("-ijar.jar") ||
+            artifactExecPath.endsWith("-hjar.jar") ||
+            artifactExecPath.endsWith("_kt.abi.jar");
   }
 
   /**
