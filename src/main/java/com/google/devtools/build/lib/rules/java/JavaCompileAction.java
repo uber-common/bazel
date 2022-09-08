@@ -42,6 +42,7 @@ import com.google.devtools.build.lib.actions.ActionKeyContext;
 import com.google.devtools.build.lib.actions.ActionOwner;
 import com.google.devtools.build.lib.actions.ActionResult;
 import com.google.devtools.build.lib.actions.Artifact;
+import com.google.devtools.build.lib.actions.ArtifactPathResolver;
 import com.google.devtools.build.lib.actions.BaseSpawn;
 import com.google.devtools.build.lib.actions.CommandAction;
 import com.google.devtools.build.lib.actions.CommandLine;
@@ -90,7 +91,9 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import net.starlark.java.eval.EvalException;
 import net.starlark.java.eval.Sequence;
@@ -140,7 +143,15 @@ public final class JavaCompileAction extends AbstractAction implements CommandAc
   @Nullable private final Artifact outputDepsProto;
   private final JavaClasspathMode classpathMode;
 
+  private final boolean compileWithUnusedDeps;
+
   @Nullable private final ExtraActionInfoSupplier extraActionInfoSupplier;
+
+  /* The list of unused input discovered by the action. This list may change anytime action is executed,
+   * it should ideally be stored in a separate (state) class.
+   */
+  @Nullable
+  private Set<String> unusedArtifactsPath;
 
   public JavaCompileAction(
       CompilationType compilationType,
@@ -160,7 +171,8 @@ public final class JavaCompileAction extends AbstractAction implements CommandAc
       BuildConfigurationValue configuration,
       NestedSet<Artifact> dependencyArtifacts,
       Artifact outputDepsProto,
-      JavaClasspathMode classpathMode) {
+      JavaClasspathMode classpathMode,
+      boolean compileWithUnusedDeps) {
     super(
         owner,
         tools,
@@ -198,6 +210,7 @@ public final class JavaCompileAction extends AbstractAction implements CommandAc
         outputDepsProto != null || classpathMode != JavaClasspathMode.BAZEL,
         "Cannot have null outputDepsProto with reduced class path mode BAZEL %s",
         describe());
+    this.compileWithUnusedDeps = compileWithUnusedDeps;
   }
 
   /** Computes all of a {@link JavaCompileAction}'s inputs. */
@@ -396,6 +409,7 @@ public final class JavaCompileAction extends AbstractAction implements CommandAc
       throws ActionExecutionException, InterruptedException {
     ReducedClasspath reducedClasspath;
     Spawn spawn;
+
     try {
       if (classpathMode == JavaClasspathMode.BAZEL) {
         JavaCompileActionContext context =
@@ -625,6 +639,54 @@ public final class JavaCompileAction extends AbstractAction implements CommandAc
   @Override
   public NestedSet<Artifact> getPossibleInputsForTesting() {
     return null;
+  }
+
+  public boolean discoversUnusedInputs() {
+    return !this.compileWithUnusedDeps;
+  }
+
+  /* Discovers unused input to provide compilation avoidance. This method may be controversial
+   * for 2 reasons. First, it re-uses the output of action previous execution, by loading action
+   * generated output file (.jdeps). Second, it store this transient info data into the action
+   * itself, for simplicity (it should ideally be stored in a state).
+   */
+  public void discoverUnusedInputs(ArtifactPathResolver pathResolver) {
+    try {
+      Path output = pathResolver.toPath(outputDepsProto);
+      InputStream input = output.getInputStream();
+      Deps.Dependencies usedDeps = Deps.Dependencies.parseFrom(input);
+      checkState(usedDeps.getRuleLabel().equals(getOwner().getLabel().toString()));
+
+      Set<String> usedPaths = usedDeps.getDependencyList().stream()
+              .filter(d -> d.getKind() == Deps.Dependency.Kind.EXPLICIT || d.getKind() == Deps.Dependency.Kind.IMPLICIT)
+              .map(d -> d.getPath())
+              .collect(Collectors.toSet());
+      this.unusedArtifactsPath = getInputs().toList().stream()
+              .filter(JavaCompileAction::canArtifactBeUnused)
+              .filter(d -> !usedPaths.contains(d.getExecPathString()))
+              .map(d -> d.getExecPathString())
+              .collect(Collectors.toSet());
+    } catch (Exception e) {
+      System.err.println("Could not load .jdeps file, ex=" + e);
+      this.unusedArtifactsPath = null;
+    }
+  }
+  public boolean isUnusedInput(Artifact artifact) {
+    if (this.unusedArtifactsPath != null) {
+      String artifactExecPath = artifact.getExecPathString();
+      if (this.unusedArtifactsPath.contains(artifactExecPath)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /* Returns whether artifact is eligible to be treated as unused. Here, we optimization is built
+   * upon compiling against ABI jars, therefore we only support ijar/hjar.
+   */
+  private static boolean canArtifactBeUnused(Artifact artifact) {
+    String artifactExecPath = artifact.getExecPathString();
+    return artifactExecPath.endsWith("-ijar.jar") || artifactExecPath.endsWith("-hjar.jar");
   }
 
   /**

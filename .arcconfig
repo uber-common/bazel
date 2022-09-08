@@ -1,0 +1,6 @@
+{
+  "repository.callsign": "MOBAZXL",
+  "conduit_uri": "https://code.uberinternal.com/",
+  "git.default-relative-commit": "origin/6.0.0-pre.20220630.1-uber",
+  "history.immutable": false
+}

@@ -236,6 +236,24 @@ public interface Action extends ActionExecutionMetadata {
   void updateInputs(NestedSet<Artifact> inputs);
 
   /**
+   * Returns whether action support discovering unused input.
+   */
+  boolean discoversUnusedInputs();
+
+  /**
+   * Method used to identify unused inputs before execution for an action. Unused inputs will be
+   * ignored when computing Action Cache key, resulting in a possible cache hit when it would
+   * have been a miss otherwise.
+   */
+  void discoverUnusedInputs(ArtifactPathResolver pathResolver);
+
+  /**
+   * Returns whether artifact input is unused. This method is typically used when computing
+   * actions Action Cache key.
+   */
+  boolean isUnusedInput(Artifact artifact);
+
+  /**
    * Returns true if the output should bypass output filtering. This is used for test actions.
    */
   boolean showsOutputUnconditionally();

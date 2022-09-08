@@ -204,6 +204,10 @@ public class ActionCacheChecker {
       }
     }
     for (Artifact artifact : actionInputs.toList()) {
+      if (action.discoversUnusedInputs() && action.isUnusedInput(artifact)) {
+        System.err.println("ActionCacheChecker: Removing unused input " + artifact.getExecPathString() + " from action " + action.getOwner().getLabel());
+        continue;
+      }
       mdMap.put(artifact.getExecPathString(), getMetadataMaybe(metadataHandler, artifact));
     }
     return !Arrays.equals(MetadataDigestUtils.fromMetadata(mdMap), entry.getFileDigest());
@@ -635,10 +639,12 @@ public class ActionCacheChecker {
             : ImmutableSet.of();
 
     for (Artifact input : action.getInputs().toList()) {
+      boolean excludeFromDigest = action.discoversUnusedInputs() && action.isUnusedInput(input);
       entry.addInputFile(
           input.getExecPath(),
           getMetadataMaybe(metadataHandler, input),
-          /* saveExecPath= */ !excludePathsFromActionCache.contains(input));
+          /* saveExecPath= */ !excludePathsFromActionCache.contains(input),
+          /* excludeFromDigest= */ excludeFromDigest);
     }
     entry.getFileDigest();
     actionCache.put(key, entry);
@@ -756,7 +762,7 @@ public class ActionCacheChecker {
       entry = new ActionCache.Entry("", ImmutableMap.of(), false, OutputPermissions.READONLY);
       for (Artifact input : action.getInputs().toList()) {
         entry.addInputFile(
-            input.getExecPath(), getMetadataMaybe(metadataHandler, input), /*saveExecPath=*/ true);
+            input.getExecPath(), getMetadataMaybe(metadataHandler, input), /*saveExecPath=*/ true, false);
       }
     }
 

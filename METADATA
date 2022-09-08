@@ -1,0 +1,9 @@
+schema:
+  version: 1
+---
+owner:
+  managerEmail: mobile-platform-group@uber.com
+  name: Mobile Platform
+reviewers:
+  groups:
+    - mobile-platform-android

@@ -263,6 +263,20 @@ public abstract class AbstractAction extends ActionKeyCacher implements Action, 
     inputsDiscovered = true;
   }
 
+  public boolean discoversUnusedInputs() {
+    return false;
+  }
+
+  public void discoverUnusedInputs(ArtifactPathResolver pathResolver) {
+    throw new IllegalStateException(
+            "Method must be overridden for actions that discovers unused inputs.");
+  }
+
+  public boolean isUnusedInput(Artifact artifact) {
+    throw new IllegalStateException(
+            "Method must be overridden for actions that discovers unused inputs.");
+  }
+
   @Override
   public NestedSet<Artifact> getTools() {
     return tools;
