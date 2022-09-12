@@ -299,6 +299,14 @@ public interface ActionCache {
       }
     }
 
+    public void addHash(String path, FileArtifactValue md) {
+      checkState(mdMap != null);
+      checkState(!isCorrupted());
+      checkState(digest == null);
+
+      mdMap.put(path, md);
+    }
+
     public void addInputFile(PathFragment relativePath, FileArtifactValue md) {
       addInputFile(relativePath, md, /*saveExecPath=*/ true, false);
     }

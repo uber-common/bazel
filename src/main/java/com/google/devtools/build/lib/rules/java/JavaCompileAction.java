@@ -88,6 +88,7 @@ import java.io.InputStream;
 import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import net.starlark.java.eval.EvalException;
 import net.starlark.java.eval.Sequence;
@@ -146,6 +147,9 @@ public final class JavaCompileAction extends AbstractAction implements CommandAc
    */
   @Nullable
   private Set<String> unusedArtifactsPath;
+
+  @Nullable
+  private Map<String, Map<String, String>> usedClassesMap;
 
   public JavaCompileAction(
       CompilationType compilationType,
@@ -660,9 +664,17 @@ public final class JavaCompileAction extends AbstractAction implements CommandAc
               .map(d -> d.getExecPathString())
               .filter(Predicate.not(usedPaths::contains))
               .collect(Collectors.toCollection(LinkedHashSet::new));
+      this.usedClassesMap = deps.getDependencyList().stream()
+              .filter(d -> d.getKind() == Deps.Dependency.Kind.EXPLICIT || d.getKind() == Deps.Dependency.Kind.IMPLICIT)
+              .collect(Collectors.toMap(
+                      d -> d.getPath(),
+                      d -> d.getUsedClassesList().stream().collect(Collectors.toMap(
+                              e -> e.getInnerPath(),
+                              e -> e.getHash()))));
     } catch (Exception e) {
       System.err.println("Could not load .jdeps file, ex=" + e);
       this.unusedArtifactsPath = null;
+      this.usedClassesMap = null;
     }
   }
   public boolean isUnusedInput(Artifact artifact) {
@@ -673,6 +685,21 @@ public final class JavaCompileAction extends AbstractAction implements CommandAc
       }
     }
     return false;
+  }
+
+  public boolean hasTrackedClasses(Artifact artifact) {
+//    if (this.usedClassesMap != null) {
+//      String artifactExecPath = artifact.getExecPathString();
+//      if (this.usedClassesMap.containsKey(artifactExecPath)) {
+//        return true;
+//      }
+//    }
+    return false;
+  }
+
+  public Map<String, String> getTrackedClasses(Artifact artifact) {
+    String artifactExecPath = artifact.getExecPathString();
+    return this.usedClassesMap.get(artifactExecPath);
   }
 
   /* Returns whether artifact is eligible to be treated as unused. For java, our optimization is built

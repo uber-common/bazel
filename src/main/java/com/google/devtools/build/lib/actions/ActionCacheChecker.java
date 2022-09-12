@@ -209,6 +209,7 @@ public class ActionCacheChecker {
     }
 
     StringBuilder unusedInputMsg = new StringBuilder();
+    StringBuilder trackedClassesMsg = new StringBuilder();
     for (Artifact artifact : actionInputs.toList()) {
       if (action.discoversUnusedInputs()) {
         if (action.isUnusedInput(artifact)) {
@@ -217,13 +218,26 @@ public class ActionCacheChecker {
           }
           continue;
         }
+        if (action.hasTrackedClasses(artifact)) {
+          action.getTrackedClasses(artifact).forEach(new BiConsumer<String, String>() {
+              @Override
+              public void accept(String path, String hash) {
+                if (DEBUG) {
+                  trackedClassesMsg.append("\t(c) " + path + " (" + hash + ")\n");
+                }
+                mdMap.put(path, new ExternalMetadataValue(hash.getBytes(StandardCharsets.UTF_8)));
+              }
+            });
+            continue;
+          }
       }
       mdMap.put(artifact.getExecPathString(), getMetadataMaybe(metadataHandler, artifact));
     }
 
-    if (unusedInputMsg.length() != 0) {
+    if (unusedInputMsg.length() != 0 || trackedClassesMsg.length() != 0) {
       System.err.print("ActionCacheChecker: " + action.getOwner().getLabel() + "\n");
       System.err.print(unusedInputMsg);
+      System.err.print(trackedClassesMsg);
     }
 
     return !Arrays.equals(MetadataDigestUtils.fromMetadata(mdMap), entry.getFileDigest());
@@ -656,11 +670,21 @@ public class ActionCacheChecker {
 
     for (Artifact input : action.getInputs().toList()) {
       boolean isUnused = action.discoversUnusedInputs() && action.isUnusedInput(input);
+      boolean hasTrackedClass = action.discoversUnusedInputs() && action.hasTrackedClasses(input);
       entry.addInputFile(
           input.getExecPath(),
           getMetadataMaybe(metadataHandler, input),
           /* saveExecPath= */ !excludePathsFromActionCache.contains(input),
-          /* excludeFromDigest= */ isUnused);
+          /* excludeFromDigest= */ isUnused || hasTrackedClass);
+      if (hasTrackedClass) {
+        action.getTrackedClasses(input).forEach(new BiConsumer<String, String>() {
+          @Override
+          public void accept(String path, String hash) {
+            System.err.println("Storing " + path + " (" + hash + ")");
+            entry.addHash(path, new ExternalMetadataValue(hash.getBytes(StandardCharsets.UTF_8)));
+          }
+        });
+      }
     }
     entry.getFileDigest();
     actionCache.put(key, entry);

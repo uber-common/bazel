@@ -48,6 +48,19 @@ message Dependency {
 
   // Source file locations: compilers can pinpoint the uses of a dependency.
   repeated SourceLocation location = 3;
+
+  // List of used classes.
+  repeated UsedClass usedClasses = 4;
+}
+
+message UsedClass {
+
+  // Path within jar
+  required string innerPath = 1;
+
+  // Hash of the corresponding .class bytecode.
+  required string hash = 2;
+
 }
 
 // Top-level message found in .deps artifacts

@@ -277,6 +277,16 @@ public abstract class AbstractAction extends ActionKeyCacher implements Action, 
             "Method must be overridden for actions that discovers unused inputs.");
   }
 
+  public boolean hasTrackedClasses(Artifact artifact) {
+    throw new IllegalStateException(
+            "Method must be overridden for actions that discovers unused inputs.");
+  }
+
+  public Map<String, String> getTrackedClasses(Artifact artifact) {
+    throw new IllegalStateException(
+            "Method must be overridden for actions that discovers unused inputs.");
+  }
+
   @Override
   public NestedSet<Artifact> getTools() {
     return tools;

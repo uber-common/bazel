@@ -16,6 +16,8 @@ package com.google.devtools.build.buildjar.javac.plugins.dependency;
 
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static com.google.common.collect.Iterables.getOnlyElement;
+import static com.google.devtools.build.buildjar.javac.plugins.dependency.DependencyModule.hashFile;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.ImmutableSet;
@@ -23,6 +25,7 @@ import com.google.devtools.build.buildjar.JarOwner;
 import com.google.devtools.build.buildjar.javac.plugins.BlazeJavaCompilerPlugin;
 import com.google.devtools.build.buildjar.javac.plugins.dependency.DependencyModule.StrictJavaDeps;
 import com.google.devtools.build.buildjar.javac.statistics.BlazeJavacStatistics;
+import com.google.devtools.build.lib.vfs.DigestHashFunction;
 import com.google.devtools.build.lib.view.proto.Deps;
 import com.google.devtools.build.lib.view.proto.Deps.Dependency;
 import com.sun.tools.javac.code.Flags;
@@ -41,24 +44,22 @@ import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.Log;
 import com.sun.tools.javac.util.Log.WriterKind;
 import com.sun.tools.javac.util.Name;
+
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.util.SimpleAnnotationValueVisitor8;
+import javax.tools.FileObject;
 import javax.tools.JavaFileObject;
 
 /**
@@ -230,6 +231,8 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
     /** Collect seen direct dependencies and their associated information */
     private final Map<Path, Deps.Dependency> directDependenciesMap;
 
+    private final Map<String, Map<String, String>> usedClassesMap;
+
     /** We only emit one warning/error per class symbol */
     private final Set<ClassSymbol> seenClasses = new HashSet<>();
 
@@ -252,6 +255,7 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
       this.diagnostics = diagnostics;
       this.missingTargets = missingTargets;
       this.directDependenciesMap = dependencyModule.getExplicitDependenciesMap();
+      this.usedClassesMap = dependencyModule.getUsedClassesMap();
       this.platformJars = platformJars;
     }
 
@@ -270,6 +274,13 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
       // whether that jar was a direct dependency and error out otherwise.
       if (jarPath != null && seenClasses.add(sym.enclClass())) {
         collectExplicitDependency(jarPath, node, sym);
+
+        // Track used classes
+        String key = jarPath.toString();
+        if (!usedClassesMap.containsKey(key)) {
+          usedClassesMap.put(key, new HashMap());
+        }
+        usedClassesMap.get(key).put(sym.enclClass().fullname.toString(), hashFile(sym.enclClass().classfile));
       }
     }
 
