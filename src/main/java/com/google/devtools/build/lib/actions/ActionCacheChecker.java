@@ -46,12 +46,14 @@ import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.build.lib.vfs.PathFragment;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import javax.annotation.Nullable;
 
 /**
@@ -69,6 +71,8 @@ import javax.annotation.Nullable;
  */
 public class ActionCacheChecker {
   private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();
+
+  private static final Boolean DEBUG = true;
 
   private final ActionKeyContext actionKeyContext;
   private final Predicate<? super Action> executionFilter;
@@ -203,13 +207,25 @@ public class ActionCacheChecker {
         mdMap.put(artifact.getExecPathString(), metadata);
       }
     }
+
+    StringBuilder unusedInputMsg = new StringBuilder();
     for (Artifact artifact : actionInputs.toList()) {
-      if (action.discoversUnusedInputs() && action.isUnusedInput(artifact)) {
-        System.err.println("ActionCacheChecker: Removing unused input " + artifact.getExecPathString() + " from action " + action.getOwner().getLabel());
-        continue;
+      if (action.discoversUnusedInputs()) {
+        if (action.isUnusedInput(artifact)) {
+          if (DEBUG) {
+            unusedInputMsg.append("\t(X) " + artifact.getExecPathString() + "\n");
+          }
+          continue;
+        }
       }
       mdMap.put(artifact.getExecPathString(), getMetadataMaybe(metadataHandler, artifact));
     }
+
+    if (unusedInputMsg.length() != 0) {
+      System.err.print("ActionCacheChecker: " + action.getOwner().getLabel() + "\n");
+      System.err.print(unusedInputMsg);
+    }
+
     return !Arrays.equals(MetadataDigestUtils.fromMetadata(mdMap), entry.getFileDigest());
   }
 
@@ -639,12 +655,12 @@ public class ActionCacheChecker {
             : ImmutableSet.of();
 
     for (Artifact input : action.getInputs().toList()) {
-      boolean excludeFromDigest = action.discoversUnusedInputs() && action.isUnusedInput(input);
+      boolean isUnused = action.discoversUnusedInputs() && action.isUnusedInput(input);
       entry.addInputFile(
           input.getExecPath(),
           getMetadataMaybe(metadataHandler, input),
           /* saveExecPath= */ !excludePathsFromActionCache.contains(input),
-          /* excludeFromDigest= */ excludeFromDigest);
+          /* excludeFromDigest= */ isUnused);
     }
     entry.getFileDigest();
     actionCache.put(key, entry);
@@ -893,6 +909,47 @@ public class ActionCacheChecker {
     public boolean wasModifiedSinceDigest(Path path) {
       throw new UnsupportedOperationException(
           "ConstantMetadataValue doesn't support wasModifiedSinceDigest " + path.toString());
+    }
+  }
+
+  private static final class ExternalMetadataValue extends FileArtifactValue
+          implements FileArtifactValue.Singleton {
+    static final ConstantMetadataValue INSTANCE = new ConstantMetadataValue();
+    private byte[] digest;
+
+    private ExternalMetadataValue(byte[] digest) {
+      this.digest = digest;
+    }
+
+    @Override
+    public FileStateType getType() {
+      return FileStateType.REGULAR_FILE;
+    }
+
+    @Override
+    public byte[] getDigest() {
+      return digest;
+    }
+
+    @Override
+    public FileContentsProxy getContentsProxy() {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public long getSize() {
+      return 0;
+    }
+
+    @Override
+    public long getModifiedTime() {
+      return -1;
+    }
+
+    @Override
+    public boolean wasModifiedSinceDigest(Path path) {
+      throw new UnsupportedOperationException(
+              "ExternalMetadataValue doesn't support wasModifiedSinceDigest " + path.toString());
     }
   }
 }
