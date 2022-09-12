@@ -81,14 +81,8 @@ import com.google.devtools.build.lib.view.proto.Deps;
 import com.google.protobuf.ExtensionRegistry;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import net.starlark.java.eval.EvalException;
@@ -733,18 +727,18 @@ public final class JavaCompileAction extends AbstractAction implements CommandAc
     try {
       Path output = pathResolver.toPath(outputDepsProto);
       InputStream input = output.getInputStream();
-      Deps.Dependencies usedDeps = Deps.Dependencies.parseFrom(input);
-      checkState(usedDeps.getRuleLabel().equals(getOwner().getLabel().toString()));
+      Deps.Dependencies deps = Deps.Dependencies.parseFrom(input);
+      checkState(deps.getRuleLabel().equals(getOwner().getLabel().toString()));
 
-      Set<String> usedPaths = usedDeps.getDependencyList().stream()
+      Set<String> usedPaths = deps.getDependencyList().stream()
               .filter(d -> d.getKind() == Deps.Dependency.Kind.EXPLICIT || d.getKind() == Deps.Dependency.Kind.IMPLICIT)
               .map(d -> d.getPath())
-              .collect(Collectors.toSet());
+              .collect(Collectors.toCollection(LinkedHashSet::new));
       this.unusedArtifactsPath = getInputs().toList().stream()
               .filter(JavaCompileAction::canArtifactBeUnused)
-              .filter(d -> !usedPaths.contains(d.getExecPathString()))
               .map(d -> d.getExecPathString())
-              .collect(Collectors.toSet());
+              .filter(Predicate.not(usedPaths::contains))
+              .collect(Collectors.toCollection(LinkedHashSet::new));
     } catch (Exception e) {
       System.err.println("Could not load .jdeps file, ex=" + e);
       this.unusedArtifactsPath = null;
