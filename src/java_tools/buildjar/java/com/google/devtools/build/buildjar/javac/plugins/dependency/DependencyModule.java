@@ -24,6 +24,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Streams;
 import com.google.devtools.build.buildjar.JarOwner;
 import com.google.devtools.build.buildjar.javac.plugins.BlazeJavaCompilerPlugin;
+import com.google.devtools.build.lib.vfs.DigestHashFunction;
+import com.google.devtools.build.lib.view.proto.Deps;
 import com.google.devtools.build.lib.view.proto.Deps.Dependencies;
 import com.google.devtools.build.lib.view.proto.Deps.Dependency;
 import com.google.devtools.build.lib.view.proto.Deps.Dependency.Kind;
@@ -32,6 +34,7 @@ import com.sun.tools.javac.code.Symbol.PackageSymbol;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -44,6 +47,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 import javax.tools.Diagnostic;
+import javax.tools.FileObject;
 import javax.tools.JavaFileObject;
 
 /**
@@ -56,6 +60,8 @@ import javax.tools.JavaFileObject;
  * discovered dependencies.
  */
 public final class DependencyModule {
+
+  private static final DigestHashFunction HASH_FUNCTION = DigestHashFunction.SHA256;
 
   public static enum StrictJavaDeps {
     /** Legacy behavior: Silently allow referencing transitive dependencies. */
@@ -83,6 +89,8 @@ public final class DependencyModule {
   private boolean hasMissingTargets;
   private final Map<Path, Dependency> explicitDependenciesMap;
   private final Map<Path, Dependency> implicitDependenciesMap;
+
+  private final Map<String, Map<String, String>> usedClassesMap;
   private final ImmutableSet<Path> platformJars;
   Set<Path> requiredClasspath;
   private final FixMessage fixMessage;
@@ -109,6 +117,7 @@ public final class DependencyModule {
     this.outputDepsProtoFile = outputDepsProtoFile;
     this.explicitDependenciesMap = new HashMap<>();
     this.implicitDependenciesMap = new HashMap<>();
+    this.usedClassesMap = new HashMap<>();
     this.platformJars = platformJars;
     this.fixMessage = fixMessage;
     this.exemptGenerators = exemptGenerators;
@@ -163,12 +172,40 @@ public final class DependencyModule {
     // Filter using the original classpath, to preserve ordering.
     for (Path entry : classpath) {
       if (explicitDependenciesMap.containsKey(entry)) {
-        deps.addDependency(explicitDependenciesMap.get(entry));
+        Deps.Dependency d = explicitDependenciesMap.get(entry);
+        deps.addDependency(addUsedClasses(d, entry));
       } else if (implicitDependenciesMap.containsKey(entry)) {
-        deps.addDependency(implicitDependenciesMap.get(entry));
+        Deps.Dependency d = implicitDependenciesMap.get(entry);
+        deps.addDependency(addUsedClasses(d, entry));
       }
     }
+
     return deps.build();
+  }
+
+  private Deps.Dependency addUsedClasses(Deps.Dependency d, Path path) {
+    String key = path.toString();
+    if (usedClassesMap.containsKey(key)) {
+      Deps.Dependency.Builder b = d.toBuilder();
+      Map<String, String> map = usedClassesMap.get(key);
+      for (Map.Entry<String, String> e : map.entrySet()) {
+        Deps.UsedClass usedClass = Deps.UsedClass.newBuilder().setInnerPath(e.getKey()).setHash(e.getValue()).build();
+        b.addUsedClasses(usedClass);
+      }
+      return b.build();
+    }
+    return d;
+  }
+
+  public static String hashFile(FileObject fileObject) {
+    try {
+      CharSequence seq = fileObject.getCharContent(true);
+      byte[] bytes = HASH_FUNCTION.getHashFunction().hashBytes(seq.toString().getBytes()).asBytes();
+      return new String(bytes, StandardCharsets.UTF_8);
+    } catch (IOException ex) {
+      System.err.println("Failure to compute hash for " + fileObject);
+    }
+    return "";
   }
 
   /** Returns the paths of direct dependencies. */
@@ -194,6 +231,10 @@ public final class DependencyModule {
   /** Returns the map collecting precise implicit dependency information. */
   public Map<Path, Dependency> getImplicitDependenciesMap() {
     return implicitDependenciesMap;
+  }
+
+  public Map<String, Map<String, String>> getUsedClassesMap() {
+    return usedClassesMap;
   }
 
   /** Returns the jars in the platform classpath. */
