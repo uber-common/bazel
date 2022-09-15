@@ -16,11 +16,10 @@ package com.google.devtools.build.buildjar.javac.plugins.dependency;
 
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static com.google.common.collect.Iterables.getOnlyElement;
-import static com.google.devtools.build.buildjar.javac.plugins.dependency.DependencyModule.hashFile;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.google.auto.value.AutoValue;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.io.ByteStreams;
 import com.google.devtools.build.buildjar.JarOwner;
 import com.google.devtools.build.buildjar.javac.plugins.BlazeJavaCompilerPlugin;
 import com.google.devtools.build.buildjar.javac.plugins.dependency.DependencyModule.StrictJavaDeps;
@@ -28,6 +27,7 @@ import com.google.devtools.build.buildjar.javac.statistics.BlazeJavacStatistics;
 import com.google.devtools.build.lib.vfs.DigestHashFunction;
 import com.google.devtools.build.lib.view.proto.Deps;
 import com.google.devtools.build.lib.view.proto.Deps.Dependency;
+import com.google.protobuf.ByteString;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
@@ -45,12 +45,11 @@ import com.sun.tools.javac.util.Log;
 import com.sun.tools.javac.util.Log.WriterKind;
 import com.sun.tools.javac.util.Name;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Predicate;
@@ -231,7 +230,7 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
     /** Collect seen direct dependencies and their associated information */
     private final Map<Path, Deps.Dependency> directDependenciesMap;
 
-    private final Map<String, Map<String, String>> usedClassesMap;
+    private final Map<Path, Set<Deps.UsedClass>> usedClassesMap;
 
     /** We only emit one warning/error per class symbol */
     private final Set<ClassSymbol> seenClasses = new HashSet<>();
@@ -276,12 +275,31 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
         collectExplicitDependency(jarPath, node, sym);
 
         // Track used classes
-        String key = jarPath.toString();
-        if (!usedClassesMap.containsKey(key)) {
-          usedClassesMap.put(key, new HashMap());
+        if (!usedClassesMap.containsKey(jarPath)) {
+          usedClassesMap.put(jarPath, new HashSet());
         }
-        usedClassesMap.get(key).put(sym.enclClass().fullname.toString(), hashFile(sym.enclClass().classfile));
+        String internalPath = sym.enclClass().classfile.toString().split(":")[1];
+        Deps.UsedClass usedClass = Deps.UsedClass.newBuilder()
+                .setFullyQualifiedName(sym.enclClass().fullname.toString())
+                .setJarInternalPath(internalPath.substring(1, internalPath.length() - 1))
+                .setHash(hashFile(sym.enclClass().classfile))
+                .build();
+        usedClassesMap.get(jarPath).add(usedClass);
       }
+    }
+
+    /*
+     * Generate Sha256 of input fileObject content.
+     */
+    private static ByteString hashFile(FileObject fileObject) {
+      try {
+        InputStream stream = fileObject.openInputStream();
+        byte[] targetArray = ByteStreams.toByteArray(stream);
+        return ByteString.copyFrom(DigestHashFunction.SHA256.getHashFunction().hashBytes(targetArray).asBytes());
+      } catch (IOException ex) {
+        System.err.println("Failure to compute hash for " + fileObject);
+      }
+      return ByteString.EMPTY;
     }
 
     /**

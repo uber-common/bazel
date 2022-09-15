@@ -623,16 +623,6 @@ public class JavaOptions extends FragmentOptions {
   public boolean compileWithTransitiveResourcesDeps;
 
   @Option(
-          name = "compile_with_unused_deps",
-          defaultValue = "true",
-          documentationCategory = OptionDocumentationCategory.BUILD_TIME_OPTIMIZATION,
-          effectTags = {OptionEffectTag.LOADING_AND_ANALYSIS, OptionEffectTag.EXECUTION, OptionEffectTag.AFFECTS_OUTPUTS},
-          metadataTags = {OptionMetadataTag.EXPERIMENTAL},
-          help = "If disabled, java compilation will ignore unused deps when performing action cache lookup."
-                  + "This means changes to unused deps will not cause compilation to re-occur in subsequent build.")
-  public boolean compileWithUnusedDeps;
-
-  @Option(
       name = "experimental_enable_jspecify",
       defaultValue = "true",
       documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,

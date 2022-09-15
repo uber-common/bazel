@@ -751,10 +751,6 @@ public final class ActionExecutionFunction implements SkyFunction {
             PathFragment.create(directories.getRelativeOutputPath()),
             expandedFilesets);
 
-    if (action.discoversUnusedInputs()) {
-      action.discoverUnusedInputs(pathResolver);
-    }
-
     // We only need to check the action cache if we haven't done it on a previous run.
     if (!state.hasCheckedActionCache()) {
       state.token =

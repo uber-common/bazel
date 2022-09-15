@@ -25,6 +25,7 @@ java_library(
         [
             "*.java",
             "cache/*.java",
+            "usage/*.java",
         ],
         exclude = [
             "ActionInput.java",
@@ -77,6 +78,7 @@ java_library(
         ":middleman_type",
         ":package_roots",
         ":thread_state_receiver",
+        "//src/main/java/com/google/devtools/build/lib:build-request-options",
         "//src/main/java/com/google/devtools/build/lib/analysis/platform",
         "//src/main/java/com/google/devtools/build/lib/bugreport",
         "//src/main/java/com/google/devtools/build/lib/buildeventstream",
@@ -123,6 +125,7 @@ java_library(
         "//src/main/java/com/google/devtools/common/options",
         "//src/main/java/net/starlark/java/eval",
         "//src/main/java/net/starlark/java/syntax",
+        "//src/main/protobuf:deps_java_proto",
         "//src/main/protobuf:action_cache_java_proto",
         "//src/main/protobuf:extra_actions_base_java_proto",
         "//src/main/protobuf:failure_details_java_proto",

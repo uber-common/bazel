@@ -41,6 +41,7 @@ java_library(
         "//third_party:auto_value",
         "//third_party:guava",
         "//third_party:tomcat_annotations_api",
+        "//third_party/protobuf:protobuf_java",
     ],
 )
 

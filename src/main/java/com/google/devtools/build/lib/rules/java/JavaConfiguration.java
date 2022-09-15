@@ -114,7 +114,6 @@ public final class JavaConfiguration extends Fragment implements JavaConfigurati
   private final boolean disallowJavaImportEmptyJars;
   private final boolean compileWithTransitiveDeps;
   private final boolean compileWithTransitiveResourcesDeps;
-  private final boolean compileWithUnusedDeps;
 
   // TODO(dmarting): remove once we have a proper solution for #2539
   private final boolean useLegacyBazelJavaTest;
@@ -159,7 +158,6 @@ public final class JavaConfiguration extends Fragment implements JavaConfigurati
     this.disallowJavaImportEmptyJars = javaOptions.disallowJavaImportEmptyJars;
     this.compileWithTransitiveDeps = javaOptions.compileWithTransitiveDeps;
     this.compileWithTransitiveResourcesDeps = javaOptions.compileWithTransitiveResourcesDeps;
-    this.compileWithUnusedDeps = javaOptions.compileWithUnusedDeps;
 
     Map<String, Label> optimizers = javaOptions.bytecodeOptimizers;
     if (optimizers.size() > 1) {
@@ -469,5 +467,4 @@ public final class JavaConfiguration extends Fragment implements JavaConfigurati
   public boolean compileWithTransitiveDeps() { return compileWithTransitiveDeps; }
 
   public boolean compileWithTransitiveResourcesDeps() { return compileWithTransitiveResourcesDeps; }
-  public boolean compileWithUnusedDeps() { return compileWithUnusedDeps; }
 }
