@@ -55,11 +55,14 @@ message Dependency {
 
 message UsedClass {
 
-  // Path within jar
-  required string innerPath = 1;
+  // Class fully qualified name
+  required string fullyQualifiedName = 1;
+
+  // Path within jar to .class file
+  required string jarInternalPath = 2;
 
   // Hash of the corresponding .class bytecode.
-  required string hash = 2;
+  required bytes hash = 3;
 
 }
 

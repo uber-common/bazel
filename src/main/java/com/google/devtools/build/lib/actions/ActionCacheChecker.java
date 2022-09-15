@@ -34,6 +34,8 @@ import com.google.devtools.build.lib.actions.cache.ActionCache.Entry.Serializabl
 import com.google.devtools.build.lib.actions.cache.MetadataDigestUtils;
 import com.google.devtools.build.lib.actions.cache.OutputMetadataStore;
 import com.google.devtools.build.lib.actions.cache.Protos.ActionCacheStatistics.MissReason;
+import com.google.devtools.build.lib.actions.usage.ActionInputUsageTracker;
+import com.google.devtools.build.lib.actions.usage.TrackingInfo;
 import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
 import com.google.devtools.build.lib.collect.nestedset.Order;
@@ -47,14 +49,12 @@ import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.build.lib.vfs.PathFragment;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.BiConsumer;
 import javax.annotation.Nullable;
 
 /**
@@ -73,11 +73,10 @@ import javax.annotation.Nullable;
 public class ActionCacheChecker {
   private static final GoogleLogger logger = GoogleLogger.forEnclosingClass();
 
-  private static final Boolean DEBUG = true;
-
   private final ActionKeyContext actionKeyContext;
   private final Predicate<? super Action> executionFilter;
   private final ArtifactResolver artifactResolver;
+  private final ActionInputUsageTracker actionInputUsageTracker;
   private final CacheConfig cacheConfig;
 
   @Nullable private final ActionCache actionCache; // Null when not enabled.
@@ -111,12 +110,14 @@ public class ActionCacheChecker {
   public ActionCacheChecker(
       @Nullable ActionCache actionCache,
       ArtifactResolver artifactResolver,
+      ActionInputUsageTracker actionInputUsageTracker,
       ActionKeyContext actionKeyContext,
       Predicate<? super Action> executionFilter,
       @Nullable CacheConfig cacheConfig) {
     this.executionFilter = executionFilter;
     this.actionKeyContext = actionKeyContext;
     this.artifactResolver = artifactResolver;
+    this.actionInputUsageTracker = actionInputUsageTracker;
     this.cacheConfig =
         cacheConfig != null
             ? cacheConfig
@@ -195,7 +196,7 @@ public class ActionCacheChecker {
    * @param remoteArtifactChecker used to check whether remote metadata should be trusted.
    * @return true if at least one artifact has changed, false - otherwise.
    */
-  private static boolean validateArtifacts(
+  private boolean validateArtifacts(
       ActionCache.Entry entry,
       Action action,
       NestedSet<Artifact> actionInputs,
@@ -235,37 +236,27 @@ public class ActionCacheChecker {
       }
     }
 
-    StringBuilder unusedInputMsg = new StringBuilder();
-    StringBuilder trackedClassesMsg = new StringBuilder();
     for (Artifact artifact : actionInputs.toList()) {
-      if (action.discoversUnusedInputs()) {
-        if (action.isUnusedInput(artifact)) {
-          if (DEBUG) {
-            unusedInputMsg.append("\t(X) " + artifact.getExecPathString() + "\n");
-          }
-          continue;
-        }
-        if (action.hasTrackedClasses(artifact)) {
-          action.getTrackedClasses(artifact).forEach(new BiConsumer<String, String>() {
-              @Override
-              public void accept(String path, String hash) {
-                if (DEBUG) {
-                  trackedClassesMsg.append("\t(c) " + path + " (" + hash + ")\n");
-                }
-                mdMap.put(path, new ExternalMetadataValue(hash.getBytes(StandardCharsets.UTF_8)));
-              }
-            });
-            continue;
-          }
+      // Request tracking info with fresh hashes from direct dependencies, since we want to compare
+      // these against the hashes that were used at previous compilation time.
+      TrackingInfo trackingInfo = actionInputUsageTracker.getTrackingInfo(action, artifact, true);
+
+      if (trackingInfo.isUnused()) {
+        // Input artifact is not used, exclude it from action cache key computation
+        continue;
+      } else if (trackingInfo.tracksUsedClasses()) {
+        // A subset of input artifact is used, include individual used classes for action cache key computation
+        trackingInfo.getUsedClasses().forEach(usedClass ->
+          mdMap.put(usedClass.getInternalPath(), usedClass.getDependencyFileArtifactValue())
+        );
+      } else {
+        // Standard case, track input artifact itself
+        mdMap.put(artifact.getExecPathString(), getInputMetadataMaybe(inputMetadataProvider, artifact));
       }
-      mdMap.put(artifact.getExecPathString(), getInputMetadataMaybe(inputMetadataProvider, artifact));
     }
 
-    if (unusedInputMsg.length() != 0 || trackedClassesMsg.length() != 0) {
-      System.err.print("ActionCacheChecker: " + action.getOwner().getLabel() + "\n");
-      System.err.print(unusedInputMsg);
-      System.err.print(trackedClassesMsg);
-    }
+    // Output debug info about action if needed
+    actionInputUsageTracker.dump(action);
 
     return !Arrays.equals(MetadataDigestUtils.fromMetadata(mdMap), entry.getFileDigest());
   }
@@ -588,6 +579,9 @@ public class ActionCacheChecker {
       cachedOutputMetadata = loadCachedOutputMetadata(action, entry, outputMetadataStore);
     }
 
+    // Load tracking info from action output .jdeps file
+    actionInputUsageTracker.refreshInputTrackingInfo(action);
+
     if (mustExecute(
         action,
         entry,
@@ -753,6 +747,10 @@ public class ActionCacheChecker {
       // This cache entry has already been updated by a shared action. We don't need to do it again.
       return;
     }
+
+    // Action has been executed, and output .jdeps file has been re-generated, so we need to update tracking info.
+    actionInputUsageTracker.refreshInputTrackingInfo(action);
+
     Map<String, String> usedEnvironment =
         computeUsedEnv(action, clientEnv, remoteDefaultPlatformProperties);
     ActionCache.Entry entry =
@@ -793,21 +791,19 @@ public class ActionCacheChecker {
             : ImmutableSet.of();
 
     for (Artifact input : action.getInputs().toList()) {
-      boolean isUnused = action.discoversUnusedInputs() && action.isUnusedInput(input);
-      boolean hasTrackedClass = action.discoversUnusedInputs() && action.hasTrackedClasses(input);
+      TrackingInfo trackingInfo = actionInputUsageTracker.getTrackingInfo(action, input, false);
+
       entry.addInputFile(
           input.getExecPath(),
           getInputMetadataMaybe(inputMetadataProvider, input),
           /* saveExecPath= */ !excludePathsFromActionCache.contains(input),
-          /* excludeFromDigest= */ isUnused || hasTrackedClass);
-      if (hasTrackedClass) {
-        action.getTrackedClasses(input).forEach(new BiConsumer<String, String>() {
-          @Override
-          public void accept(String path, String hash) {
-            System.err.println("Storing " + path + " (" + hash + ")");
-            entry.addHash(path, new ExternalMetadataValue(hash.getBytes(StandardCharsets.UTF_8)));
-          }
-        });
+          /* excludeFromDigest= */ trackingInfo.isUnused() || trackingInfo.tracksUsedClasses());
+
+      if (trackingInfo.tracksUsedClasses()) {
+        // A subset of input artifact is used, include individual used classes to action cache key computation
+        trackingInfo.getUsedClasses().forEach(usedClass ->
+                entry.addHash(usedClass.getInternalPath(), usedClass.getCompileTimeFileArtifactValue())
+        );
       }
     }
     entry.getFileDigest();
@@ -1063,47 +1059,6 @@ public class ActionCacheChecker {
     public boolean wasModifiedSinceDigest(Path path) {
       throw new UnsupportedOperationException(
           "ConstantMetadataValue doesn't support wasModifiedSinceDigest " + path.toString());
-    }
-  }
-
-  private static final class ExternalMetadataValue extends FileArtifactValue
-          implements FileArtifactValue.Singleton {
-    static final ConstantMetadataValue INSTANCE = new ConstantMetadataValue();
-    private byte[] digest;
-
-    private ExternalMetadataValue(byte[] digest) {
-      this.digest = digest;
-    }
-
-    @Override
-    public FileStateType getType() {
-      return FileStateType.REGULAR_FILE;
-    }
-
-    @Override
-    public byte[] getDigest() {
-      return digest;
-    }
-
-    @Override
-    public FileContentsProxy getContentsProxy() {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public long getSize() {
-      return 0;
-    }
-
-    @Override
-    public long getModifiedTime() {
-      return -1;
-    }
-
-    @Override
-    public boolean wasModifiedSinceDigest(Path path) {
-      throw new UnsupportedOperationException(
-              "ExternalMetadataValue doesn't support wasModifiedSinceDigest " + path.toString());
     }
   }
 }

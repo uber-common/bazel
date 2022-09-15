@@ -757,15 +757,6 @@ public final class SkyframeActionExecutor {
       throw ActionExecutionException.fromExecException(e, action);
     }
 
-    // Refresh unused inputs that may have changed in last compilation, in order to update action
-    // cache with the new cache key reflecting the new unused inputs.
-    if (action.discoversUnusedInputs()) {
-      ArtifactPathResolver artifactResolver = ArtifactPathResolver.createPathResolver(
-              executorEngine.getFileSystem(),
-              executorEngine.getExecRoot());
-      action.discoverUnusedInputs(artifactResolver);
-    }
-
     try {
       actionCacheChecker.updateActionCache(
           action,
