@@ -59,7 +59,7 @@ public class ActionInputUsageTracker {
     }
 
     private static final Set<String> SUPPORTED_DEPENDENCY_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile");
-    private static final Set<String> SUPPORTED_CLASS_TRACKING_MNEMONICS = Set.of("Javac");
+    private static final Set<String> SUPPORTED_CLASS_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile");
     private static final boolean DEBUG_MODE = true;
 
     private final ArtifactPathResolver pathResolver;
@@ -232,7 +232,8 @@ public class ActionInputUsageTracker {
     private static boolean canArtifactTrackUsedClasses(Artifact artifact) {
         String artifactExecPath = artifact.getExecPathString();
         return artifactExecPath.endsWith("-ijar.jar") ||
-                artifactExecPath.endsWith("-hjar.jar");
+                artifactExecPath.endsWith("-hjar.jar")  ||
+                artifactExecPath.endsWith(".abi.jar");
     }
 
     /**
