@@ -297,9 +297,8 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
         byte[] targetArray = ByteStreams.toByteArray(stream);
         return ByteString.copyFrom(DigestHashFunction.SHA256.getHashFunction().hashBytes(targetArray).asBytes());
       } catch (IOException ex) {
-        System.err.println("Failure to compute hash for " + fileObject);
+        throw new RuntimeException("Failure to compute hash for " + fileObject, ex);
       }
-      return ByteString.EMPTY;
     }
 
     /**
