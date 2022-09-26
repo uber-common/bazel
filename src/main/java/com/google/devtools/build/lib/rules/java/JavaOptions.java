@@ -210,6 +210,19 @@ public class JavaOptions extends FragmentOptions {
   public boolean inmemoryJdepsFiles;
 
   @Option(
+          name = "experimental_track_class_usage",
+          defaultValue = "false",
+          documentationCategory = OptionDocumentationCategory.BUILD_TIME_OPTIMIZATION,
+          effectTags = {
+                  OptionEffectTag.LOADING_AND_ANALYSIS,
+                  OptionEffectTag.EXECUTION,
+                  OptionEffectTag.AFFECTS_OUTPUTS
+          },
+          metadataTags = {OptionMetadataTag.EXPERIMENTAL},
+          help = "If enabled, produced .jdeps output file will contains granular used classes information.")
+  public boolean experimentalTrackClassUsage;
+
+  @Option(
       name = "java_debug",
       defaultValue = "null",
       expansion = {
@@ -636,6 +649,7 @@ public class JavaOptions extends FragmentOptions {
     exec.javaDeps = javaDeps;
     exec.javaClasspath = javaClasspath;
     exec.inmemoryJdepsFiles = inmemoryJdepsFiles;
+    exec.experimentalTrackClassUsage = experimentalTrackClassUsage;
 
     exec.strictJavaDeps = strictJavaDeps;
     exec.fixDepsTool = fixDepsTool;
