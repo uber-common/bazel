@@ -78,6 +78,7 @@ public final class DependencyModule {
   private final FixTool fixDepsTool;
   private final ImmutableSet<Path> directJars;
   private final boolean strictClasspathMode;
+  private final boolean usageTrackerMode;
   private final Set<Path> depsArtifacts;
   private final String targetLabel;
   private final Path outputDepsProtoFile;
@@ -97,6 +98,7 @@ public final class DependencyModule {
       FixTool fixDepsTool,
       ImmutableSet<Path> directJars,
       boolean strictClasspathMode,
+      boolean usageTrackerMode,
       Set<Path> depsArtifacts,
       ImmutableSet<Path> platformJars,
       String targetLabel,
@@ -107,6 +109,7 @@ public final class DependencyModule {
     this.fixDepsTool = fixDepsTool;
     this.directJars = directJars;
     this.strictClasspathMode = strictClasspathMode;
+    this.usageTrackerMode = usageTrackerMode;
     this.depsArtifacts = depsArtifacts;
     this.targetLabel = targetLabel;
     this.outputDepsProtoFile = outputDepsProtoFile;
@@ -121,7 +124,7 @@ public final class DependencyModule {
 
   /** Returns a plugin to be enabled in the compiler. */
   public BlazeJavaCompilerPlugin getPlugin() {
-    return new StrictJavaDepsPlugin(this);
+    return new StrictJavaDepsPlugin(this, usageTrackerMode);
   }
 
   /**
@@ -246,6 +249,11 @@ public final class DependencyModule {
     return strictClasspathMode;
   }
 
+  /** Writes used classes information in deps file. */
+  public boolean usageTrackerMode() {
+    return usageTrackerMode;
+  }
+
   void setHasMissingTargets() {
     hasMissingTargets = true;
   }
@@ -353,6 +361,7 @@ public final class DependencyModule {
     private String targetLabel;
     private Path outputDepsProtoFile;
     private boolean strictClasspathMode = false;
+    private boolean usageTrackerMode = false;
     private FixMessage fixMessage = new DefaultFixMessage();
     private final Set<String> exemptGenerators = new LinkedHashSet<>(SJD_EXEMPT_PROCESSORS);
 
@@ -386,6 +395,7 @@ public final class DependencyModule {
           fixDepsTool,
           directJars,
           strictClasspathMode,
+          usageTrackerMode,
           depsArtifacts,
           platformJars,
           targetLabel,
@@ -477,6 +487,16 @@ public final class DependencyModule {
     @CanIgnoreReturnValue
     public Builder setReduceClasspath() {
       this.strictClasspathMode = true;
+      return this;
+    }
+
+    /**
+     * Set action input usage tracking behavior. Used for build time optimization via compilation avoidance.
+     *
+     * @return this Builder instance
+     */
+    public Builder setUsageTrackerMode(boolean usageTrackerMode) {
+      this.usageTrackerMode = usageTrackerMode;
       return this;
     }
 

@@ -76,6 +76,7 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
   private ImplicitDependencyExtractor implicitDependencyExtractor;
   private CheckingTreeScanner checkingTreeScanner;
   private final DependencyModule dependencyModule;
+  private final boolean usageTrackerMode;
 
   /** Marks seen compilation toplevels and their import sections */
   private final Set<JCTree.JCCompilationUnit> toplevels;
@@ -111,8 +112,9 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
    * flagging that dependency. Also, we can check whether the direct dependencies were actually
    * necessary, i.e. if their associated jars were used at all for looking up class definitions.
    */
-  public StrictJavaDepsPlugin(DependencyModule dependencyModule) {
+  public StrictJavaDepsPlugin(DependencyModule dependencyModule, boolean usageTrackerMode) {
     this.dependencyModule = dependencyModule;
+    this.usageTrackerMode = usageTrackerMode;
     toplevels = new HashSet<>();
     trees = new HashSet<>();
     missingTargets = new HashSet<>();
@@ -135,7 +137,7 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
     if (checkingTreeScanner == null) {
       Set<Path> platformJars = dependencyModule.getPlatformJars();
       checkingTreeScanner =
-          new CheckingTreeScanner(dependencyModule, diagnostics, missingTargets, platformJars);
+          new CheckingTreeScanner(dependencyModule, diagnostics, missingTargets, platformJars, usageTrackerMode);
       context.put(CheckingTreeScanner.class, checkingTreeScanner);
     }
   }
@@ -242,6 +244,9 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
     /** The set of jars on the compilation bootclasspath. */
     private final Set<Path> platformJars;
 
+    /** The action usage tracker mode. */
+    private boolean usageTrackerMode;
+
     /** The current source, for diagnostics. */
     private JavaFileObject source = null;
 
@@ -249,13 +254,15 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
         DependencyModule dependencyModule,
         List<SjdDiagnostic> diagnostics,
         Set<JarOwner> missingTargets,
-        Set<Path> platformJars) {
+        Set<Path> platformJars,
+        boolean usageTrackerMode) {
       this.directJars = dependencyModule.directJars();
       this.diagnostics = diagnostics;
       this.missingTargets = missingTargets;
       this.directDependenciesMap = dependencyModule.getExplicitDependenciesMap();
       this.usedClassesMap = dependencyModule.getUsedClassesMap();
       this.platformJars = platformJars;
+      this.usageTrackerMode = usageTrackerMode;
     }
 
     Set<ClassSymbol> getSeenClasses() {
@@ -275,16 +282,18 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
         collectExplicitDependency(jarPath, node, sym);
 
         // Track used classes
-        if (!usedClassesMap.containsKey(jarPath)) {
-          usedClassesMap.put(jarPath, new HashSet());
+        if (usageTrackerMode) {
+          if (!usedClassesMap.containsKey(jarPath)) {
+            usedClassesMap.put(jarPath, new HashSet());
+          }
+          String internalPath = sym.enclClass().classfile.toString().split(":")[1];
+          Deps.UsedClass usedClass = Deps.UsedClass.newBuilder()
+                  .setFullyQualifiedName(sym.enclClass().fullname.toString())
+                  .setJarInternalPath(internalPath.substring(1, internalPath.length() - 1))
+                  .setHash(hashFile(sym.enclClass().classfile))
+                  .build();
+          usedClassesMap.get(jarPath).add(usedClass);
         }
-        String internalPath = sym.enclClass().classfile.toString().split(":")[1];
-        Deps.UsedClass usedClass = Deps.UsedClass.newBuilder()
-                .setFullyQualifiedName(sym.enclClass().fullname.toString())
-                .setJarInternalPath(internalPath.substring(1, internalPath.length() - 1))
-                .setHash(hashFile(sym.enclClass().classfile))
-                .build();
-        usedClassesMap.get(jarPath).add(usedClass);
       }
     }
 
