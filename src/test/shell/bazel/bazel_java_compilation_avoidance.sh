@@ -218,10 +218,10 @@ function test_used_java_dependency() {
 #   -> ABI change to class 'UsedClass' will recompile B.
 function test_used_java_class() {
   write_project_files
-  bazel build //java/libB &>"${TEST_log}" --nojava_header_compilation --experimental_action_input_usage_tracker=unused_classes || fail "Expected to build"
+  bazel build //java/libB &>"${TEST_log}" --nojava_header_compilation --experimental_action_input_usage_tracker=unused_classes --experimental_track_class_usage || fail "Expected to build"
 
   inplace-sed "s/myVar/myVar_/g" "java/libC/Used.java"
-  bazel build //java/libB &>"${TEST_log}" --nojava_header_compilation --experimental_action_input_usage_tracker=unused_classes || fail "Expected to build"
+  bazel build //java/libB &>"${TEST_log}" --nojava_header_compilation --experimental_action_input_usage_tracker=unused_classes --experimental_track_class_usage || fail "Expected to build"
   expect_log " processes: .* 2 worker"
 }
 
@@ -229,10 +229,10 @@ function test_used_java_class() {
 #   -> ABI change to class 'UnusedClass' from C will *not* recompile B.
 function test_unused_java_class() {
   write_project_files
-  bazel build //java/libB &>"${TEST_log}" --nojava_header_compilation --experimental_action_input_usage_tracker=unused_classes || fail "Expected to build"
+  bazel build //java/libB &>"${TEST_log}" --nojava_header_compilation --experimental_action_input_usage_tracker=unused_classes --experimental_track_class_usage || fail "Expected to build"
 
   inplace-sed "s/myVar/myVar_/g" "java/libC/Unused.java"
-  bazel build //java/libB &>"${TEST_log}" --nojava_header_compilation --experimental_action_input_usage_tracker=unused_classes || fail "Expected to build"
+  bazel build //java/libB &>"${TEST_log}" --nojava_header_compilation --experimental_action_input_usage_tracker=unused_classes --experimental_track_class_usage || fail "Expected to build"
   expect_log " processes: .* 1 worker"
 }
 
