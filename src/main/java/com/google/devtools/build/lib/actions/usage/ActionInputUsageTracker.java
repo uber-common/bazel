@@ -183,13 +183,12 @@ public class ActionInputUsageTracker {
             }
             boolean isUnused = supportsInputTracking(action) && isUnusedInput(action, input);
             TrackingInfo trackingInfo = getTrackingInfo(action, input, false);
-            int numTrackedClasses = trackingInfo.tracksUsedClasses() ? trackingInfo.getUsedClasses().size() : 0;
             if (isUnused) {
                 s.append("\t(-) " + input.getExecPathString() + "\n");
             } else {
                 s.append("\t(+) " + input.getExecPathString());
-                if (numTrackedClasses > 0) {
-                    s.append(" (" + numTrackedClasses + " tracked classes)");
+                if (trackingInfo.tracksUsedClasses()) {
+                    s.append(" (" + trackingInfo.getUsedClasses().size() + " tracked classes)");
                 }
                 s.append("\n");
             }
