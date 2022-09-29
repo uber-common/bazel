@@ -61,6 +61,7 @@ public class ActionInputUsageTracker {
     private static final Set<String> SUPPORTED_DEPENDENCY_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile");
     private static final Set<String> SUPPORTED_CLASS_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile");
     private static final boolean DEBUG_MODE = true;
+    private static final boolean VERBOSE_MODE = false;
 
     private final ArtifactPathResolver pathResolver;
     private final ActionInputUsageTrackerMode trackerMode;
@@ -133,6 +134,7 @@ public class ActionInputUsageTracker {
             usageInfo = new UsageInfo(unusedArtifactsPath, usedClassesMap);
         } catch (FileNotFoundException fileNotFoundException) {
             // Silently ignore, this could be a clean build
+            System.err.println("Could not load .jdeps file because file not found for action: " + action.getOwner().getLabel());
         } catch (Exception exception) {
             System.err.println("Could not load .jdeps file, ex=" + exception);
         }
@@ -176,23 +178,42 @@ public class ActionInputUsageTracker {
             return;
         }
 
-        StringBuilder s = new StringBuilder("ActionInputUsageTracker: " + action.getOwner().getLabel() + "\n");
+        int unusedCount = 0;
+        int usedCount = 0;
+        int usedClasses = 0;
+        StringBuilder s = new StringBuilder("ActionInputUsageTracker: " + action.getOwner().getLabel() + " ");
         for (Artifact input : action.getInputs().toList()) {
             if (!canArtifactBeUnused(input)) {
                 continue;
             }
             boolean isUnused = supportsInputTracking(action) && isUnusedInput(action, input);
             TrackingInfo trackingInfo = getTrackingInfo(action, input, false);
-            if (isUnused) {
-                s.append("\t(-) " + input.getExecPathString() + "\n");
-            } else {
-                s.append("\t(+) " + input.getExecPathString());
-                if (trackingInfo.tracksUsedClasses()) {
-                    s.append(" (" + trackingInfo.getUsedClasses().size() + " tracked classes)");
-                }
+            if (VERBOSE_MODE) {
                 s.append("\n");
+                if (isUnused) {
+                    s.append("\t(-) " + input.getExecPathString() + "\n");
+                } else {
+                    s.append("\t(+) " + input.getExecPathString());
+                    if (trackingInfo.tracksUsedClasses()) {
+                        s.append(" (" + trackingInfo.getUsedClasses().size() + " tracked classes)");
+                    }
+                }
+            } else {
+                if (isUnused) {
+                    unusedCount++;
+                } else {
+                    usedCount++;
+                    if (trackingInfo.tracksUsedClasses()) {
+                        usedClasses += trackingInfo.getUsedClasses().size();
+                    }
+                }
             }
         }
+        if (!VERBOSE_MODE) {
+            String usedClassesStr = supportsClassTracking(action) ? String.format(", %d tracked classes.", usedClasses) : ".";
+            s.append(String.format("[%d used dep, %d unused dep%s]", usedCount, unusedCount, usedClassesStr));
+        }
+        s.append("\n");
 
         System.err.println(s);
     }
@@ -240,6 +261,11 @@ public class ActionInputUsageTracker {
      * upon compiling against ABI jars, therefore we only support ijar/hjar/kotlin ABI.
      */
     private static boolean canArtifactBeUnused(Artifact artifact) {
+        if (artifact.getRootRelativePathString().startsWith("external/") ||
+                artifact.getExecPathString().startsWith("external/")) {
+            return false;
+        }
+
         String artifactExecPath = artifact.getExecPathString();
         return artifactExecPath.endsWith("-ijar.jar") ||
                 artifactExecPath.endsWith("-hjar.jar") ||
