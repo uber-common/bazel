@@ -60,7 +60,6 @@ public class ActionInputUsageTracker {
 
     private static final Set<String> SUPPORTED_DEPENDENCY_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile");
     private static final Set<String> SUPPORTED_CLASS_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile");
-    private static final boolean DEBUG_MODE = true;
     private static final boolean VERBOSE_MODE = false;
 
     private final ArtifactPathResolver pathResolver;
@@ -85,6 +84,8 @@ public class ActionInputUsageTracker {
      */
     public boolean supportsInputTracking(Action action) {
         return enabled() &&
+                action.getOwner().getLabel() != null &&
+                action.getOwner().getLabel().getRepository().isMain() &&
                 getJDepsOutput(action) != null &&
                 SUPPORTED_DEPENDENCY_TRACKING_MNEMONICS.contains(action.getMnemonic());
     }
@@ -94,6 +95,8 @@ public class ActionInputUsageTracker {
      */
     public boolean supportsClassTracking(Action action) {
         return this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES &&
+                action.getOwner().getLabel() != null &&
+                action.getOwner().getLabel().getRepository().isMain() &&
                 getJDepsOutput(action) != null &&
                 SUPPORTED_CLASS_TRACKING_MNEMONICS.contains(action.getMnemonic());
     }
@@ -134,11 +137,11 @@ public class ActionInputUsageTracker {
             usageInfo = new UsageInfo(unusedArtifactsPath, usedClassesMap);
         } catch (FileNotFoundException fileNotFoundException) {
             // Silently ignore, this could be a clean build
-            System.err.println("Could not load .jdeps file because file not found for action: " + action.getOwner().getLabel());
         } catch (Exception exception) {
-            System.err.println("Could not load .jdeps file, ex=" + exception);
+            System.err.println("ActionInputUsageTracker: " + getKey(action) + " .jdeps file failed to load, ex=" + exception);
         }
-        trackerInfoMap.put(action.getOwner().getLabel().toString(), usageInfo);
+
+        trackerInfoMap.put(getKey(action), usageInfo);
     }
 
     /**
@@ -173,15 +176,11 @@ public class ActionInputUsageTracker {
     /**
      * For debugging purpose.
      */
-    public void dump(Action action) {
-        if (!DEBUG_MODE || !supportsInputTracking(action)) {
-            return;
-        }
-
+    public String dump(Action action) {
         int unusedCount = 0;
         int usedCount = 0;
         int usedClasses = 0;
-        StringBuilder s = new StringBuilder("ActionInputUsageTracker: " + action.getOwner().getLabel() + " ");
+        StringBuilder s = new StringBuilder("ActionInputUsageTracker: " + getKey(action) + " ");
         for (Artifact input : action.getInputs().toList()) {
             if (!canArtifactBeUnused(input)) {
                 continue;
@@ -210,12 +209,18 @@ public class ActionInputUsageTracker {
             }
         }
         if (!VERBOSE_MODE) {
-            String usedClassesStr = supportsClassTracking(action) ? String.format(", %d tracked classes.", usedClasses) : ".";
+            String usedClassesStr = supportsClassTracking(action) ? String.format(", %d tracked classes", usedClasses) : "";
             s.append(String.format("[%d used dep, %d unused dep%s]", usedCount, unusedCount, usedClassesStr));
         }
-        s.append("\n");
 
-        System.err.println(s);
+        return s.toString();
+    }
+
+    /**
+     * Returns the cache key used internally for a given action
+     */
+    private String getKey(Action action) {
+        return action.getOwner().getLabel().toString() + "(" + action.getMnemonic() + ")";
     }
 
     /**
@@ -242,8 +247,7 @@ public class ActionInputUsageTracker {
      */
     @Nullable
     private UsageInfo getUsageInfo(Action action) {
-        String key = action.getOwner().getLabel().toString();
-        return trackerInfoMap.getOrDefault(key, null);
+        return trackerInfoMap.getOrDefault(getKey(action), null);
     }
 
     /**
@@ -270,5 +274,17 @@ public class ActionInputUsageTracker {
         return artifactExecPath.endsWith("-ijar.jar") ||
                 artifactExecPath.endsWith("-hjar.jar") ||
                 artifactExecPath.endsWith(".abi.jar");
+    }
+
+    public static void log(Action action, String msg) {
+        if (isDebug(action)) {
+            System.out.println("ActionCacheChecker: " + msg + " " + action.prettyPrint());
+        }
+    }
+    public static boolean isDebug(Action action) {
+        if (action.getOwner().getLabel() != null && action.getOwner().getLabel().toString().startsWith("//libraries/common/identity/oauth/id-token/impl:src_release")) {
+            return true;
+        }
+        return false;
     }
 }
