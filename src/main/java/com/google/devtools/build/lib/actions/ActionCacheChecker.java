@@ -256,7 +256,9 @@ public class ActionCacheChecker {
     }
 
     // Output debug info about action if needed
-    actionInputUsageTracker.dump(action);
+    if (actionInputUsageTracker.supportsInputTracking(action)) {
+      System.out.println(actionInputUsageTracker.dump(action));
+    }
 
     return !Arrays.equals(MetadataDigestUtils.fromMetadata(mdMap), entry.getFileDigest());
   }
