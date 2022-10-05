@@ -110,7 +110,6 @@ public class ActionInputUsageTracker {
             return;
         }
 
-        UsageInfo usageInfo = null;
         try {
             Artifact jdeps = getJDepsOutput(action);
             Path output = pathResolver.toPath(jdeps);
@@ -135,14 +134,13 @@ public class ActionInputUsageTracker {
                                     .map(ClassUsageInfo::create)
                                     .collect(Collectors.toCollection(LinkedHashSet::new))));
 
-            usageInfo = new UsageInfo(unusedArtifactsPath, usedClassesMap);
+            UsageInfo usageInfo = new UsageInfo(unusedArtifactsPath, usedClassesMap);
+            trackerInfoMap.put(getKey(action), usageInfo);
         } catch (FileNotFoundException fileNotFoundException) {
             // Silently ignore, this could be a clean build
         } catch (Exception exception) {
             System.err.println("ActionInputUsageTracker: " + getKey(action) + " .jdeps file failed to load, ex=" + exception);
         }
-
-        trackerInfoMap.put(getKey(action), usageInfo);
     }
 
     /**
