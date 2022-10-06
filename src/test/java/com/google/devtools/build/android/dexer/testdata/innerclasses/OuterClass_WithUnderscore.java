@@ -1,4 +1,4 @@
-// Copyright 2022 The Bazel Authors. All rights reserved.
+// Copyright 2017 The Bazel Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,20 +11,9 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package com.google.devtools.build.lib.vfs;
+package com.google.devtools.build.android.dexer.testdata.innerclasses;
 
-/** File permissions of output file(s). */
-public enum OutputPermissions {
-  READONLY(0555),
-  WRITABLE(0755);
-
-  private final int permissionsMode;
-
-  private OutputPermissions(int permissionsMode) {
-    this.permissionsMode = permissionsMode;
+public class OuterClass_WithUnderscore {
+  public void baz() {
   }
-
-  public int getPermissionsMode() {
-    return permissionsMode;
- }
 }
