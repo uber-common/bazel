@@ -271,8 +271,8 @@ public abstract class AndroidLocalTestBase implements RuleConfiguredTargetFactor
 
     JavaTargetAttributes attributes = attributesBuilder.build();
     addJavaClassJarToArtifactsBuilder(javaArtifactsBuilder, attributes, classJar);
-
-    NestedSet<Artifact> additionalResourceArtifacts = collectTransitiveResourceJars(ruleContext).build();
+    NestedSet<Artifact> additionalResourceArtifacts = collectTransitiveResourceJars(ruleContext)
+            .add(resourceApk.getResourceJavaClassJar()).build();
     helper.setAdditionalResourceArtifacts(additionalResourceArtifacts);
     helper.createCompileAction(outputs);
     helper.createSourceJarAction(srcJar, outputs.genSource());
