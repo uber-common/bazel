@@ -175,7 +175,7 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
       PackageGroup group = (PackageGroup) target;
       result.addProperty("class", target.getTargetKind());
       result.addProperty("name", group.getName());
-      result.add("packages", getJsonFromValue(group.getContainedPackages()));
+      result.add("packages", getJsonFromValue(group.getContainedPackages(true)));
       result.add("includes", getJsonFromValue(group.getIncludes()));
     } else {
       result.addProperty("class", target.getTargetKind());
