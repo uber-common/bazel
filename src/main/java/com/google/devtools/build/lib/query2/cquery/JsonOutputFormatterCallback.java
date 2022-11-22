@@ -69,19 +69,19 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
     ConfiguredTarget configuredTarget = keyedConfiguredTarget.getConfiguredTarget();
     if (configuredTarget instanceof RuleConfiguredTarget) {
       return ConfiguredAttributeMapper
-          .of(rule, ((RuleConfiguredTarget) configuredTarget).getConfigConditions(), keyedConfiguredTarget.getConfigurationChecksum());
+          .of(rule, ((RuleConfiguredTarget) configuredTarget).getConfigConditions(), keyedConfiguredTarget.getConfigurationChecksum(),/*alwaysSucceed=*/ false);
     }
     if (configuredTarget instanceof AliasConfiguredTarget) {
       return ConfiguredAttributeMapper
           .of(rule, ((AliasConfiguredTarget) configuredTarget).getConfigConditions(),
-          keyedConfiguredTarget.getConfigurationChecksum());
+          keyedConfiguredTarget.getConfigurationChecksum(),/*alwaysSucceed=*/ false);
     }
     if (configuredTarget instanceof OutputFileConfiguredTarget) {
       return ConfiguredAttributeMapper
           .of(rule, accessor
               .getGeneratingConfiguredTarget(keyedConfiguredTarget)
               .getConfigConditions(),
-              keyedConfiguredTarget.getConfigurationChecksum());
+              keyedConfiguredTarget.getConfigurationChecksum(),/*alwaysSucceed=*/ false);
     }
     return null;
   }
