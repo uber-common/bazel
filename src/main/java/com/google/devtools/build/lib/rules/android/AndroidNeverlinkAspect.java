@@ -80,7 +80,7 @@ public class AndroidNeverlinkAspect extends NativeAspectClass implements Configu
       runtimeJars.addTransitive(provider.getResourceClassJars());
     }
     return new ConfiguredAspect.Builder(ruleContext)
-        .addProvider(
+        .addNativeDeclaredProvider(
             AndroidNeverLinkLibrariesProvider.create(
                 AndroidCommon.collectTransitiveNeverlinkLibraries(
                     ruleContext, deps, runtimeJars.build())))

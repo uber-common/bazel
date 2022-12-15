@@ -83,6 +83,7 @@ import com.google.devtools.build.lib.rules.android.AndroidLocalTestBaseRule;
 import com.google.devtools.build.lib.rules.android.AndroidLocalTestConfiguration;
 import com.google.devtools.build.lib.rules.android.AndroidManifestInfo;
 import com.google.devtools.build.lib.rules.android.AndroidNativeLibsInfo;
+import com.google.devtools.build.lib.rules.android.AndroidNeverLinkLibrariesProvider;
 import com.google.devtools.build.lib.rules.android.AndroidNeverlinkAspect;
 import com.google.devtools.build.lib.rules.android.AndroidPreDexJarProvider;
 import com.google.devtools.build.lib.rules.android.AndroidProguardInfo;
@@ -425,7 +426,8 @@ public class BazelRuleClassProvider {
                   AndroidBinaryDataInfo.PROVIDER,
                   AndroidBinaryNativeLibsInfo.PROVIDER,
                   BaselineProfileProvider.PROVIDER,
-                  AndroidDexInfo.PROVIDER);
+                  AndroidDexInfo.PROVIDER,
+                  AndroidNeverLinkLibrariesProvider.PROVIDER);
           builder.addStarlarkBootstrap(bootstrap);
 
           try {

@@ -79,4 +79,39 @@ public interface JavaConfigurationApi extends StarlarkValue {
       doc = "Returns true if empty java_import jars are not allowed.",
       useStarlarkThread = true)
   boolean getDisallowJavaImportEmptyJarsInStarlark(StarlarkThread thread) throws EvalException;
+
+  @StarlarkMethod(
+      name = "use_ijars",
+      doc = "Returns true iff Java compilation should use ijars.",
+      useStarlarkThread = true)
+  boolean getUseIjarsInStarlark(StarlarkThread thread) throws EvalException;
+
+  @StarlarkMethod(
+      name = "disallow_java_import_exports",
+      doc = "Returns true if java_import exports are not allowed.",
+      useStarlarkThread = true)
+  boolean getDisallowJavaImportExportsInStarlark(StarlarkThread thread) throws EvalException;
+
+  @StarlarkMethod(
+      name = "bytecode_optimizer_mnemonic",
+      structField = true,
+      doc = "The mnemonic for the bytecode optimizer.")
+  String getBytecodeOptimizerMnemonic();
+
+  @StarlarkMethod(
+      name = "split_bytecode_optimization_pass",
+      structField = true,
+      doc =
+          "Returns whether the OPTIMIZATION stage of the bytecode optimizer will be split across"
+              + " two actions.")
+  boolean splitBytecodeOptimizationPass();
+
+  @StarlarkMethod(
+      name = "bytecode_optimization_pass_actions",
+      structField = true,
+      doc =
+          "This specifies the number of actions to divide the OPTIMIZATION stage of the bytecode"
+              + " optimizer into. Note that if split_bytecode_optimization_pass is set, this will"
+              + " only change behavior if it is > 2.")
+  int bytecodeOptimizationPassActions();
 }

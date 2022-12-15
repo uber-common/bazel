@@ -65,7 +65,8 @@ public class AndroidBootstrap implements Bootstrap {
       AndroidBinaryDataInfoApi.Provider<?, ?, ?, ?> androidBinaryDataInfoProvider,
       AndroidBinaryNativeLibsInfoApi.Provider<?> androidBinaryInternalNativeLibsInfoApiProvider,
       BaselineProfileProviderApi.Provider<?> baselineProfileProvider,
-      AndroidDexInfoApi.Provider<?> androidDexInfoApiProvider) {
+      AndroidDexInfoApi.Provider<?> androidDexInfoApiProvider,
+      AndroidNeverLinkLibrariesProviderApi.Provider<?> androidNeverLinkLibrariesProvider) {
 
     this.androidCommon = androidCommon;
     ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
@@ -94,6 +95,7 @@ public class AndroidBootstrap implements Bootstrap {
     builder.put(AndroidBinaryNativeLibsInfoApi.NAME, androidBinaryInternalNativeLibsInfoApiProvider);
     builder.put(BaselineProfileProviderApi.NAME, baselineProfileProvider);
     builder.put(AndroidDexInfoApi.NAME, androidDexInfoApiProvider);
+    builder.put(AndroidNeverLinkLibrariesProviderApi.NAME, androidNeverLinkLibrariesProvider);
     providers = builder.build();
   }
 
