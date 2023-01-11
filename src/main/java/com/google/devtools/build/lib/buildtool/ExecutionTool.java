@@ -83,6 +83,7 @@ import com.google.devtools.build.lib.profiler.ProfilePhase;
 import com.google.devtools.build.lib.profiler.Profiler;
 import com.google.devtools.build.lib.profiler.ProfilerTask;
 import com.google.devtools.build.lib.profiler.SilentCloseable;
+import com.google.devtools.build.lib.rules.java.JavaCompileActionContext;
 import com.google.devtools.build.lib.runtime.BlazeModule;
 import com.google.devtools.build.lib.runtime.BlazeRuntime;
 import com.google.devtools.build.lib.runtime.CommandEnvironment;
@@ -188,6 +189,10 @@ public class ExecutionTool {
     actionContextRegistryBuilder
         .restrictTo(WorkspaceStatusAction.Context.class, "")
         .restrictTo(SymlinkTreeActionContext.class, "");
+
+    // Register JavaCompileActionContext for java_classpath=bazel to work
+    actionContextRegistryBuilder.register(
+        JavaCompileActionContext.class, new JavaCompileActionContext());
 
     this.prefetcher = executorBuilder.getActionInputPrefetcher();
     this.executorLifecycleListeners = executorBuilder.getExecutorLifecycleListeners();
