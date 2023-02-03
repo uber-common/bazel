@@ -89,7 +89,7 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
         for (Target target : partialResult) {
           result.add(target.getLabel().getCanonicalForm(),
               createTargetJsonObject(target,
-                  new JsonQueryAttributeReader(target)));
+                  new JsonQueryAttributeReader(target), mainRepoMapping));
         }
       }
 
@@ -141,12 +141,12 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
           BuildType.TRISTATE,
           BuildType.LICENSE);
 
-  public static JsonObject createTargetJsonObject(Target target, AttributeReader reader) {
+  public static JsonObject createTargetJsonObject(Target target, AttributeReader reader, RepositoryMapping mainRepoMapping) {
     JsonObject result = new JsonObject();
 
     if (target instanceof Rule) {
       Rule rule = target.getAssociatedRule();
-      result.addProperty("fully_qualified_name", target.getLabel().getCanonicalForm());
+      result.addProperty("fully_qualified_name", target.getLabel().getDisplayForm(mainRepoMapping));
       result.addProperty("base_path", target.getLabel().getPackageName());
       result.addProperty("class", rule.getRuleClass());
       for (Attribute attr : rule.getAttributes()) {
@@ -173,7 +173,7 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
       OutputFile file = (OutputFile) target;
       result.addProperty("class", target.getTargetKind());
       result.addProperty("name", file.getName());
-      result.addProperty("owner", file.getGeneratingRule().getLabel().toString());
+      result.addProperty("owner", file.getGeneratingRule().getLabel().getDisplayForm(mainRepoMapping));
     } else if (target instanceof PackageGroup) {
       PackageGroup group = (PackageGroup) target;
       result.addProperty("class", target.getTargetKind());
@@ -205,6 +205,8 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
       return result;
     } else if (val instanceof Boolean) {
       return gson.toJsonTree(val);
+    } else if (val == null) {
+      return gson.toJsonTree("None");
     }
     return gson.toJsonTree(val.toString());
   }
