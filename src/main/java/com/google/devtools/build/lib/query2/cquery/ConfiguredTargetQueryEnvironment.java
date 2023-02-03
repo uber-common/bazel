@@ -258,9 +258,9 @@ public class ConfiguredTargetQueryEnvironment
             ruleClassProvider,
             getLabelPrinter()),
         new BuildOutputFormatterCallback(
-            eventHandler, cqueryOptions, out, skyframeExecutor, accessor, getLabelPrinter());
+            eventHandler, cqueryOptions, out, skyframeExecutor, accessor, getLabelPrinter()),
         new JsonOutputFormatterCallback(
-            eventHandler, cqueryOptions, out, skyframeExecutor, accessor, getMainRepoMapping());
+            eventHandler, cqueryOptions, out, skyframeExecutor, accessor, getMainRepoMapping()),
         new GraphOutputFormatterCallback(
             eventHandler,
             cqueryOptions,
