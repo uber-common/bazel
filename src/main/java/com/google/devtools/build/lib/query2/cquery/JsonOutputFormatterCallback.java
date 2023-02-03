@@ -23,6 +23,7 @@ import com.google.devtools.build.lib.analysis.configuredtargets.OutputFileConfig
 import com.google.devtools.build.lib.analysis.configuredtargets.RuleConfiguredTarget;
 import com.google.devtools.build.lib.events.ExtendedEventHandler;
 import com.google.devtools.build.lib.packages.AbstractAttributeMapper;
+import com.google.devtools.build.lib.cmdline.RepositoryMapping;
 import com.google.devtools.build.lib.packages.Attribute;
 import com.google.devtools.build.lib.packages.ConfiguredAttributeMapper;
 import com.google.devtools.build.lib.packages.Rule;
@@ -50,13 +51,17 @@ import java.util.stream.Collectors;
  */
 class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
 
+  private final RepositoryMapping mainRepoMapping;
+
   JsonOutputFormatterCallback(
       ExtendedEventHandler eventHandler,
       CqueryOptions options,
       OutputStream out,
       SkyframeExecutor skyframeExecutor,
-      TargetAccessor<KeyedConfiguredTarget> accessor) {
+      TargetAccessor<KeyedConfiguredTarget> accessor,
+      RepositoryMapping mainRepoMapping) {
     super(eventHandler, options, out, skyframeExecutor, accessor, /*uniquifyResults=*/ false);
+    this.mainRepoMapping = mainRepoMapping;
   }
 
   @Override
@@ -120,12 +125,12 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
       Rule rule = target.getAssociatedRule();
       AbstractAttributeMapper attributeMap = getAttributeMap(rule, configuredTarget);
       AttributeReader attributeReader = new JsonCQueryAttributeReader(attributeMap);
-      JsonObject partial = JsonOutputFormatter.createTargetJsonObject(target, attributeReader);
+      JsonObject partial = JsonOutputFormatter.createTargetJsonObject(target, attributeReader, mainRepoMapping);
 
       partial.add("output groups", createOutputGroupsJsonObject(configuredTarget, gson));
       partial.add("default outputs", createDefaultOutputsJson(configuredTarget, gson));
 
-      result.add(target.getLabel().getCanonicalForm(), partial);
+      result.add(target.getLabel().getDisplayForm(mainRepoMapping), partial);
     }
     printStream.write(gson.toJson(result));
   }
