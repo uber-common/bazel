@@ -240,7 +240,7 @@ public class ProcessedAndroidData {
       Map<String, String> manifestValues) {
     return new AndroidResourcesProcessorBuilder()
         // Settings
-        .setDebug(dataContext.useDebug())
+        .setDebug(dataContext.useDebug() && !manifestValues.getOrDefault("debuggable", "true").equalsIgnoreCase("false"))
         .setJavaPackage(manifest.getPackage())
         .setApplicationId(manifestValues.get("applicationId"))
         .setVersionCode(manifestValues.get("versionCode"))
