@@ -386,13 +386,9 @@ public final class FunctionTransitionUtil {
       // Transition hash only record the changed fregment set, for some reason a multi_arch_split transition seems to:
       // - result in changed apple_split_cpu from default "" to host cpu
       // - applied before the starlark transition difference analysis here
-      // we also remove ios_cpu from the transition evaluation as it's in the process of deprecation and poorly handled.
       // Ideally we should fix the root cause, this is more or less a lazy hack
       if (newValues.keySet().contains("//command_line_option:apple_split_cpu")) {
-        convertedNewValues.add("//command_line_option:apple_split_cpu");
-      }
-      if (newValues.keySet().contains("//command_line_option:ios_cpu")) {
-        convertedNewValues.remove("//command_line_option:ios_cpu");
+        convertedAffectedOptions.add("//command_line_option:apple_split_cpu");
       }
     }
     if (toOptions == null) {
