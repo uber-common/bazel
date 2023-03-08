@@ -63,11 +63,13 @@ import com.google.devtools.build.lib.rules.android.AarImportBaseRule;
 import com.google.devtools.build.lib.rules.android.AndroidApplicationResourceInfo;
 import com.google.devtools.build.lib.rules.android.AndroidAssetsInfo;
 import com.google.devtools.build.lib.rules.android.AndroidBinaryDataInfo;
+import com.google.devtools.build.lib.rules.android.AndroidBinaryNativeLibsInfo;
 import com.google.devtools.build.lib.rules.android.AndroidCcLinkParamsProvider;
 import com.google.devtools.build.lib.rules.android.AndroidConfiguration;
 import com.google.devtools.build.lib.rules.android.AndroidDeviceBrokerInfo;
 import com.google.devtools.build.lib.rules.android.AndroidDeviceRule;
 import com.google.devtools.build.lib.rules.android.AndroidDeviceScriptFixtureRule;
+import com.google.devtools.build.lib.rules.android.AndroidDexInfo;
 import com.google.devtools.build.lib.rules.android.AndroidFeatureFlagSetProvider;
 import com.google.devtools.build.lib.rules.android.AndroidHostServiceFixtureRule;
 import com.google.devtools.build.lib.rules.android.AndroidIdeInfoProvider;
@@ -421,7 +423,9 @@ public class BazelRuleClassProvider {
                   AndroidFeatureFlagSetProvider.PROVIDER,
                   ProguardMappingProvider.PROVIDER,
                   AndroidBinaryDataInfo.PROVIDER,
-                  BaselineProfileProvider.PROVIDER);
+                  AndroidBinaryNativeLibsInfo.PROVIDER,
+                  BaselineProfileProvider.PROVIDER,
+                  AndroidDexInfo.PROVIDER);
           builder.addStarlarkBootstrap(bootstrap);
 
           try {
