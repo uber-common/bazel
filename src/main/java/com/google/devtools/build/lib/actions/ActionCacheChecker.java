@@ -256,7 +256,7 @@ public class ActionCacheChecker {
     }
 
     // Output debug info about action if needed
-    if (actionInputUsageTracker.supportsInputTracking(action)) {
+    if (actionInputUsageTracker.supportsInputTracking(action) && false) {
       System.out.println(actionInputUsageTracker.dump(action));
     }
 
