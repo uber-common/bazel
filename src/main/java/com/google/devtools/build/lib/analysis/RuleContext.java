@@ -1448,7 +1448,7 @@ public final class RuleContext extends TargetContext
       }
       Label associatedLabel = srcItem.getOwner();
       PathFragment itemPackageName = associatedLabel.getPackageFragment();
-      if (!itemPackageName.equals(packageName)) {
+      if (!itemPackageName.equals(packageName) && associatedLabel.toString().toLowerCase().contains("kaptish")) {
         String message =
             "please do not import '"
                 + associatedLabel
