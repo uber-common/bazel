@@ -44,6 +44,7 @@ distrib_cc_library(
     copts = [
         "-w",
         "-Dverbose=-1",
+        "-std=c90"
     ],
     enable_distributions = ["debian"],
     includes = ["."],
