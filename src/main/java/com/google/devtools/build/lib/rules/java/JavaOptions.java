@@ -652,6 +652,7 @@ public class JavaOptions extends FragmentOptions {
       host.jvmOpts = ImmutableList.of("-XX:ErrorFile=/dev/stderr");
     } else {
       host.jvmOpts = hostJvmOpts;
+      host.hostJvmOpts = hostJvmOpts;
     }
 
 
