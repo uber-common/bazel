@@ -129,6 +129,7 @@ public abstract class JavaToolchainTool {
       }
 
       command
+          .add("-XX:-MaxFDLimit")
           .add("-jar")
           .addPath(executable.getExecPath());
     }
