@@ -110,7 +110,10 @@ public abstract class JavaToolchainTool {
       command
           .addPath(toolchain.getJavaRuntime().javaBinaryExecPathFragment())
           .addAll(toolchain.getJvmOptions())
-          .addAll(jvmOpts())
+          .addAll(jvmOpts());
+
+      command
+          .add("-XX:-MaxFDLimit")
           .add("-jar")
           .addPath(executable.getExecPath());
     }
