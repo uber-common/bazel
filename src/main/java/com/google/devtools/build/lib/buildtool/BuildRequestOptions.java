@@ -531,5 +531,9 @@ public class BuildRequestOptions extends OptionsBase {
     UNUSED_DEPENDENCIES,
     /** Tracks unused classes within input artifacts. */
     UNUSED_CLASSES,
+    /** Tracks unused resources within input artifacts. */
+    UNUSED_RESOURCES,
+    /** Tracks unused classes and resources within input artifacts. */
+    UNUSED_CLASSES_AND_RESOURCES,
   }
 }

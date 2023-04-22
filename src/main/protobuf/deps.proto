@@ -84,4 +84,7 @@ message Dependencies {
   // occurred suggesting that it should be rerun with the full classpath, this
   // will be true.
   optional bool requires_reduced_classpath_fallback = 5;
+
+  // List of used android resources.
+  repeated string usedResources = 6;
 }
