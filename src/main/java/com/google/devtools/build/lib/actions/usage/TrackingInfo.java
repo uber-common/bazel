@@ -26,9 +26,12 @@ public class TrackingInfo {
     @Nullable
     private Set<ClassUsageInfo> usedClasses;
 
-    public TrackingInfo(boolean isUnused, Set<ClassUsageInfo> usedClasses) {
+    private Set<String> usedResources;
+
+    public TrackingInfo(boolean isUnused, Set<ClassUsageInfo> usedClasses, Set<String> usedResources) {
         this.isUnused = isUnused;
         this.usedClasses = usedClasses;
+        this.usedResources = usedResources;
     }
 
     public boolean isUnused() {
@@ -38,8 +41,15 @@ public class TrackingInfo {
     public boolean tracksUsedClasses() {
         return usedClasses != null;
     }
+    public boolean tracksUsedResources() {
+        return usedResources != null;
+    }
 
     public Set<ClassUsageInfo> getUsedClasses() {
         return usedClasses;
+    }
+
+    public Set<String> getUsedResources() {
+        return usedResources;
     }
 }
