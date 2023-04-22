@@ -21,7 +21,13 @@ import com.google.devtools.build.lib.view.proto.Deps;
 import javax.annotation.Nullable;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.*;
+import java.util.Enumeration;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -52,15 +58,18 @@ public class ActionInputUsageTracker {
     class UsageInfo {
         private Set<String> unusedArtifactPaths;
         private Map<String, Set<ClassUsageInfo>> usedClassesMap;
+        private Set<String> usedResources;
 
-        UsageInfo(Set<String> unusedArtifactPaths, Map<String, Set<ClassUsageInfo>> usedClassesMap) {
+        UsageInfo(Set<String> unusedArtifactPaths, Map<String, Set<ClassUsageInfo>> usedClassesMap, Set<String> usedResources) {
             this.unusedArtifactPaths = unusedArtifactPaths;
             this.usedClassesMap = usedClassesMap;
+            this.usedResources = usedResources;
         }
     }
 
-    private static final Set<String> SUPPORTED_DEPENDENCY_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile");
-    private static final Set<String> SUPPORTED_CLASS_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile");
+    private static final Set<String> SUPPORTED_DEPENDENCY_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile", "KotlinKsp");
+    private static final Set<String> SUPPORTED_CLASS_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile", "KotlinKsp");
+    private static final String ANDROID_RESOURCES_NAMESPACE = "com.uber.";
     private static final boolean VERBOSE_MODE = false;
 
     private final ArtifactPathResolver pathResolver;
@@ -95,7 +104,18 @@ public class ActionInputUsageTracker {
      * Whether action supports classes input tracking.
      */
     public boolean supportsClassTracking(Action action) {
-        return this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES &&
+        return (this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES || this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES_AND_RESOURCES) &&
+                action.getOwner().getLabel() != null &&
+                action.getOwner().getLabel().getRepository().isMain() &&
+                getJDepsOutput(action) != null &&
+                SUPPORTED_CLASS_TRACKING_MNEMONICS.contains(action.getMnemonic());
+    }
+
+    /**
+     * Whether action supports resources input tracking.
+     */
+    public boolean supportsResourceTracking(Action action) {
+        return (this.trackerMode == ActionInputUsageTrackerMode.UNUSED_RESOURCES || this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES_AND_RESOURCES) &&
                 action.getOwner().getLabel() != null &&
                 action.getOwner().getLabel().getRepository().isMain() &&
                 getJDepsOutput(action) != null &&
@@ -117,6 +137,7 @@ public class ActionInputUsageTracker {
             Deps.Dependencies deps = Deps.Dependencies.parseFrom(input);
             checkState(deps.getRuleLabel().equals(action.getOwner().getLabel().toString()));
 
+            Set<String> usedResources = deps.getUsedResourcesList().stream().collect(Collectors.toCollection(LinkedHashSet::new));
             Set<String> usedPaths = deps.getDependencyList().stream()
                     .filter(d -> d.getKind() == Deps.Dependency.Kind.EXPLICIT || d.getKind() == Deps.Dependency.Kind.IMPLICIT)
                     .map(d -> d.getPath())
@@ -125,6 +146,7 @@ public class ActionInputUsageTracker {
                     .filter(ActionInputUsageTracker::canArtifactBeUnused)
                     .map(d -> d.getExecPathString())
                     .filter(Predicate.not(usedPaths::contains))
+                    .filter(d -> usedResources.size() == 0 || !isLocalRArtifactPath(action, d))
                     .collect(Collectors.toCollection(LinkedHashSet::new));
             Map<String, Set<ClassUsageInfo>> usedClassesMap = deps.getDependencyList().stream()
                     .filter(d -> d.getKind() == Deps.Dependency.Kind.EXPLICIT || d.getKind() == Deps.Dependency.Kind.IMPLICIT)
@@ -134,7 +156,7 @@ public class ActionInputUsageTracker {
                                     .map(ClassUsageInfo::create)
                                     .collect(Collectors.toCollection(LinkedHashSet::new))));
 
-            UsageInfo usageInfo = new UsageInfo(unusedArtifactsPath, usedClassesMap);
+            UsageInfo usageInfo = new UsageInfo(unusedArtifactsPath, usedClassesMap, usedResources);
             trackerInfoMap.put(getKey(action), usageInfo);
         } catch (FileNotFoundException fileNotFoundException) {
             // Silently ignore, this could be a clean build
@@ -169,7 +191,29 @@ public class ActionInputUsageTracker {
                 }
             }
         }
-        return new TrackingInfo(isUnused, usedClasses);
+
+        Set<String> usedResources = null;
+        if (supportsResourceTracking(action) && canArtifactTrackUsedResources(action, artifact)) {
+            UsageInfo usageInfo = getUsageInfo(action);
+            if (usageInfo != null && usageInfo.usedResources != null) {
+                usedResources = usageInfo.usedResources;
+                if (includeDependencyHash) {
+                    try {
+                        Path output = pathResolver.toPath(artifact);
+                        URL classUrl = new URL("file:" + output);
+                        URLClassLoader urlClassLoader = new URLClassLoader(new URL[]{classUrl});
+                        usedResources = usedResources.stream()
+                                .filter(resource -> resourceExists(artifact, resource, output, urlClassLoader))
+                                .collect(Collectors.toCollection(LinkedHashSet::new));
+                    } catch (Exception e) {
+                        System.err.println("ActionInputUsageTracker: Failure computing res hash");
+                        usedResources = null;
+                    }
+                }
+            }
+        }
+
+        return new TrackingInfo(isUnused, usedClasses, usedResources);
     }
 
     /**
@@ -179,6 +223,7 @@ public class ActionInputUsageTracker {
         int unusedCount = 0;
         int usedCount = 0;
         int usedClasses = 0;
+        int usedResources = 0;
         StringBuilder s = new StringBuilder("ActionInputUsageTracker: " + getKey(action) + " ");
         for (Artifact input : action.getInputs().toList()) {
             if (!canArtifactBeUnused(input)) {
@@ -195,6 +240,9 @@ public class ActionInputUsageTracker {
                     if (trackingInfo.tracksUsedClasses()) {
                         s.append(" (" + trackingInfo.getUsedClasses().size() + " tracked classes)");
                     }
+                    if (trackingInfo.tracksUsedResources() && isLocalRArtifact(action, input)) {
+                        s.append(" (" + trackingInfo.getUsedResources().size() + " tracked resources)");
+                    }
                 }
             } else {
                 if (isUnused) {
@@ -204,12 +252,16 @@ public class ActionInputUsageTracker {
                     if (trackingInfo.tracksUsedClasses()) {
                         usedClasses += trackingInfo.getUsedClasses().size();
                     }
+                    if (trackingInfo.tracksUsedResources() && isLocalRArtifact(action, input)) {
+                        usedResources += trackingInfo.getUsedResources().size();
+                    }
                 }
             }
         }
         if (!VERBOSE_MODE) {
             String usedClassesStr = supportsClassTracking(action) ? String.format(", %d tracked classes", usedClasses) : "";
-            s.append(String.format("[%d used dep, %d unused dep%s]", usedCount, unusedCount, usedClassesStr));
+            String usedResourcesStr = supportsResourceTracking(action) ? String.format(", %d tracked resources", usedResources) : "";
+            s.append(String.format("[%d used dep, %d unused dep%s%s]", usedCount, unusedCount, usedClassesStr, usedResourcesStr));
         }
 
         return s.toString();
@@ -256,7 +308,16 @@ public class ActionInputUsageTracker {
         String artifactExecPath = artifact.getExecPathString();
         return artifactExecPath.endsWith("-ijar.jar") ||
                 artifactExecPath.endsWith("-hjar.jar")  ||
-                artifactExecPath.endsWith(".abi.jar");
+                artifactExecPath.endsWith(".abi.jar") ||
+                artifactExecPath.endsWith("_resources.jar");
+    }
+
+    /**
+     * Returns whether input artifact can track resources or not.
+     */
+    private static boolean canArtifactTrackUsedResources(Action action, Artifact artifact) {
+        String artifactExecPath = artifact.getExecPathString();
+        return isLocalRArtifact(action, artifact);
     }
 
     /**
@@ -272,7 +333,26 @@ public class ActionInputUsageTracker {
         String artifactExecPath = artifact.getExecPathString();
         return artifactExecPath.endsWith("-ijar.jar") ||
                 artifactExecPath.endsWith("-hjar.jar") ||
-                artifactExecPath.endsWith(".abi.jar");
+                artifactExecPath.endsWith(".abi.jar") ||
+                artifactExecPath.endsWith("_resources.jar");
+    }
+
+    private static boolean isRArtifact(Artifact artifact) {
+        return isRArtifactPath(artifact.getExecPathString());
+    }
+
+    private static boolean isRArtifactPath(String artifactExecPath) {
+        return artifactExecPath.endsWith("_resources.jar");
+    }
+
+    private static boolean isLocalRArtifact(Action action, Artifact artifact) {
+        return isLocalRArtifactPath(action, artifact.getExecPathString());
+    }
+
+    private static boolean isLocalRArtifactPath(Action action, String artifactExecPath) {
+        artifactExecPath = artifactExecPath.replace("/_migrated/", "/"); // Bazel7 uses a different path
+        String path = action.getOwner().getLabel().toString().replace("//", "/").replace("_kt", "").replace(":", "/");
+        return isRArtifactPath(artifactExecPath) && artifactExecPath.indexOf(path) > 0;
     }
 
     public static void log(Action action, String msg) {
@@ -281,8 +361,43 @@ public class ActionInputUsageTracker {
         }
     }
     public static boolean isDebug(Action action) {
-        if (action.getOwner().getLabel() != null && action.getOwner().getLabel().toString().startsWith("//libraries/common/identity/oauth/id-token/impl:src_release")) {
+        if (action.getOwner().getLabel() != null && action.getOwner().getLabel().toString().startsWith("//experimental/sample/simple/androidlib3:src_main")) {
             return true;
+        }
+        return false;
+    }
+
+    /**
+     * Check wheter the provided resourceId is defined in the artifact.
+     */
+    private boolean resourceExists(Artifact artifact, String resId, Path localResourcesArtifact, URLClassLoader urlClassLoader) {
+        if (!localResourcesArtifact.exists()) {
+            // Missing file can happen due to BwoB. In this case, assume the resource is there.
+            return true;
+        }
+
+        resId = resId.replace(ANDROID_RESOURCES_NAMESPACE, "");
+        if (resId.indexOf("R.") != 0) {
+            if (resId.indexOf("android.R.") != 0) {
+                System.err.println("WARN: Malformed res: " + resId);
+            }
+            return true;
+        }
+
+        if (resId.lastIndexOf('.') == 1) {
+            // Ignore bogus entry like R.attr, caused by 'import R.attr;'
+            return true;
+        }
+
+        try {
+            String resourceName = resId.substring(resId.lastIndexOf('.') + 1);
+            String resourceType = resId.substring(0, resId.lastIndexOf('.'));
+            String resourceClassName = ANDROID_RESOURCES_NAMESPACE + resourceType.replace(".", "$");
+            Class<?> resourceClass = urlClassLoader.loadClass(resourceClassName);
+            Field f = resourceClass.getField(resourceName);
+            return f != null;
+        } catch (Exception e) {
+            System.err.println("ActionInputUsageTracker: Lookup failed for " + resId + " in " + artifact.getExecPathString() + " : " + e);
         }
         return false;
     }
