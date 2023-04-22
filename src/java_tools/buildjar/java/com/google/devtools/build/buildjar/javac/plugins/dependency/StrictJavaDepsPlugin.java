@@ -32,12 +32,15 @@ import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Kinds;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symbol.ClassSymbol;
+import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.comp.AttrContext;
 import com.sun.tools.javac.comp.Env;
 import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.resources.CompilerProperties.Errors;
 import com.sun.tools.javac.resources.CompilerProperties.Warnings;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.JCTree.JCFieldAccess;
+import com.sun.tools.javac.tree.JCTree.JCIdent;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
@@ -234,6 +237,8 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
 
     private final Map<Path, Set<Deps.UsedClass>> usedClassesMap;
 
+    private final Set<String> usedResources;
+
     /** We only emit one warning/error per class symbol */
     private final Set<ClassSymbol> seenClasses = new HashSet<>();
 
@@ -261,6 +266,7 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
       this.missingTargets = missingTargets;
       this.directDependenciesMap = dependencyModule.getExplicitDependenciesMap();
       this.usedClassesMap = dependencyModule.getUsedClassesMap();
+      this.usedResources = dependencyModule.getUsedResources();
       this.platformJars = platformJars;
       this.usageTrackerMode = usageTrackerMode;
     }
@@ -271,6 +277,14 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
 
     /** Checks an AST node denoting a class type against direct/transitive dependencies. */
     private void checkTypeLiteral(JCTree node, Symbol sym) {
+
+      // Track used android resources for compilation avoidance purposes.
+      if (usageTrackerMode) {
+        if (sym != null && sym.kind == Kinds.Kind.VAR) {
+          checkLitteralForAndroidResource(node, false);
+        }
+      }
+
       if (sym == null || sym.kind != Kinds.Kind.TYP) {
         return;
       }
@@ -378,6 +392,30 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
         // This jar file pretty much has to exist, we just used it in the compiler. Throw unchecked.
         throw new UncheckedIOException(e);
       }
+    }
+
+    // Track used android resources for compilation avoidance purposes.
+    private void checkLitteralForAndroidResource(JCTree node, boolean isImport) {
+      if (usageTrackerMode) {
+        boolean isRes = false;
+        if (node instanceof JCFieldAccess) {
+          if (isImport || (((JCFieldAccess) node).type.getTag() == TypeTag.INT || ((JCFieldAccess) node).type.getTag() == TypeTag.ARRAY)) {
+            isRes = node.toString().indexOf(".R.") > 0 || node.toString().indexOf("R.") == 0;
+          }
+        }
+        if (isRes) {
+          String resId = node.toString();
+          usedResources.add(resId);
+        }
+      }
+    }
+
+    @Override
+    public void visitImport(JCTree.JCImport tree) {
+      if (usageTrackerMode) {
+        checkLitteralForAndroidResource(tree.qualid, true);
+      }
+      scan(tree.qualid);
     }
 
     @Override
