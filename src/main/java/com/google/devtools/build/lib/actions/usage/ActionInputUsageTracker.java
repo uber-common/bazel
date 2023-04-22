@@ -272,7 +272,8 @@ public class ActionInputUsageTracker {
         String artifactExecPath = artifact.getExecPathString();
         return artifactExecPath.endsWith("-ijar.jar") ||
                 artifactExecPath.endsWith("-hjar.jar") ||
-                artifactExecPath.endsWith(".abi.jar");
+                artifactExecPath.endsWith(".abi.jar") ||
+                artifactExecPath.endsWith("_resources.jar");
     }
 
     public static void log(Action action, String msg) {
