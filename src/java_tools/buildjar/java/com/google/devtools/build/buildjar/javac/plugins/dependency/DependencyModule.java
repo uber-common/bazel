@@ -85,8 +85,8 @@ public final class DependencyModule {
   private boolean hasMissingTargets;
   private final Map<Path, Dependency> explicitDependenciesMap;
   private final Map<Path, Dependency> implicitDependenciesMap;
-
   private final Map<Path, Set<Deps.UsedClass>> usedClassesMap;
+  private final Set<String> usedResources;
   private final ImmutableSet<Path> platformJars;
   Set<Path> requiredClasspath;
   private final FixMessage fixMessage;
@@ -116,6 +116,7 @@ public final class DependencyModule {
     this.explicitDependenciesMap = new HashMap<>();
     this.implicitDependenciesMap = new HashMap<>();
     this.usedClassesMap = new HashMap<>();
+    this.usedResources = new HashSet<>();
     this.platformJars = platformJars;
     this.fixMessage = fixMessage;
     this.exemptGenerators = exemptGenerators;
@@ -167,6 +168,9 @@ public final class DependencyModule {
             .sorted()
             .collect(toImmutableList()));
 
+    // Keep track of all used Android resources
+    deps.addAllUsedResources(usedResources.stream().sorted().collect(toImmutableList()));
+
     // Filter using the original classpath, to preserve ordering.
     for (Path entry : classpath) {
       if (explicitDependenciesMap.containsKey(entry)) {
@@ -212,6 +216,10 @@ public final class DependencyModule {
 
   public Map<Path, Set<Deps.UsedClass>> getUsedClassesMap() {
     return usedClassesMap;
+  }
+
+  public Set<String> getUsedResources() {
+    return usedResources;
   }
 
   /** Returns the jars in the platform classpath. */

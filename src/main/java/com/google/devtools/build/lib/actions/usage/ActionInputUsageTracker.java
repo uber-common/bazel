@@ -21,7 +21,13 @@ import com.google.devtools.build.lib.view.proto.Deps;
 import javax.annotation.Nullable;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.*;
+import java.util.Enumeration;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -52,10 +58,12 @@ public class ActionInputUsageTracker {
     class UsageInfo {
         private Set<String> unusedArtifactPaths;
         private Map<String, Set<ClassUsageInfo>> usedClassesMap;
+        private Set<String> usedResources;
 
-        UsageInfo(Set<String> unusedArtifactPaths, Map<String, Set<ClassUsageInfo>> usedClassesMap) {
+        UsageInfo(Set<String> unusedArtifactPaths, Map<String, Set<ClassUsageInfo>> usedClassesMap, Set<String> usedResources) {
             this.unusedArtifactPaths = unusedArtifactPaths;
             this.usedClassesMap = usedClassesMap;
+            this.usedResources = usedResources;
         }
     }
 
@@ -95,7 +103,18 @@ public class ActionInputUsageTracker {
      * Whether action supports classes input tracking.
      */
     public boolean supportsClassTracking(Action action) {
-        return this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES &&
+        return (this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES || this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES_AND_RESOURCES) &&
+                action.getOwner().getLabel() != null &&
+                action.getOwner().getLabel().getRepository().isMain() &&
+                getJDepsOutput(action) != null &&
+                SUPPORTED_CLASS_TRACKING_MNEMONICS.contains(action.getMnemonic());
+    }
+
+    /**
+     * Whether action supports resources input tracking.
+     */
+    public boolean supportsResourceTracking(Action action) {
+        return (this.trackerMode == ActionInputUsageTrackerMode.UNUSED_RESOURCES || this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES_AND_RESOURCES) &&
                 action.getOwner().getLabel() != null &&
                 action.getOwner().getLabel().getRepository().isMain() &&
                 getJDepsOutput(action) != null &&
@@ -133,8 +152,9 @@ public class ActionInputUsageTracker {
                             d -> d.getUsedClassesList().stream()
                                     .map(ClassUsageInfo::create)
                                     .collect(Collectors.toCollection(LinkedHashSet::new))));
+            Set<String> usedResources = deps.getUsedResourcesList().stream().collect(Collectors.toCollection(LinkedHashSet::new));
 
-            UsageInfo usageInfo = new UsageInfo(unusedArtifactsPath, usedClassesMap);
+            UsageInfo usageInfo = new UsageInfo(unusedArtifactsPath, usedClassesMap, usedResources);
             trackerInfoMap.put(getKey(action), usageInfo);
         } catch (FileNotFoundException fileNotFoundException) {
             // Silently ignore, this could be a clean build
@@ -169,7 +189,21 @@ public class ActionInputUsageTracker {
                 }
             }
         }
-        return new TrackingInfo(isUnused, usedClasses);
+
+        Set<String> usedResources = null;
+        if (supportsResourceTracking(action) && canArtifactTrackUsedResources(action, artifact)) {
+            UsageInfo usageInfo = getUsageInfo(action);
+            if (usageInfo != null && usageInfo.usedResources != null) {
+                usedResources = usageInfo.usedResources;
+                if (includeDependencyHash) {
+                    usedResources = usedResources.stream()
+                            .filter(resource -> resourceExists(artifact, resource))
+                            .collect(Collectors.toCollection(LinkedHashSet::new));
+                }
+            }
+        }
+
+        return new TrackingInfo(isUnused, usedClasses, usedResources);
     }
 
     /**
@@ -256,7 +290,16 @@ public class ActionInputUsageTracker {
         String artifactExecPath = artifact.getExecPathString();
         return artifactExecPath.endsWith("-ijar.jar") ||
                 artifactExecPath.endsWith("-hjar.jar")  ||
-                artifactExecPath.endsWith(".abi.jar");
+                artifactExecPath.endsWith(".abi.jar") ||
+                artifactExecPath.endsWith("_resources.jar");
+    }
+
+    /**
+     * Returns whether input artifact can track resources or not.
+     */
+    private static boolean canArtifactTrackUsedResources(Action action, Artifact artifact) {
+        String artifactExecPath = artifact.getExecPathString();
+        return isLocalRArtifact(action, artifact);
     }
 
     /**
@@ -276,14 +319,52 @@ public class ActionInputUsageTracker {
                 artifactExecPath.endsWith("_resources.jar");
     }
 
+    private static boolean isRArtifact(Artifact artifact) {
+        String artifactExecPath = artifact.getExecPathString();
+        return artifactExecPath.endsWith("_resources.jar");
+    }
+
+    private static boolean isLocalRArtifact(Action action, Artifact artifact) {
+        String artifactExecPath = artifact.getExecPathString();
+        String path = action.getOwner().getLabel().toString().replace("//", "/").replace("_kt", "").replace(":", "/");
+        return isRArtifact(artifact) && artifactExecPath.indexOf(path) > 0;
+    }
+
     public static void log(Action action, String msg) {
         if (isDebug(action)) {
             System.out.println("ActionCacheChecker: " + msg + " " + action.prettyPrint());
         }
     }
     public static boolean isDebug(Action action) {
-        if (action.getOwner().getLabel() != null && action.getOwner().getLabel().toString().startsWith("//libraries/common/identity/oauth/id-token/impl:src_release")) {
+        if (action.getOwner().getLabel() != null && action.getOwner().getLabel().toString().startsWith("//experimental/sample/simple/androidlib3:src_main")) {
             return true;
+        }
+        return false;
+    }
+
+    /**
+     * Check wheter the provided resourceId is defined in the artifact.
+     */
+    private boolean resourceExists(Artifact artifact, String resId) {
+        resId = resId.replace("com.uber.", "");
+        if (resId.indexOf("R.") != 0) {
+            if (resId.indexOf("android.R.") != 0) {
+                System.err.println("WARN: Malformed res: " + resId);
+            }
+            return false;
+        }
+
+        try {
+            String resourceName = resId.substring(resId.lastIndexOf('.') + 1);
+            String resourceType = resId.substring(0, resId.lastIndexOf('.'));
+            String resourceClassName = "com.uber." + resourceType.replace(".", "$");
+            URL classUrl = new URL("file:" + artifact.getExecPathString());
+            URLClassLoader urlClassLoader = new URLClassLoader(new URL[]{classUrl});
+            Class<?> resourceClass = urlClassLoader.loadClass(resourceClassName);
+            Field f = resourceClass.getField(resourceName);
+            return f != null;
+        } catch (Exception e) {
+            System.err.println("ERROR: " + e);
         }
         return false;
     }
