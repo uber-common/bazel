@@ -364,7 +364,7 @@ public class ActionInputUsageTracker {
             Field f = resourceClass.getField(resourceName);
             return f != null;
         } catch (Exception e) {
-            System.err.println("ERROR: " + e);
+            System.err.println("ERROR: Lookup failed for " + resId + " in " + artifact.getExecPathString() + " : " + e);
         }
         return false;
     }
