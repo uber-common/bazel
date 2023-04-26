@@ -278,16 +278,18 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
     private void checkTypeLiteral(JCTree node, Symbol sym) {
 
       // Track used android resources for compilation avoidance purposes.
-      if (sym != null && sym.kind == Kinds.Kind.VAR) {
-        boolean isRes = false;
-        if (node instanceof JCFieldAccess) {
-          if (((JCFieldAccess) node).type.getTag() == TypeTag.INT) {
-            isRes = node.toString().indexOf(".R.") > 0 || node.toString().indexOf("R.") == 0;
+      if (usageTrackerMode) {
+        if (sym != null && sym.kind == Kinds.Kind.VAR) {
+          boolean isRes = false;
+          if (node instanceof JCFieldAccess) {
+            if (((JCFieldAccess) node).type.getTag() == TypeTag.INT) {
+              isRes = node.toString().indexOf(".R.") > 0 || node.toString().indexOf("R.") == 0;
+            }
           }
-        }
-        if (isRes) {
-          String resId = node.toString();
-          usedResources.add(resId);
+          if (isRes) {
+            String resId = node.toString();
+            usedResources.add(resId);
+          }
         }
       }
 
