@@ -196,9 +196,17 @@ public class ActionInputUsageTracker {
             if (usageInfo != null && usageInfo.usedResources != null) {
                 usedResources = usageInfo.usedResources;
                 if (includeDependencyHash) {
-                    usedResources = usedResources.stream()
-                            .filter(resource -> resourceExists(artifact, resource))
-                            .collect(Collectors.toCollection(LinkedHashSet::new));
+                    try {
+                        Path output = pathResolver.toPath(artifact);
+                        URL classUrl = new URL("file:" + output);
+                        URLClassLoader urlClassLoader = new URLClassLoader(new URL[]{classUrl});
+                        usedResources = usedResources.stream()
+                                .filter(resource -> resourceExists(artifact, resource, urlClassLoader))
+                                .collect(Collectors.toCollection(LinkedHashSet::new));
+                    } catch (Exception e) {
+                        System.err.println("ActionInputUsageTracker: Failure computing res hash");
+                        usedResources = null;
+                    }
                 }
             }
         }
@@ -353,7 +361,7 @@ public class ActionInputUsageTracker {
     /**
      * Check wheter the provided resourceId is defined in the artifact.
      */
-    private boolean resourceExists(Artifact artifact, String resId) {
+    private boolean resourceExists(Artifact artifact, String resId, URLClassLoader urlClassLoader) {
         resId = resId.replace("com.uber.", "");
         if (resId.indexOf("R.") != 0) {
             if (resId.indexOf("android.R.") != 0) {
@@ -366,9 +374,6 @@ public class ActionInputUsageTracker {
             String resourceName = resId.substring(resId.lastIndexOf('.') + 1);
             String resourceType = resId.substring(0, resId.lastIndexOf('.'));
             String resourceClassName = "com.uber." + resourceType.replace(".", "$");
-            Path output = pathResolver.toPath(artifact);
-            URL classUrl = new URL("file:" + output);
-            URLClassLoader urlClassLoader = new URLClassLoader(new URL[]{classUrl});
             Class<?> resourceClass = urlClassLoader.loadClass(resourceClassName);
             Field f = resourceClass.getField(resourceName);
             return f != null;
