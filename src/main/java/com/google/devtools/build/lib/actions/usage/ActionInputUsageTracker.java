@@ -213,6 +213,7 @@ public class ActionInputUsageTracker {
         int unusedCount = 0;
         int usedCount = 0;
         int usedClasses = 0;
+        int usedResources = 0;
         StringBuilder s = new StringBuilder("ActionInputUsageTracker: " + getKey(action) + " ");
         for (Artifact input : action.getInputs().toList()) {
             if (!canArtifactBeUnused(input)) {
@@ -229,6 +230,9 @@ public class ActionInputUsageTracker {
                     if (trackingInfo.tracksUsedClasses()) {
                         s.append(" (" + trackingInfo.getUsedClasses().size() + " tracked classes)");
                     }
+                    if (trackingInfo.tracksUsedResources() && isLocalRArtifact(action, input)) {
+                        s.append(" (" + trackingInfo.getUsedClasses().size() + " tracked resources)");
+                    }
                 }
             } else {
                 if (isUnused) {
@@ -238,12 +242,16 @@ public class ActionInputUsageTracker {
                     if (trackingInfo.tracksUsedClasses()) {
                         usedClasses += trackingInfo.getUsedClasses().size();
                     }
+                    if (trackingInfo.tracksUsedResources() && isLocalRArtifact(action, input)) {
+                        usedResources += trackingInfo.getUsedResources().size();
+                    }
                 }
             }
         }
         if (!VERBOSE_MODE) {
             String usedClassesStr = supportsClassTracking(action) ? String.format(", %d tracked classes", usedClasses) : "";
-            s.append(String.format("[%d used dep, %d unused dep%s]", usedCount, unusedCount, usedClassesStr));
+            String usedResourcesStr = supportsResourceTracking(action) ? String.format(", %d tracked resources", usedResources) : "";
+            s.append(String.format("[%d used dep, %d unused dep%s%s]", usedCount, unusedCount, usedClassesStr, usedResourcesStr));
         }
 
         return s.toString();
@@ -351,7 +359,7 @@ public class ActionInputUsageTracker {
             if (resId.indexOf("android.R.") != 0) {
                 System.err.println("WARN: Malformed res: " + resId);
             }
-            return false;
+            return true;
         }
 
         try {
