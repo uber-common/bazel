@@ -366,13 +366,14 @@ public class ActionInputUsageTracker {
             String resourceName = resId.substring(resId.lastIndexOf('.') + 1);
             String resourceType = resId.substring(0, resId.lastIndexOf('.'));
             String resourceClassName = "com.uber." + resourceType.replace(".", "$");
-            URL classUrl = new URL("file:" + artifact.getExecPathString());
+            Path output = pathResolver.toPath(artifact);
+            URL classUrl = new URL("file:" + output);
             URLClassLoader urlClassLoader = new URLClassLoader(new URL[]{classUrl});
             Class<?> resourceClass = urlClassLoader.loadClass(resourceClassName);
             Field f = resourceClass.getField(resourceName);
             return f != null;
         } catch (Exception e) {
-            System.err.println("ERROR: Lookup failed for " + resId + " in " + artifact.getExecPathString() + " : " + e);
+            System.err.println("ActionInputUsageTracker: Lookup failed for " + resId + " in " + artifact.getExecPathString() + " : " + e);
         }
         return false;
     }
