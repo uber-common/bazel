@@ -40,6 +40,7 @@ import com.sun.tools.javac.resources.CompilerProperties.Errors;
 import com.sun.tools.javac.resources.CompilerProperties.Warnings;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.JCTree.JCFieldAccess;
+import com.sun.tools.javac.tree.JCTree.JCIdent;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.util.Context;
@@ -280,17 +281,7 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
       // Track used android resources for compilation avoidance purposes.
       if (usageTrackerMode) {
         if (sym != null && sym.kind == Kinds.Kind.VAR) {
-          boolean isRes = false;
-          if (node instanceof JCFieldAccess) {
-            TypeTag typeTag = ((JCFieldAccess) node).type.getTag();
-            if (typeTag == TypeTag.INT || typeTag == TypeTag.ARRAY) {
-              isRes = node.toString().indexOf(".R.") > 0 || node.toString().indexOf("R.") == 0;
-            }
-          }
-          if (isRes) {
-            String resId = node.toString();
-            usedResources.add(resId);
-          }
+          checkLitteralForAndroidResource(node, false);
         }
       }
 
@@ -401,6 +392,30 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
         // This jar file pretty much has to exist, we just used it in the compiler. Throw unchecked.
         throw new UncheckedIOException(e);
       }
+    }
+
+    // Track used android resources for compilation avoidance purposes.
+    private void checkLitteralForAndroidResource(JCTree node, boolean isImport) {
+      if (usageTrackerMode) {
+        boolean isRes = false;
+        if (node instanceof JCFieldAccess) {
+          if (isImport || (((JCFieldAccess) node).type.getTag() == TypeTag.INT || ((JCFieldAccess) node).type.getTag() == TypeTag.ARRAY)) {
+            isRes = node.toString().indexOf(".R.") > 0 || node.toString().indexOf("R.") == 0;
+          }
+        }
+        if (isRes) {
+          String resId = node.toString();
+          usedResources.add(resId);
+        }
+      }
+    }
+
+    @Override
+    public void visitImport(JCTree.JCImport tree) {
+      if (usageTrackerMode) {
+        checkLitteralForAndroidResource(tree.qualid, true);
+      }
+      scan(tree.qualid);
     }
 
     @Override
