@@ -282,7 +282,8 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
         if (sym != null && sym.kind == Kinds.Kind.VAR) {
           boolean isRes = false;
           if (node instanceof JCFieldAccess) {
-            if (((JCFieldAccess) node).type.getTag() == TypeTag.INT) {
+            TypeTag typeTag = ((JCFieldAccess) node).type.getTag();
+            if (typeTag == TypeTag.INT || typeTag == TypeTag.ARRAY) {
               isRes = node.toString().indexOf(".R.") > 0 || node.toString().indexOf("R.") == 0;
             }
           }
