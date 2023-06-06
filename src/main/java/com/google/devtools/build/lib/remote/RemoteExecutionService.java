@@ -1821,7 +1821,7 @@ public class RemoteExecutionService {
               .subscribe(result -> {}, this::reportUploadError);
     } else {
       try (SilentCloseable c =
-          Profiler.instance().profile(ProfilerTask.UPLOAD_TIME, "upload outputs")) {
+          Profiler.instance().profile(ProfilerTask.UPLOAD_TIME, "upload outputs for " + action.getActionKey().getDigest().getHash())) {
         UploadManifest manifest = buildUploadManifest(action, spawnResult);
         var unused =
             manifest.upload(action.getRemoteActionExecutionContext(), combinedCache, reporter);
