@@ -1416,7 +1416,7 @@ public class RemoteExecutionService {
               });
     } else {
       try (SilentCloseable c =
-          Profiler.instance().profile(ProfilerTask.UPLOAD_TIME, "upload outputs")) {
+          Profiler.instance().profile(ProfilerTask.UPLOAD_TIME, "upload outputs for " + action.getActionKey().getDigest().getHash())) {
         UploadManifest manifest = buildUploadManifest(action, spawnResult);
         manifest.upload(action.getRemoteActionExecutionContext(), remoteCache, reporter);
       } catch (IOException e) {

@@ -51,6 +51,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -266,7 +267,13 @@ public class ActionCacheChecker {
       System.out.println(actionInputUsageTracker.dump(action));
     }
 
-    return !Arrays.equals(MetadataDigestUtils.fromMetadata(mdMap), entry.getFileDigest());
+    byte[] digest = entry.getFileDigest();
+    boolean result = !Arrays.equals(MetadataDigestUtils.fromMetadata(mdMap), digest);
+    if (this.cacheConfig.verboseExplanations()) {
+      String verb = result ? "MISS" : "HIT";
+      System.out.println("ActionCacheChecker: " + verb + " " + entry.getActionKey() + " " + Base64.getEncoder().encodeToString(digest) + " [" + action.getOwner().getLabel() + "]");
+    }
+    return result;
   }
 
   private static boolean shouldTrustMetadata(
@@ -813,8 +820,12 @@ public class ActionCacheChecker {
         );
       }
     }
-    entry.getFileDigest();
+    byte[] digest = entry.getFileDigest();
     actionCache.put(key, entry);
+
+    if (this.cacheConfig.verboseExplanations()) {
+      System.out.println("ActionCacheChecker: PUT " + entry.getActionKey() + " " + Base64.getEncoder().encodeToString(digest) + " [" + action.getOwner().getLabel() + "]");
+    }
   }
 
   @Nullable
