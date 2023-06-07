@@ -1080,6 +1080,15 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
     public Label legacyMainDexListGenerator;
 
     @Option(
+        name = "optimizing_dexer",
+        defaultValue = "null",
+        converter = LabelConverter.class,
+        documentationCategory = OptionDocumentationCategory.UNCATEGORIZED,
+        effectTags = {OptionEffectTag.UNKNOWN},
+        help = "Specifies a binary to use to do dexing without sharding.")
+    public Label optimizingDexer;
+
+    @Option(
         name = "experimental_disable_instrumentation_manifest_merge",
         defaultValue = "false",
         documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
@@ -1215,6 +1224,7 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
   private final boolean linkLibraryResources;
   private final boolean outputLibraryLinkedResources;
   private final Label legacyMainDexListGenerator;
+  private final Label optimizingDexer;
   private final boolean disableInstrumentationManifestMerging;
   private final boolean incompatibleUseToolchainResolution;
   private final boolean hwasan;
@@ -1283,6 +1293,7 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
     this.linkLibraryResources = options.linkLibraryResources;
     this.outputLibraryLinkedResources = options.outputLibraryLinkedResources;
     this.legacyMainDexListGenerator = options.legacyMainDexListGenerator;
+    this.optimizingDexer = options.optimizingDexer;
     this.disableInstrumentationManifestMerging = options.disableInstrumentationManifestMerging;
     this.incompatibleUseToolchainResolution = options.incompatibleUseToolchainResolution;
     this.hwasan = options.hwasan;
@@ -1600,8 +1611,17 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
   public Label getLegacyMainDexListGenerator() {
     return legacyMainDexListGenerator;
   }
- 
+
   boolean outputLibraryLinkedResources() {
     return outputLibraryLinkedResources;
+  }
+
+  /** Returns the label provided with --optimizing_dexer, if any. */
+  @StarlarkConfigurationField(
+      name = "optimizing_dexer",
+      doc = "Returns the label provided with --optimizing_dexer, if any.")
+  @Nullable
+  public Label getOptimizingDexer() {
+    return optimizingDexer;
   }
 }
