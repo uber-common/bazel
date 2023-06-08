@@ -22,6 +22,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 // Must be included before <io.h> (on Windows) and <fcntl.h>.
@@ -136,6 +137,7 @@ class OutputJar {
   std::vector<std::unique_ptr<Concatenator> > service_handlers_;
   std::vector<std::unique_ptr<Concatenator> > classpath_resources_;
   std::vector<std::unique_ptr<Combiner> > extra_combiners_;
+  std::unordered_set<std::string> spring_combiner_exclude_paths_;
 };
 
 #endif  //   SRC_TOOLS_SINGLEJAR_COMBINED_JAR_H_
