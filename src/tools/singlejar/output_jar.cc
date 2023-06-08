@@ -72,6 +72,8 @@ OutputJar::OutputJar()
   known_members_.emplace(manifest_.filename(), EntryInfo{&manifest_});
   known_members_.emplace(protobuf_meta_handler_.filename(),
                          EntryInfo{&protobuf_meta_handler_});
+
+  spring_combiner_exclude_paths_.insert("META-INF/spring.factories");
 }
 
 static std::string Basename(const std::string &path) {
@@ -395,6 +397,18 @@ bool OutputJar::AddJar(int jar_path_index) {
         Concatenator *service_handler = new Concatenator(service_path);
         service_handlers_.emplace_back(service_handler);
         known_members_.emplace(service_path, EntryInfo{service_handler});
+      }
+    } else if (is_file &&
+        begins_with(file_name, file_name_length, "META-INF/spring/") &&
+        spring_combiner_exclude_paths_.find(file_name) == spring_combiner_exclude_paths_.end()) {
+      // Create a concatenator for all spring entries unless the file is in spring_combiner_exclude_paths_
+      std::string file_path(file_name, file_name_length);
+      if (NewEntry(file_path)) {
+        // Create a concatenator and add it to the known_members_ map.
+        // The call to Merge() below will then take care of the rest.
+        Concatenator *file_handler = new Concatenator(file_path);
+        service_handlers_.emplace_back(file_handler);
+        known_members_.emplace(file_path, EntryInfo{file_handler});
       }
     } else {
       ExtraHandler(input_jar_path, jar_entry, &input_jar_aux_label);
