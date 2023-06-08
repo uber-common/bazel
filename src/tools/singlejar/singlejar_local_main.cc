@@ -35,5 +35,7 @@ int main(int argc, char *argv[]) {
   output_jar.ExtraCombiner("META-INF/desugar_deps", desugar_checker);
   output_jar.ExtraCombiner("reference.conf",
                            new Concatenator("reference.conf"));
+  output_jar.ExtraCombiner("META-INF/spring.factories",
+                           new MergingPropertyCombiner("META-INF/spring.factories"));
   return output_jar.Doit(&options);
 }
