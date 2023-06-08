@@ -62,6 +62,9 @@ class Concatenator : public Combiner {
 
   const std::string &filename() const { return filename_; }
 
+ protected:
+  std::unique_ptr<Inflater> inflater_;
+
  private:
   void CreateBuffer() {
     if (!buffer_) {
@@ -70,7 +73,6 @@ class Concatenator : public Combiner {
   }
   const std::string filename_;
   std::unique_ptr<TransientBytes> buffer_;
-  std::unique_ptr<Inflater> inflater_;
   bool insert_newlines_;
 };
 
@@ -134,6 +136,24 @@ class PropertyCombiner : public Concatenator {
     Append(value);
     Append("\n", 1);
   }
+};
+
+
+class MergingPropertyCombiner : public Concatenator {
+ public:
+  MergingPropertyCombiner(const std::string &filename) : Concatenator(filename) {}
+  ~MergingPropertyCombiner();
+
+  bool Merge(const CDH *cdh, const LH *lh) override;
+
+  void *OutputEntry(bool compress) override;
+
+ private:
+
+  std::string GetFileContent(const CDH *cdh, const LH *lh);
+  std::vector<std::string> SplitString(const std::string& str, const std::string& delimiter);
+
+  std::map<std::string, std::string> property_map_;
 };
 
 // Combines the contents of the multiple manifests.
