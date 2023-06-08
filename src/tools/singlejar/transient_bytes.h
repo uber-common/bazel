@@ -20,7 +20,9 @@
 
 #include <inttypes.h>
 #include <algorithm>
+#include <iterator>
 #include <ostream>
+#include <sstream>
 
 #include "src/tools/singlejar/diag.h"
 #include "src/tools/singlejar/zip_headers.h"
@@ -269,6 +271,25 @@ class TransientBytes {
                 __FILE__, __LINE__);
     }
     return *(last_block_->End() - free_size() - 1);
+  }
+
+  std::string string_content() const {
+    std::vector<uint8_t*> v;
+
+    uint64_t to_copy = data_size();
+    for (auto data_block = first_block_; data_block; data_block = data_block->next_block_) {
+      uint64_t chunk_size = sizeof(data_block->data_);
+      if (chunk_size > to_copy) {
+        chunk_size = to_copy;
+      }
+      v.push_back(data_block->data_);
+      to_copy -= chunk_size;
+    }
+
+    std::ostringstream os;
+    std::copy( v.begin(), v.end(), std::ostream_iterator<uint8_t*>( os ) );
+
+    return os.str();
   }
 
  private:

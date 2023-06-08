@@ -184,6 +184,124 @@ bool PropertyCombiner::Merge(const CDH * /*cdh*/, const LH * /*lh*/) {
   return false;  // This should not be called.
 }
 
+MergingPropertyCombiner::~MergingPropertyCombiner() {}
+
+bool MergingPropertyCombiner::Merge(const CDH *cdh, const LH *lh) {
+  std::string file_content = GetFileContent(cdh, lh);
+
+  std::vector<std::string> split_by_newlines = SplitString(file_content, std::string("\n"));
+  std::vector<std::string> properties;
+
+  // values can be multiple lines long. Append to so_far until we reach
+  // the end of the value so we can save the entire value.
+  std::string so_far = "";
+
+  // go line-by-line to extract the properties
+  for (auto& line : split_by_newlines) {
+    // ignore empty lines
+    if (line.size() == 0) {
+      continue;
+    }
+
+    // ignore commented out lines
+    if (line.at(0) == '#') {
+      continue;
+    }
+
+    // if line is partially commented, ignore the commented part
+    std::string::size_type pos = line.find('#');
+    if (pos != std::string::npos) {
+      line = line.substr(0, pos);
+    }
+
+    // If line ends with '\', then value is continued on the next line.
+    // Strip the ending, add to so_far, and continue to next line
+    if (line.back() == '\\') {
+      so_far = so_far + line.substr(0, line.size() - 1);
+      continue;
+    } else {
+      so_far = so_far + line;
+    }
+
+    // reached the end of the value. Append to properties.
+    properties.push_back(so_far);
+    so_far = "";
+  }
+
+  for (auto& property : properties) {
+    std::vector<std::string> split_by_equal = SplitString(property, std::string("="));
+
+    // ignore malformed properties
+    if (split_by_equal.size() != 2) {
+      continue;
+    }
+
+    std::string key = split_by_equal[0];
+    std::string value = split_by_equal[1];
+
+    std::map<std::string, std::string>::iterator it = property_map_.find(key);
+    if (it == property_map_.end()) {
+      property_map_.insert({ key, value });
+    } else {
+      it->second = (it->second + "," + value);
+    }
+  }
+
+  return true;
+}
+
+std::string MergingPropertyCombiner::GetFileContent(const CDH *cdh, const LH *lh) {
+  CreateBuffer();
+
+  if (Z_NO_COMPRESSION == lh->compression_method()) {
+    buffer_->ReadEntryContents(cdh, lh);
+  } else if (Z_DEFLATED == lh->compression_method()) {
+    if (!inflater_) {
+      inflater_.reset(new Inflater());
+    }
+    buffer_->DecompressEntryContents(cdh, lh, inflater_.get());
+  } else {
+    diag_errx(2, "%s is neither stored nor deflated", lh->file_name_string().c_str());
+  }
+
+  std::string content = buffer_->string_content();
+
+  // clear buffer of raw data, so we can just add
+  // the formatted data later.
+  buffer_.reset(new TransientBytes());
+
+  return content;
+}
+
+std::vector<std::string> MergingPropertyCombiner::SplitString(const std::string& str, const std::string& delimiter) {
+  size_t pos_start = 0, pos_end, delim_len = delimiter.length();
+  std::string token;
+  std::vector<std::string> res;
+
+  while ((pos_end = str.find(delimiter, pos_start)) != std::string::npos) {
+      token = str.substr (pos_start, pos_end - pos_start);
+      pos_start = pos_end + delim_len;
+      res.push_back (token);
+  }
+
+  res.push_back (str.substr (pos_start));
+  return res;
+}
+
+void *MergingPropertyCombiner::OutputEntry(bool compress) {
+  std::map<std::string, std::string>::iterator it;
+
+  for (it = property_map_.begin(); it != property_map_.end(); it++) {
+    Concatenator::Append(it->first);
+    Concatenator::Append("=", 1);
+    Concatenator::Append(it->second);
+    Concatenator::Append("\n", 1);
+  }
+
+  return Concatenator::OutputEntry(compress);
+}
+
+
 ManifestCombiner::~ManifestCombiner() {}
 
 static const char *MULTI_RELEASE = "Multi-Release: true";
