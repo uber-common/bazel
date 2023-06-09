@@ -201,6 +201,9 @@ public class RemoteExecutionService {
             path.indexOf("external/bazel_tools/tools/android/java_base_extras.jar") >= 0 ||
             path.indexOf("external/remote_java_tools/java_tools/JacocoCoverage_jarjar_deploy.jar") >= 0 ||
             path.indexOf("external/android_tools/all_android_tools_deploy.jar") >= 0 ||
+            path.indexOf("external/bazel_tools/tools/android/d8_dexbuilder") >= 0 ||  // DexBuilder
+            path.indexOf("external/bazel_tools/src/tools/android/java/com/google/devtools/build/android/r8/desugar") >= 0 ||  // Desugar
+            path.indexOf("external/bazel_tools/tools/android/java_base_extras.jar") >= 0 ||  // Desugar
             path.indexOf("external/bazel_tools/src/tools/android/java/com/google/devtools/build/android/ResourceProcessorBusyBox") >= 0;   //contains javabin
   }
 
