@@ -639,6 +639,28 @@ public final class RemoteOptions extends CommonRemoteOptions {
   public ExecutionMessagePrintMode remotePrintExecutionMessages;
 
   @Option(
+          name = "remote_actionkey_salt",
+          defaultValue = "",
+          documentationCategory = OptionDocumentationCategory.REMOTE,
+          effectTags = {OptionEffectTag.UNKNOWN},
+          help = "Salt used when hashing remote actionkeys. Used for remote cache hits troubleshooting, or invalidating " +
+                  "entire cache when updating files not tracked by actions but causing different artifact outputs (see " +
+                  "support for xplat artifacts")
+  public String remoteActionKeySalt;
+
+  @Option(
+          name = "remote_xplat_mnemonics",
+          converter = Converters.CommaSeparatedOptionListConverter.class,
+          defaultValue = "",
+          documentationCategory = OptionDocumentationCategory.REMOTE,
+          effectTags = {OptionEffectTag.UNKNOWN},
+          help =
+                  "Specify the list of mnemonics whose artifact outputs should be treated as platform independant." +
+                          "This is used to support x-platform cache population",
+          allowMultiple = false)
+  public List<String> remoteXPlatMnemonics;
+
+  @Option(
       name = "incompatible_remote_downloader_send_all_headers",
       defaultValue = "true",
       documentationCategory = OptionDocumentationCategory.REMOTE,

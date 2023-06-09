@@ -17,6 +17,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.base.Strings.isNullOrEmpty;
+import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static com.google.common.util.concurrent.Futures.immediateFailedFuture;
 import static com.google.common.util.concurrent.Futures.immediateFuture;
 import static com.google.common.util.concurrent.Futures.transform;
@@ -175,6 +176,34 @@ public class RemoteExecutionService {
   private final AtomicBoolean shutdown = new AtomicBoolean(false);
   private final AtomicBoolean buildInterrupted = new AtomicBoolean(false);
 
+  private boolean isActionCompatibleWithXPlatformCache(Spawn spawn) {
+    String repo = spawn.getResourceOwner().getOwner().getLabel().getPackageIdentifier().getRepository().getName();
+    if (!repo.isEmpty()) {
+      return false;
+    }
+    String mnemonic = spawn.getResourceOwner().getMnemonic();
+    return remoteOptions.remoteXPlatMnemonics.contains(mnemonic);
+  }
+
+  private static boolean isInputRemovedForXPlatform(PathFragment pathFragment) {
+    String path = pathFragment.getPathString();
+    return path.indexOf("external/remotejdk") >= 0 || path.indexOf("runfiles/remotejdk") >= 0 ||
+            path.indexOf("external/androidsdk/build-tools") >= 0 || path.indexOf("runfiles/androidsdk/build-tools") >= 0 ||// used by AndroidResourceCompiler
+            path.indexOf("/java_tools/ijar/ijar") >= 0 ||  //external/remote_java_tools_linux/java_tools/ijar/ijar
+            path.indexOf("java_tools/src/tools/singlejar/singlejar_local") >= 0;
+  }
+
+  private static boolean isInputIgnoredForXPlatform(PathFragment pathFragment) {
+    String path = pathFragment.getPathString();
+    return path.indexOf("external/remote_java_tools/java_tools/JavaBuilder_deploy.jar") >= 0 ||  // contains build meta file
+            path.indexOf("external/bazel_tools/tools/jdk/platformclasspath.jar") >= 0 ||
+            path.indexOf("external/io_bazel_rules_kotlin/src/main/kotlin/build") >= 0 ||  //contains javabin
+            path.indexOf("external/bazel_tools/tools/android/java_base_extras.jar") >= 0 ||
+            path.indexOf("external/remote_java_tools/java_tools/JacocoCoverage_jarjar_deploy.jar") >= 0 ||
+            path.indexOf("external/android_tools/all_android_tools_deploy.jar") >= 0 ||
+            path.indexOf("external/bazel_tools/src/tools/android/java/com/google/devtools/build/android/ResourceProcessorBusyBox") >= 0;   //contains javabin
+  }
+
   public RemoteExecutionService(
       Executor executor,
       Reporter reporter,
@@ -218,7 +247,8 @@ public class RemoteExecutionService {
       List<String> arguments,
       ImmutableMap<String, String> env,
       @Nullable Platform platform,
-      RemotePathResolver remotePathResolver) {
+      RemotePathResolver remotePathResolver,
+      boolean actionCompatibleWithXPlatformCache) {
     Command.Builder command = Command.newBuilder();
     ArrayList<String> outputFiles = new ArrayList<>();
     ArrayList<String> outputDirectories = new ArrayList<>();
@@ -239,6 +269,11 @@ public class RemoteExecutionService {
       command.setPlatform(platform);
     }
     for (String arg : arguments) {
+      if (actionCompatibleWithXPlatformCache) {
+        // Ensure the command line matches linux for M1
+        arg = arg.replace("macos_aarch64", "linux");
+        arg = arg.replace("darwin_arm64", "linux");
+      }
       command.addArguments(decodeBytestringUtf8(arg));
     }
     // Sorting the environment pairs by variable name.
@@ -392,6 +427,15 @@ public class RemoteExecutionService {
       SortedMap<PathFragment, ActionInput> inputMap =
           remotePathResolver.getInputMapping(
               context, /* willAccessRepeatedly= */ !remoteOptions.remoteDiscardMerkleTrees);
+
+      // Compute removed and ignored inputs, to make actionkey hash computation output match between platform.
+      boolean useXPlatformCache = isActionCompatibleWithXPlatformCache(spawn);
+      ImmutableSet<PathFragment> removedInputs = useXPlatformCache ? inputMap.keySet().stream().filter(RemoteExecutionService::isInputRemovedForXPlatform).collect(toImmutableSet()) : ImmutableSet.of();
+      ImmutableSet<PathFragment> ignoredInputs = useXPlatformCache ? inputMap.keySet().stream().filter(RemoteExecutionService::isInputIgnoredForXPlatform).collect(toImmutableSet()) : ImmutableSet.of();
+      for (PathFragment fragment : removedInputs) {
+        inputMap.remove(fragment);
+      }
+
       if (!outputDirMap.isEmpty()) {
         // The map returned by getInputMapping is mutable, but must not be mutated here as it is
         // shared with all other strategies.
@@ -406,7 +450,8 @@ public class RemoteExecutionService {
           context.getMetadataProvider(),
           execRoot,
           context.getPathResolver(),
-          digestUtil);
+          digestUtil,
+          ignoredInputs);
     }
   }
 
@@ -470,7 +515,7 @@ public class RemoteExecutionService {
   }
 
   @Nullable
-  private static ByteString buildSalt(Spawn spawn) {
+  private ByteString buildSalt(Spawn spawn) {
     String workspace =
         spawn.getExecutionInfo().get(ExecutionRequirements.DIFFERENTIATE_WORKSPACE_CACHE);
     if (workspace != null) {
@@ -479,10 +524,13 @@ public class RemoteExecutionService {
               .addProperties(
                   Platform.Property.newBuilder().setName("workspace").setValue(workspace).build())
               .build();
-      return platform.toByteString();
+      ByteString salt = platform.toByteString();
+      return remoteOptions.remoteActionKeySalt.isEmpty() ?
+              salt : salt.concat(ByteString.copyFromUtf8(remoteOptions.remoteActionKeySalt));
     }
 
-    return null;
+    return remoteOptions.remoteActionKeySalt.isEmpty() ?
+            null : ByteString.copyFromUtf8(remoteOptions.remoteActionKeySalt);
   }
 
   /**
@@ -528,14 +576,14 @@ public class RemoteExecutionService {
       } else {
         platform = PlatformUtils.getPlatformProto(spawn, remoteOptions);
       }
-
       Command command =
           buildCommand(
               spawn.getOutputFiles(),
               spawn.getArguments(),
               spawn.getEnvironment(),
               platform,
-              remotePathResolver);
+              remotePathResolver,
+              isActionCompatibleWithXPlatformCache(spawn));
       Digest commandHash = digestUtil.compute(command);
       Action action =
           Utils.buildAction(
