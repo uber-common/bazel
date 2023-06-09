@@ -182,29 +182,17 @@ public class RemoteExecutionService {
       return false;
     }
     String mnemonic = spawn.getResourceOwner().getMnemonic();
-    return remoteOptions.remoteXPlatMnemonics.contains(mnemonic);
+    return remoteOptions.remoteXPlatSupportedMnemonics.contains(mnemonic);
   }
 
-  private static boolean isInputRemovedForXPlatform(PathFragment pathFragment) {
+  private boolean isInputRemovedForXPlatform(PathFragment pathFragment) {
     String path = pathFragment.getPathString();
-    return path.indexOf("external/remotejdk") >= 0 || path.indexOf("runfiles/remotejdk") >= 0 ||
-            path.indexOf("external/androidsdk/build-tools") >= 0 || path.indexOf("runfiles/androidsdk/build-tools") >= 0 ||// used by AndroidResourceCompiler
-            path.indexOf("/java_tools/ijar/ijar") >= 0 ||  //external/remote_java_tools_linux/java_tools/ijar/ijar
-            path.indexOf("java_tools/src/tools/singlejar/singlejar_local") >= 0;
+    return remoteOptions.remoteXPlatRemovedInputs.stream().anyMatch(s -> path.indexOf(s) >= 0);
   }
 
-  private static boolean isInputIgnoredForXPlatform(PathFragment pathFragment) {
+  private boolean isInputIgnoredForXPlatform(PathFragment pathFragment) {
     String path = pathFragment.getPathString();
-    return path.indexOf("external/remote_java_tools/java_tools/JavaBuilder_deploy.jar") >= 0 ||  // contains build meta file
-            path.indexOf("external/bazel_tools/tools/jdk/platformclasspath.jar") >= 0 ||
-            path.indexOf("external/io_bazel_rules_kotlin/src/main/kotlin/build") >= 0 ||  //contains javabin
-            path.indexOf("external/bazel_tools/tools/android/java_base_extras.jar") >= 0 ||
-            path.indexOf("external/remote_java_tools/java_tools/JacocoCoverage_jarjar_deploy.jar") >= 0 ||
-            path.indexOf("external/android_tools/all_android_tools_deploy.jar") >= 0 ||
-            path.indexOf("external/bazel_tools/tools/android/d8_dexbuilder") >= 0 ||  // DexBuilder
-            path.indexOf("external/bazel_tools/src/tools/android/java/com/google/devtools/build/android/r8/desugar") >= 0 ||  // Desugar
-            path.indexOf("external/bazel_tools/tools/android/java_base_extras.jar") >= 0 ||  // Desugar
-            path.indexOf("external/bazel_tools/src/tools/android/java/com/google/devtools/build/android/ResourceProcessorBusyBox") >= 0;   //contains javabin
+    return remoteOptions.remoteXPlatIgnoredInputs.stream().anyMatch(s -> path.indexOf(s) >= 0);
   }
 
   public RemoteExecutionService(
@@ -433,8 +421,10 @@ public class RemoteExecutionService {
 
       // Compute removed and ignored inputs, to make actionkey hash computation output match between platform.
       boolean useXPlatformCache = isActionCompatibleWithXPlatformCache(spawn);
-      ImmutableSet<PathFragment> removedInputs = useXPlatformCache ? inputMap.keySet().stream().filter(RemoteExecutionService::isInputRemovedForXPlatform).collect(toImmutableSet()) : ImmutableSet.of();
-      ImmutableSet<PathFragment> ignoredInputs = useXPlatformCache ? inputMap.keySet().stream().filter(RemoteExecutionService::isInputIgnoredForXPlatform).collect(toImmutableSet()) : ImmutableSet.of();
+      ImmutableSet<PathFragment> removedInputs = useXPlatformCache ? inputMap.keySet().stream().filter(this::isInputRemovedForXPlatform).collect(toImmutableSet()) : ImmutableSet.of();
+      ImmutableSet<PathFragment> ignoredInputs = useXPlatformCache ? inputMap.keySet().stream().filter(this::isInputIgnoredForXPlatform).collect(toImmutableSet()) : ImmutableSet.of();
+
+      // Remove inputs only present on specific platform, so that they won't contribute to actionkey hash.
       for (PathFragment fragment : removedInputs) {
         inputMap.remove(fragment);
       }

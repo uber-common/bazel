@@ -649,16 +649,44 @@ public final class RemoteOptions extends CommonRemoteOptions {
   public String remoteActionKeySalt;
 
   @Option(
-          name = "remote_xplat_mnemonics",
+          name = "remote_xplat_supported_mnemonics",
           converter = Converters.CommaSeparatedOptionListConverter.class,
-          defaultValue = "",
+          defaultValue = "null",
           documentationCategory = OptionDocumentationCategory.REMOTE,
           effectTags = {OptionEffectTag.UNKNOWN},
           help =
                   "Specify the list of mnemonics whose artifact outputs should be treated as platform independant." +
                           "This is used to support x-platform cache population",
-          allowMultiple = false)
-  public List<String> remoteXPlatMnemonics;
+          allowMultiple = true)
+  public List<String> remoteXPlatSupportedMnemonics;
+
+  @Option(
+          name = "remote_xplat_removed_inputs",
+          converter = Converters.CommaSeparatedOptionListConverter.class,
+          defaultValue = "null",
+          documentationCategory = OptionDocumentationCategory.REMOTE,
+          effectTags = {OptionEffectTag.UNKNOWN},
+          help =
+                  "Specify the actions inputs that should be removed. They will be removed if their paths contains any " +
+                          "of the specified value here. Removing input from an action can be used to make action key hash " +
+                          "platform independent, at the risk of not rebuilding this action if this input only changes. For such" +
+                          "changes, developers need to bump the salt to re-hash every actions",
+          allowMultiple = true)
+  public List<String> remoteXPlatRemovedInputs;
+
+  @Option(
+          name = "remote_xplat_ignored_inputs",
+          converter = Converters.CommaSeparatedOptionListConverter.class,
+          defaultValue = "null",
+          documentationCategory = OptionDocumentationCategory.REMOTE,
+          effectTags = {OptionEffectTag.UNKNOWN},
+          help =
+                  "Specify the actions inputs that should be ignored. They will used a default (0) hash as these inputs " +
+                          "exist on different platform, but have different size/hash. Ignoring input from an action can be used to make action key hash " +
+                          "platform independent, at the risk of not rebuilding this action if this input only changes. For such" +
+                          "changes, developers need to bump the salt to re-hash every actions",
+          allowMultiple = true)
+  public List<String> remoteXPlatIgnoredInputs;
 
   @Option(
       name = "incompatible_remote_downloader_send_all_headers",
