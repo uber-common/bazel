@@ -33,16 +33,11 @@ import com.sun.tools.javac.code.Symbol.PackageSymbol;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Stream;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
@@ -171,16 +166,15 @@ public final class DependencyModule {
     // Keep track of all used Android resources
     deps.addAllUsedResources(usedResources.stream().sorted().collect(toImmutableList()));
 
-    // Filter using the original classpath, to preserve ordering.
-    for (Path entry : classpath) {
+    for (Path entry : classpath.stream().sorted().collect(toImmutableList())) {
       if (explicitDependenciesMap.containsKey(entry)) {
         Deps.Dependency d = explicitDependenciesMap.get(entry).toBuilder()
-                .addAllUsedClasses(usedClassesMap.getOrDefault(entry, Set.of()))
+                .addAllUsedClasses(usedClassesMap.getOrDefault(entry, Set.of()).stream().sorted(new UsedClassComparator()).collect(toImmutableList()))
                 .build();
         deps.addDependency(d);
       } else if (implicitDependenciesMap.containsKey(entry)) {
         Deps.Dependency d = implicitDependenciesMap.get(entry).toBuilder()
-                .addAllUsedClasses(usedClassesMap.getOrDefault(entry, Set.of()))
+                .addAllUsedClasses(usedClassesMap.getOrDefault(entry, Set.of()).stream().sorted(new UsedClassComparator()).collect(toImmutableList()))
                 .build();
         deps.addDependency(d);
       }
@@ -320,6 +314,13 @@ public final class DependencyModule {
       }
     } catch (IOException e) {
       throw new IOException(String.format("error reading deps artifact: %s", path), e);
+    }
+  }
+
+  private static class UsedClassComparator implements Comparator<Deps.UsedClass> {
+    @Override
+    public int compare(Deps.UsedClass o1, Deps.UsedClass o2) {
+      return o1.getFullyQualifiedName().compareTo(o2.getFullyQualifiedName());
     }
   }
 
