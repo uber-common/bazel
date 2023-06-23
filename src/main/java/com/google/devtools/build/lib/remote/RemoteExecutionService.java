@@ -178,7 +178,7 @@ public class RemoteExecutionService {
 
   private boolean isActionCompatibleWithXPlatformCache(Spawn spawn) {
     String repo = spawn.getResourceOwner().getOwner().getLabel().getPackageIdentifier().getRepository().getName();
-    if (!repo.isEmpty()) {
+    if (!repo.isEmpty() && remoteOptions.remoteXPlatIgnoredRepositories.contains(repo)) {
       return false;
     }
     String mnemonic = spawn.getResourceOwner().getMnemonic();

@@ -689,6 +689,16 @@ public final class RemoteOptions extends CommonRemoteOptions {
   public List<String> remoteXPlatIgnoredInputs;
 
   @Option(
+          name = "remote_xplat_ignored_repositories",
+          converter = Converters.CommaSeparatedOptionListConverter.class,
+          defaultValue = "null",
+          documentationCategory = OptionDocumentationCategory.REMOTE,
+          effectTags = {OptionEffectTag.UNKNOWN},
+          help =
+                  "Specify the list of repos for which we don't want to use x-platform cache population",
+          allowMultiple = true)
+  public List<String> remoteXPlatIgnoredRepositories;
+  @Option(
       name = "incompatible_remote_downloader_send_all_headers",
       defaultValue = "true",
       documentationCategory = OptionDocumentationCategory.REMOTE,
