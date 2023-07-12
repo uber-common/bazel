@@ -239,7 +239,8 @@ public class RemoteExecutionService {
       ImmutableMap<String, String> env,
       @Nullable Platform platform,
       RemotePathResolver remotePathResolver,
-      boolean actionCompatibleWithXPlatformCache) {
+      boolean actionCompatibleWithXPlatformCache,
+      List<String> remoteXPlatCommandArgsSubstitutionParts) {
     Command.Builder command = Command.newBuilder();
     ArrayList<String> outputFiles = new ArrayList<>();
     ArrayList<String> outputDirectories = new ArrayList<>();
@@ -261,9 +262,10 @@ public class RemoteExecutionService {
     }
     for (String arg : arguments) {
       if (actionCompatibleWithXPlatformCache) {
-        // Ensure the command line matches linux for M1
-        arg = arg.replace("macos_aarch64", "linux");
-        arg = arg.replace("darwin_arm64", "linux");
+        // Substitute command line args to matches linux for other specified platforms
+        for (String part : remoteXPlatCommandArgsSubstitutionParts) {
+          arg = arg.replace(part, "linux");
+        }
       }
       command.addArguments(decodeBytestringUtf8(arg));
     }
@@ -576,7 +578,8 @@ public class RemoteExecutionService {
               spawn.getEnvironment(),
               platform,
               remotePathResolver,
-              isActionCompatibleWithXPlatformCache(spawn));
+              isActionCompatibleWithXPlatformCache(spawn),
+              remoteOptions.remoteXPlatCommandArgsSubstitutionParts);
       Digest commandHash = digestUtil.compute(command);
       Action action =
           Utils.buildAction(

@@ -654,11 +654,20 @@ public final class RemoteOptions extends CommonRemoteOptions {
           defaultValue = "null",
           documentationCategory = OptionDocumentationCategory.REMOTE,
           effectTags = {OptionEffectTag.UNKNOWN},
-          help =
-                  "Specify the list of mnemonics whose artifact outputs should be treated as platform independant." +
-                          "This is used to support x-platform cache population",
+          help = "Specify the list of mnemonics whose artifact outputs should be treated as platform independant." +
+                  "This is used to support x-platform cache population",
           allowMultiple = true)
   public List<String> remoteXPlatSupportedMnemonics;
+
+  @Option(
+          name = "remote_xplat_command_args_substitutions_parts",
+          converter = Converters.CommaSeparatedOptionListConverter.class,
+          defaultValue = "null",
+          documentationCategory = OptionDocumentationCategory.REMOTE,
+          effectTags = {OptionEffectTag.UNKNOWN},
+          help = "Specify command args substitution used for xplat artifact caching.",
+          allowMultiple = true)
+  public List<String> remoteXPlatCommandArgsSubstitutionParts;
 
   @Option(
           name = "remote_xplat_removed_inputs",
