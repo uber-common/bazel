@@ -997,6 +997,14 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
             "Get Java resources from _proguard.jar instead of _deploy.jar in android_binary when "
                 + "bundling the final APK.")
     public boolean getJavaResourcesFromOptimizedJar;
+
+    @Option(
+            name = "experimental_disable_android_platform_distinguisher",
+            defaultValue = "false",
+            documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
+            effectTags = {OptionEffectTag.AFFECTS_OUTPUTS},
+            help = "If set to true, the android output path will share the same location as platform host.")
+    public boolean experimentalDisableAndroidPlatformDistinguisher;
   }
 
   private final ConfigurationDistinguisher configurationDistinguisher;
@@ -1043,6 +1051,8 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
   private final Label optimizingDexer;
   private final boolean disableInstrumentationManifestMerging;
   private final boolean getJavaResourcesFromOptimizedJar;
+
+  private final boolean experimentalDisableAndroidPlatformDistinguisher;
 
   public AndroidConfiguration(BuildOptions buildOptions) throws InvalidConfigurationException {
     Options options = buildOptions.get(Options.class);
@@ -1099,6 +1109,7 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
     this.optimizingDexer = options.optimizingDexer;
     this.disableInstrumentationManifestMerging = options.disableInstrumentationManifestMerging;
     this.getJavaResourcesFromOptimizedJar = options.getJavaResourcesFromOptimizedJar;
+    this.experimentalDisableAndroidPlatformDistinguisher = options.experimentalDisableAndroidPlatformDistinguisher;
 
     if (incrementalDexingShardsAfterProguard < 0) {
       throw new InvalidConfigurationException(
@@ -1315,7 +1326,7 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
 
   @Override
   public String getOutputDirectoryName() {
-    return configurationDistinguisher.suffix;
+    return experimentalDisableAndroidPlatformDistinguisher ? "" : configurationDistinguisher.suffix;
   }
 
   // TODO(blaze-configurability-team): Deprecate this.
