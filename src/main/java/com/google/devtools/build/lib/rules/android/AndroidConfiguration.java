@@ -1127,6 +1127,14 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
                 + " transition` with changed options to avoid potential action conflicts.")
     public boolean androidPlatformsTransitionsUpdateAffected;
 
+    @Option(
+            name = "experimental_disable_android_platform_distinguisher",
+            defaultValue = "false",
+            documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
+            effectTags = {OptionEffectTag.AFFECTS_OUTPUTS},
+            help = "If set to true, the android output path will share the same location as platform host.")
+    public boolean experimentalDisableAndroidPlatformDistinguisher;
+
     @Override
     public FragmentOptions getExec() {
       Options exec = (Options) super.getExec();
@@ -1157,6 +1165,7 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
       exec.persistentBusyboxTools = persistentBusyboxTools;
       exec.persistentMultiplexBusyboxTools = persistentMultiplexBusyboxTools;
       exec.disableNativeAndroidRules = disableNativeAndroidRules;
+      exec.experimentalDisableAndroidPlatformDistinguisher = experimentalDisableAndroidPlatformDistinguisher;
 
       // Unless the build was started from an Android device, exec means MAIN.
       exec.configurationDistinguisher = ConfigurationDistinguisher.MAIN;
@@ -1215,6 +1224,8 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
   private final boolean hwasan;
   private final boolean getJavaResourcesFromOptimizedJar;
   private final boolean includeProguardLocationReferences;
+
+  private final boolean experimentalDisableAndroidPlatformDistinguisher;
 
   public AndroidConfiguration(BuildOptions buildOptions) throws InvalidConfigurationException {
     Options options = buildOptions.get(Options.class);
@@ -1278,6 +1289,7 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
     this.hwasan = options.hwasan;
     this.getJavaResourcesFromOptimizedJar = options.getJavaResourcesFromOptimizedJar;
     this.includeProguardLocationReferences = options.includeProguardLocationReferences;
+    this.experimentalDisableAndroidPlatformDistinguisher = options.experimentalDisableAndroidPlatformDistinguisher;
 
     if (incrementalDexingShardsAfterProguard < 0) {
       throw new InvalidConfigurationException(
@@ -1518,7 +1530,7 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
 
   @Override
   public String getOutputDirectoryName() {
-    return configurationDistinguisher.suffix;
+    return experimentalDisableAndroidPlatformDistinguisher ? "" : configurationDistinguisher.suffix;
   }
 
   public boolean filterRJarsFromAndroidTest() {
