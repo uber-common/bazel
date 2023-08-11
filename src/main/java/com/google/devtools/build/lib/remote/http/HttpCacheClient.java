@@ -84,6 +84,7 @@ import java.net.SocketAddress;
 import java.net.URI;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -139,6 +140,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
   private final boolean compressCasUploads;
   private final DigestUtil digestUtil;
   private final RemoteRetrier retrier;
+  private final ConcurrentHashMap<String, Boolean> storedBlobs = new ConcurrentHashMap<>();
 
   private final Object closeLock = new Object();
 
@@ -693,7 +695,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
             () ->
                 Utils.downloadAsActionResult(
                     actionKey,
-                    (digest, out) -> get(digest, out, /* casBytesDownloaded= */ Optional.empty()))),
+                    (digest, out) -> get(digest, out, /* casBytesDownloaded= */ Optional.empty(), /* casDownload= */ true))),
         CachedActionResult::remote,
         MoreExecutors.directExecutor());
   }
