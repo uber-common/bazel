@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.devtools.build.lib.packages.Type;
 import com.google.devtools.build.lib.cmdline.Label;
+import com.google.devtools.build.lib.packages.LabelPrinter;
 import com.google.devtools.build.lib.packages.AbstractAttributeMapper;
 import com.google.devtools.build.lib.packages.Attribute;
 import com.google.devtools.build.lib.packages.BuildType;
@@ -63,7 +64,7 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
   public ThreadSafeOutputFormatterCallback<Target> createStreamCallback(
       OutputStream out, QueryOptions options, QueryEnvironment<?> env) {
     return new SynchronizedDelegatingOutputFormatterCallback<>(
-        createPostFactoStreamCallback(out, options, env.getMainRepoMapping()));
+        createPostFactoStreamCallback(out, options, env.getLabelPrinter()));
   }
 
   @Override
@@ -75,7 +76,7 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
 
   @Override
   public OutputFormatterCallback<Target> createPostFactoStreamCallback(
-      final OutputStream out, final QueryOptions options, RepositoryMapping mainRepoMapping) {
+      final OutputStream out, final QueryOptions options, LabelPrinter labelPrinter) {
     return new OutputFormatterCallback<Target>() {
 
       
@@ -89,7 +90,7 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
         for (Target target : partialResult) {
           result.add(target.getLabel().getCanonicalForm(),
               createTargetJsonObject(target,
-                  new JsonQueryAttributeReader(target), mainRepoMapping));
+                  new JsonQueryAttributeReader(target), labelPrinter));
         }
       }
 
@@ -141,12 +142,12 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
           BuildType.TRISTATE,
           BuildType.LICENSE);
 
-  public static JsonObject createTargetJsonObject(Target target, AttributeReader reader, RepositoryMapping mainRepoMapping) {
+  public static JsonObject createTargetJsonObject(Target target, AttributeReader reader, LabelPrinter labelPrinter) {
     JsonObject result = new JsonObject();
 
     if (target instanceof Rule) {
       Rule rule = target.getAssociatedRule();
-      result.addProperty("fully_qualified_name", target.getLabel().getDisplayForm(mainRepoMapping));
+      result.addProperty("fully_qualified_name", labelPrinter.toString(target.getLabel()));
       result.addProperty("base_path", target.getLabel().getPackageName());
       result.addProperty("class", rule.getRuleClass());
       for (Attribute attr : rule.getAttributes()) {
@@ -173,7 +174,7 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
       OutputFile file = (OutputFile) target;
       result.addProperty("class", target.getTargetKind());
       result.addProperty("name", file.getName());
-      result.addProperty("owner", file.getGeneratingRule().getLabel().getDisplayForm(mainRepoMapping));
+      result.addProperty("owner", labelPrinter.toString(file.getGeneratingRule().getLabel()));
     } else if (target instanceof PackageGroup) {
       PackageGroup group = (PackageGroup) target;
       result.addProperty("class", target.getTargetKind());
