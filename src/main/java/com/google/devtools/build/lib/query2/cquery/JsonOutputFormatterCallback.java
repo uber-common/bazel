@@ -25,6 +25,7 @@ import com.google.devtools.build.lib.events.ExtendedEventHandler;
 import com.google.devtools.build.lib.packages.AbstractAttributeMapper;
 import com.google.devtools.build.lib.cmdline.RepositoryMapping;
 import com.google.devtools.build.lib.packages.Attribute;
+import com.google.devtools.build.lib.packages.LabelPrinter;
 import com.google.devtools.build.lib.packages.ConfiguredAttributeMapper;
 import com.google.devtools.build.lib.packages.Rule;
 import com.google.devtools.build.lib.packages.Target;
@@ -51,7 +52,7 @@ import java.util.stream.Collectors;
  */
 class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
 
-  private final RepositoryMapping mainRepoMapping;
+  private final LabelPrinter labelPrinter;
 
   JsonOutputFormatterCallback(
       ExtendedEventHandler eventHandler,
@@ -59,9 +60,9 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
       OutputStream out,
       SkyframeExecutor skyframeExecutor,
       TargetAccessor<KeyedConfiguredTarget> accessor,
-      RepositoryMapping mainRepoMapping) {
+      LabelPrinter labelPrinter) {
     super(eventHandler, options, out, skyframeExecutor, accessor, /*uniquifyResults=*/ false);
-    this.mainRepoMapping = mainRepoMapping;
+    this.labelPrinter = labelPrinter;
   }
 
   @Override
@@ -125,12 +126,12 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
       Rule rule = target.getAssociatedRule();
       AbstractAttributeMapper attributeMap = getAttributeMap(rule, configuredTarget);
       AttributeReader attributeReader = new JsonCQueryAttributeReader(attributeMap);
-      JsonObject partial = JsonOutputFormatter.createTargetJsonObject(target, attributeReader, mainRepoMapping);
+      JsonObject partial = JsonOutputFormatter.createTargetJsonObject(target, attributeReader, labelPrinter);
 
       partial.add("output groups", createOutputGroupsJsonObject(configuredTarget, gson));
       partial.add("default outputs", createDefaultOutputsJson(configuredTarget, gson));
 
-      result.add(target.getLabel().getDisplayForm(mainRepoMapping), partial);
+      result.add(labelPrinter.toString(target.getLabel()), partial);
     }
     printStream.write(gson.toJson(result));
   }
