@@ -83,6 +83,7 @@ import java.net.SocketAddress;
 import java.net.URI;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.NoSuchElementException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -135,6 +136,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
   private final boolean verifyDownloads;
   private final boolean compressCasUploads;
   private final DigestUtil digestUtil;
+  private final ConcurrentHashMap<String, Boolean> storedBlobs = new ConcurrentHashMap<>();
 
   private final Object closeLock = new Object();
 
