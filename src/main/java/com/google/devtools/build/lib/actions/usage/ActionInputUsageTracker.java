@@ -198,7 +198,7 @@ public class ActionInputUsageTracker {
                         URL classUrl = new URL("file:" + output);
                         URLClassLoader urlClassLoader = new URLClassLoader(new URL[]{classUrl});
                         usedResources = usedResources.stream()
-                                .filter(resource -> resourceExists(artifact, resource, urlClassLoader))
+                                .filter(resource -> resourceExists(artifact, resource, output, urlClassLoader))
                                 .collect(Collectors.toCollection(LinkedHashSet::new));
                     } catch (Exception e) {
                         System.err.println("ActionInputUsageTracker: Failure computing res hash");
@@ -363,7 +363,12 @@ public class ActionInputUsageTracker {
     /**
      * Check wheter the provided resourceId is defined in the artifact.
      */
-    private boolean resourceExists(Artifact artifact, String resId, URLClassLoader urlClassLoader) {
+    private boolean resourceExists(Artifact artifact, String resId, Path localResourcesArtifact, URLClassLoader urlClassLoader) {
+        if (!localResourcesArtifact.exists()) {
+            // Missing file can happen due to BwoB. In this case, assume the resource is there.
+            return true;
+        }
+
         resId = resId.replace("com.uber.", "");
         if (resId.indexOf("R.") != 0) {
             if (resId.indexOf("android.R.") != 0) {
