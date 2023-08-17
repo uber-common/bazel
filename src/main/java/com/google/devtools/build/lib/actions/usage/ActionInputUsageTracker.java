@@ -96,7 +96,7 @@ public class ActionInputUsageTracker {
         return enabled() &&
                 action.getOwner().getLabel() != null &&
                 action.getOwner().getLabel().getRepository().isMain() &&
-                getJDepsOutput(action) != null &&
+                (getJDepsOutput(action) != null || isKspAction(action)) &&
                 SUPPORTED_DEPENDENCY_TRACKING_MNEMONICS.contains(action.getMnemonic());
     }
 
@@ -107,7 +107,7 @@ public class ActionInputUsageTracker {
         return (this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES || this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES_AND_RESOURCES) &&
                 action.getOwner().getLabel() != null &&
                 action.getOwner().getLabel().getRepository().isMain() &&
-                getJDepsOutput(action) != null &&
+                (getJDepsOutput(action) != null || isKspAction(action)) &&
                 SUPPORTED_CLASS_TRACKING_MNEMONICS.contains(action.getMnemonic());
     }
 
@@ -118,7 +118,7 @@ public class ActionInputUsageTracker {
         return (this.trackerMode == ActionInputUsageTrackerMode.UNUSED_RESOURCES || this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES_AND_RESOURCES) &&
                 action.getOwner().getLabel() != null &&
                 action.getOwner().getLabel().getRepository().isMain() &&
-                getJDepsOutput(action) != null &&
+                (getJDepsOutput(action) != null || isKspAction(action)) &&
                 SUPPORTED_CLASS_TRACKING_MNEMONICS.contains(action.getMnemonic());
     }
 
@@ -126,7 +126,7 @@ public class ActionInputUsageTracker {
      * Refresh internal input tracking info from action .jdeps file.
      */
     public void refreshInputTrackingInfo(Action action) {
-        if (!enabled() || !supportsInputTracking(action)) {
+        if (!enabled() || !supportsInputTracking(action) || isKspAction(action)) {
             return;
         }
 
@@ -289,6 +289,11 @@ public class ActionInputUsageTracker {
             return false;
         }
 
+        // Filter out resources jar inputs from KSP action
+        if (isKspAction(action) && isRArtifact(input)) {
+            return true;
+        }
+
         UsageInfo usageInfo = getUsageInfo(action);
         return usageInfo != null && usageInfo.unusedArtifactPaths.contains(artifactExecPath);
     }
@@ -335,6 +340,10 @@ public class ActionInputUsageTracker {
                 artifactExecPath.endsWith("-hjar.jar") ||
                 artifactExecPath.endsWith(".abi.jar") ||
                 artifactExecPath.endsWith("_resources.jar");
+    }
+
+    private boolean isKspAction(Action action) {
+        return "KotlinKsp".equals(action.getMnemonic());
     }
 
     private static boolean isRArtifact(Artifact artifact) {
