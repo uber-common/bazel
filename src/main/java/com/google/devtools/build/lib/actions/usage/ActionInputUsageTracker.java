@@ -67,8 +67,8 @@ public class ActionInputUsageTracker {
         }
     }
 
-    private static final Set<String> SUPPORTED_DEPENDENCY_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile");
-    private static final Set<String> SUPPORTED_CLASS_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile");
+    private static final Set<String> SUPPORTED_DEPENDENCY_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile", "KotlinKsp");
+    private static final Set<String> SUPPORTED_CLASS_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile", "KotlinKsp");
     private static final boolean VERBOSE_MODE = false;
 
     private final ArtifactPathResolver pathResolver;
@@ -95,7 +95,6 @@ public class ActionInputUsageTracker {
         return enabled() &&
                 action.getOwner().getLabel() != null &&
                 action.getOwner().getLabel().getRepository().isMain() &&
-                getJDepsOutput(action) != null &&
                 SUPPORTED_DEPENDENCY_TRACKING_MNEMONICS.contains(action.getMnemonic());
     }
 
@@ -106,7 +105,6 @@ public class ActionInputUsageTracker {
         return (this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES || this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES_AND_RESOURCES) &&
                 action.getOwner().getLabel() != null &&
                 action.getOwner().getLabel().getRepository().isMain() &&
-                getJDepsOutput(action) != null &&
                 SUPPORTED_CLASS_TRACKING_MNEMONICS.contains(action.getMnemonic());
     }
 
@@ -117,7 +115,6 @@ public class ActionInputUsageTracker {
         return (this.trackerMode == ActionInputUsageTrackerMode.UNUSED_RESOURCES || this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES_AND_RESOURCES) &&
                 action.getOwner().getLabel() != null &&
                 action.getOwner().getLabel().getRepository().isMain() &&
-                getJDepsOutput(action) != null &&
                 SUPPORTED_CLASS_TRACKING_MNEMONICS.contains(action.getMnemonic());
     }
 
@@ -285,6 +282,11 @@ public class ActionInputUsageTracker {
 
         if (!supportsInputTracking(action)) {
             return false;
+        }
+
+        // Filter out resources jar inputs from KSP action
+        if (action.getMnemonic().equals("KotlinKsp") && isRArtifact(input)) {
+            return true;
         }
 
         UsageInfo usageInfo = getUsageInfo(action);
