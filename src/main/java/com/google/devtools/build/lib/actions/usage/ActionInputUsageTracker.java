@@ -122,7 +122,7 @@ public class ActionInputUsageTracker {
      * Refresh internal input tracking info from action .jdeps file.
      */
     public void refreshInputTrackingInfo(Action action) {
-        if (!enabled() || !supportsInputTracking(action)) {
+        if (!enabled() || !supportsInputTracking(action) || action.getMnemonic().equals("KotlinKsp")) {
             return;
         }
 
