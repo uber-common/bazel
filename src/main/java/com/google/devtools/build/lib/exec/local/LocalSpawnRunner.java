@@ -430,6 +430,7 @@ public class LocalSpawnRunner implements SpawnRunner {
                 .profile(ProfilerTask.PROCESS_TIME, spawn.getResourceOwner().getMnemonic())) {
           needCleanup = true;
           Subprocess subprocess = subprocessBuilder.start();
+          logger.atInfo().log("local subprocess #%d has PID: %s", id, subprocess.getProcessId());
           try {
             subprocess.getOutputStream().close();
             subprocess.waitFor();
@@ -506,6 +507,7 @@ public class LocalSpawnRunner implements SpawnRunner {
                     }
                   });
         }
+        stepLog(INFO, "sucessfully finished in %s", totalTimeStopwatch.elapsed());
         spawnMetrics.setTotalTime(totalTimeStopwatch.elapsed());
         spawnResultBuilder.setSpawnMetrics(spawnMetrics.build());
         return spawnResultBuilder.build();
