@@ -130,6 +130,7 @@ public abstract class JavaToolchainTool {
 
       command
           .add("-XX:-MaxFDLimit")
+          .add("-XX:-HeapDumpOnOutOfMemoryError")
           .add("-jar")
           .addPath(executable.getExecPath());
     }
