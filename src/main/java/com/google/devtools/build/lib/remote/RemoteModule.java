@@ -103,7 +103,6 @@ import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.common.options.OptionsBase;
 import com.google.devtools.common.options.OptionsParsingResult;
 import io.grpc.CallCredentials;
-import io.grpc.Channel;
 import io.grpc.ClientInterceptor;
 import io.grpc.ManagedChannel;
 import io.netty.handler.codec.DecoderException;
@@ -598,22 +597,6 @@ public final class RemoteModule extends BlazeModule {
       }
     }
 
-    String remoteBytestreamUriPrefix = remoteOptions.remoteBytestreamUriPrefix;
-    if (Strings.isNullOrEmpty(remoteBytestreamUriPrefix)) {
-      try {
-        remoteBytestreamUriPrefix = cacheChannel.withChannelBlocking(Channel::authority);
-      } catch (Exception e) {
-        if (e instanceof InterruptedException) {
-          Thread.currentThread().interrupt();
-        }
-        handleInitFailure(env, e, Code.CACHE_INIT_FAILURE);
-        return;
-      }
-      if (!Strings.isNullOrEmpty(remoteOptions.remoteInstanceName)) {
-        remoteBytestreamUriPrefix += "/" + remoteOptions.remoteInstanceName;
-      }
-    }
-
     RemoteCacheClient cacheClient =
         new GrpcCacheClient(
             cacheChannel.retain(), callCredentialsProvider, remoteOptions, retrier, digestUtil);
@@ -715,7 +698,8 @@ public final class RemoteModule extends BlazeModule {
             env.getReporter(),
             verboseFailures,
             actionContextProvider.getRemoteCache(),
-            remoteBytestreamUriPrefix,
+            remoteOptions.remoteInstanceName,
+            remoteOptions.remoteBytestreamUriPrefix,
             buildRequestId,
             invocationId,
             remoteOptions.remoteBuildEventUploadMode));

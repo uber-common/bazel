@@ -201,6 +201,11 @@ public final class DiskAndRemoteCacheClient implements RemoteCacheClient {
   }
 
   @Override
+  public ListenableFuture<String> getAuthority() {
+    return remoteCache.getAuthority();
+  }
+
+  @Override
   public ListenableFuture<CachedActionResult> downloadActionResult(
       RemoteActionExecutionContext context, ActionKey actionKey, boolean inlineOutErr) {
     ListenableFuture<CachedActionResult> future = immediateFuture(null);
