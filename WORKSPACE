@@ -126,20 +126,20 @@ distdir_tar(
     archives = [
         "android_tools_pkg-0.27.0.tar.gz",
         # for android_gmaven_r8
-        "r8-3.0.64.jar",
+        "r8-3.3.28.jar",
     ],
     dirname = "derived/distdir",
     dist_deps = {dep: attrs for dep, attrs in DIST_DEPS.items() if "additional_distfiles" in attrs["used_in"]},
     sha256 = {
         "android_tools_pkg-0.27.0.tar.gz": "1afa4b7e13c82523c8b69e87f8d598c891ec7e2baa41d9e24e08becd723edb4d",
-        "r8-3.0.64.jar": "23e23daae0ab4aba5eb30b0100bb3192aef7274f44a38f45a69ad52a08f15b16",
+        "r8-3.3.28.jar": "8626ca32fb47aba7fddd2c897615e2e8ffcdb4d4b213572a2aefb3f838f01972",
     },
     urls = {
         "android_tools_pkg-0.27.0.tar.gz": [
             "https://mirror.bazel.build/bazel_android_tools/android_tools_pkg-0.27.0.tar.gz",
         ],
-        "r8-3.0.64.jar": [
-            "https://maven.google.com/com/android/tools/r8/3.0.64/r8-3.0.64.jar",
+        "r8-3.3.28.jar": [
+            "https://maven.google.com/com/android/tools/r8/3.3.28/r8-3.3.28.jar",
         ],
     },
 )
@@ -360,20 +360,20 @@ distdir_tar(
     name = "test_WORKSPACE_files",
     archives = [
         "android_tools_pkg-0.27.0.tar.gz",
-        "r8-3.0.64.jar",
+        "r8-3.3.28.jar",
     ],
     dirname = "test_WORKSPACE/distdir",
     dist_deps = {dep: attrs for dep, attrs in DIST_DEPS.items() if "test_WORKSPACE_files" in attrs["used_in"]},
     sha256 = {
         "android_tools_pkg-0.27.0.tar.gz": "1afa4b7e13c82523c8b69e87f8d598c891ec7e2baa41d9e24e08becd723edb4d",
-        "r8-3.0.64.jar": "23e23daae0ab4aba5eb30b0100bb3192aef7274f44a38f45a69ad52a08f15b16",
+        "r8-3.3.28.jar": "8626ca32fb47aba7fddd2c897615e2e8ffcdb4d4b213572a2aefb3f838f01972",
     },
     urls = {
         "android_tools_pkg-0.27.0.tar.gz": [
             "https://mirror.bazel.build/bazel_android_tools/android_tools_pkg-0.27.0.tar.gz",
         ],
-        "r8-3.0.64.jar": [
-            "https://maven.google.com/com/android/tools/r8/3.0.64/r8-3.0.64.jar",
+        "r8-3.3.28.jar": [
+            "https://maven.google.com/com/android/tools/r8/3.3.28/r8-3.3.28.jar",
         ],
     },
 )
@@ -417,8 +417,8 @@ http_archive(
 # and tools/android/android_extensions.bzl
 http_jar(
     name = "android_gmaven_r8_for_testing",
-    sha256 = "23e23daae0ab4aba5eb30b0100bb3192aef7274f44a38f45a69ad52a08f15b16",
-    url = "https://maven.google.com/com/android/tools/r8/3.0.64/r8-3.0.64.jar",
+    sha256 = "8626ca32fb47aba7fddd2c897615e2e8ffcdb4d4b213572a2aefb3f838f01972",
+    url = "https://maven.google.com/com/android/tools/r8/3.3.28/r8-3.3.28.jar",
 )
 
 dist_http_archive(
