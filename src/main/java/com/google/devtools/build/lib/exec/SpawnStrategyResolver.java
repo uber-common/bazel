@@ -82,7 +82,6 @@ public final class SpawnStrategyResolver implements ActionContext {
   @VisibleForTesting
   public List<? extends SpawnStrategy> resolve(
       Spawn spawn, ActionExecutionContext actionExecutionContext) throws UserExecException {
-
     List<? extends SpawnStrategy> strategies =
         actionExecutionContext
             .getContext(SpawnStrategyRegistry.class)
