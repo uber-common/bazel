@@ -22,7 +22,6 @@ import com.google.auto.value.AutoValue;
 import com.google.auto.value.extension.memoized.Memoized;
 import com.google.common.collect.ImmutableList;
 import java.util.LinkedHashSet;
-import java.util.List;
 
 /**
  * Helper to track how many unique field and method references we've seen in a given set of .dex
@@ -39,22 +38,6 @@ class DexLimitTracker {
   }
 
   /**
-   * Tracks the field and method references in the given files and returns whether we're within
-   * limits.
-   *
-   * @return {@code true} if method or field references are outside limits, {@code false} both are
-   *     within limits.
-   */
-  public boolean track(List<DexFileSplitter.DexEntry> dexFiles) {
-    for (DexFileSplitter.DexEntry e : dexFiles) {
-      if (track(e.getDexFile())) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /**
    * Tracks the field and method references in the given file and returns whether we're within
    * limits.
    *
@@ -65,6 +48,15 @@ class DexLimitTracker {
     trackFieldsAndMethods(dexFile);
     return fieldsSeen.size() > maxNumberOfIdxPerDex
             || methodsSeen.size() > maxNumberOfIdxPerDex;
+  }
+
+  public boolean track(List<Dex> dexFiles) {
+    for (Dex dexFile : dexFiles) {
+      if (track(dexFile)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   public void clear() {
@@ -120,7 +112,7 @@ class DexLimitTracker {
         parameterTypes.add(typeName(dex, parameterTypeIndex & 0xFFFF));
       }
       return new AutoValue_DexLimitTracker_MethodDescriptor(
-              declaringClass, name, parameterTypes.build(), returnType);
+          declaringClass, name, parameterTypes.build(), returnType);
     }
 
     abstract String declaringClass();
