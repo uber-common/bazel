@@ -97,6 +97,15 @@ public class CompileLibraryResourcesAction {
               + " This value is required for processing data binding."
     )
     public Path dataBindingInfoOut;
+
+    @Option(
+        name = "targetLabel",
+        defaultValue = "null",
+        category = "input",
+        documentationCategory = OptionDocumentationCategory.UNCATEGORIZED,
+        effectTags = {OptionEffectTag.UNKNOWN},
+        help = "A label to add to the output jar's manifest as 'Target-Label'")
+    public String targetLabel;
   }
 
   static final Logger logger = Logger.getLogger(CompileLibraryResourcesAction.class.getName());
