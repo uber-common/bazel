@@ -152,7 +152,7 @@ java_library(
         ":cpu_resource_converter",
         ":map_resource_converter_resource_estimation",
         "//src/main/java/com/google/devtools/common/options:options_internal",
-        "//third_party:guava_checked_in"
+        "//third_party:guava"
     ],
 )
 
