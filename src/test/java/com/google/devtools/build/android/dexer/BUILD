@@ -90,8 +90,3 @@ java_library(
     name = "mixed_testinput",
     srcs = [":mixed_srcjar_gen"],
 )
-
-java_library(
-    name = "innerclasses_testinput",
-    srcs = glob(["testdata/innerclasses/*.java"]),
-)

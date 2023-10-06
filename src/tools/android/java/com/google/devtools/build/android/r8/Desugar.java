@@ -28,7 +28,6 @@ import com.android.tools.r8.Diagnostic;
 import com.android.tools.r8.DiagnosticsHandler;
 import com.android.tools.r8.errors.InterfaceDesugarMissingTypeDiagnostic;
 import com.android.tools.r8.utils.StringDiagnostic;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.devtools.build.android.Converters.ExistingPathConverter;
 import com.google.devtools.build.android.Converters.PathConverter;
@@ -371,8 +370,7 @@ public class Desugar {
 
   private final DesugarOptions options;
 
-  @VisibleForTesting
-  public Desugar(DesugarOptions options) {
+  private Desugar(DesugarOptions options) {
     this.options = options;
   }
 
@@ -499,8 +497,7 @@ public class Desugar {
     }
   }
 
-  @VisibleForTesting
-  public void desugar() throws CompilationFailedException, IOException {
+  private void desugar() throws CompilationFailedException, IOException {
     // Prepare bootclasspath and classpath. Some jars on the classpath are considered to be
     // bootclasspath, and are moved there.
     ImmutableList.Builder<ClassFileResourceProvider> bootclasspathProvidersBuilder =

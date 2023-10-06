@@ -27,8 +27,6 @@ enum ZipEntryComparator implements Comparator<ZipEntry> {
    */
   LIKE_DX;
 
-  private static String LAMBDA_NAME = "ExternalSyntheticLambda";
-
   @Override
   // Copied from com.android.dx.cf.direct.ClassPathOpener
   public int compare(ZipEntry a, ZipEntry b) {
@@ -49,10 +47,6 @@ enum ZipEntryComparator implements Comparator<ZipEntry> {
     // Ensure inner classes sort second
     a = a.replace('$', '0');
     b = b.replace('$', '0');
-
-    // Make sure lambdas come before any other inner class.
-    a = a.replace(LAMBDA_NAME, "0");
-    b = b.replace(LAMBDA_NAME, "0");
 
     /*
      * Assuming "package-info" only occurs at the end, ensures package-info

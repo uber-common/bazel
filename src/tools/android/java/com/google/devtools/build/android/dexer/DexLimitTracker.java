@@ -47,16 +47,7 @@ class DexLimitTracker {
   public boolean track(Dex dexFile) {
     trackFieldsAndMethods(dexFile);
     return fieldsSeen.size() > maxNumberOfIdxPerDex
-            || methodsSeen.size() > maxNumberOfIdxPerDex;
-  }
-
-  public boolean track(List<Dex> dexFiles) {
-    for (Dex dexFile : dexFiles) {
-      if (track(dexFile)) {
-        return true;
-      }
-    }
-    return false;
+        || methodsSeen.size() > maxNumberOfIdxPerDex;
   }
 
   public void clear() {

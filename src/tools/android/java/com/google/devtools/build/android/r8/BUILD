@@ -40,12 +40,7 @@ java_library(
         ),
         "//conditions:default": ["NoAndroidSdkStub.java"],
     }),
-    testonly = 1,
-    visibility = [
-            "//src/test/java/com/google/devtools/build/android/r8:__pkg__",
-            # needed to test DexFileSplitter with desugared jars
-            "//src/test/java/com/google/devtools/build/android/dexer:__pkg__",
-     ],
+    visibility = ["//src/test/java/com/google/devtools/build/android/r8:__pkg__"],
     runtime_deps = [
         "//src/tools/android/java/com/google/devtools/build/android/desugar/dependencies",
     ],
@@ -58,7 +53,7 @@ java_library(
         "//third_party:guava",
         "//third_party:jsr305",
     ] + select({
-        "//external:has_androidsdk": ["@android_gmaven_r8_for_testing//jar"],
+        "//external:has_androidsdk": ["//external:android/d8_jar_import"],
         "//conditions:default": [],
     }),
 )

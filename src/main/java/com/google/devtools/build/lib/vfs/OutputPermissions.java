@@ -26,5 +26,5 @@ public enum OutputPermissions {
 
   public int getPermissionsMode() {
     return permissionsMode;
- }
+  }
 }
