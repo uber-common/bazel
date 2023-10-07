@@ -827,7 +827,6 @@ public final class BazelRulesModule extends BlazeModule {
       ModuleActionContextRegistry.Builder registryBuilder,
       CommandEnvironment env,
       BuildRequest buildRequest) {
-    System.err.println("arteghem : >>> registerActionContexts()");
     registryBuilder.register(JavaCompileActionContext.class, new JavaCompileActionContext());
   }
 }
