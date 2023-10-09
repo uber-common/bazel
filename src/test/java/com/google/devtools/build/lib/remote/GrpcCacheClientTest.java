@@ -111,6 +111,7 @@ public class GrpcCacheClientTest extends GrpcCacheClientTestBase {
             fakeFileCache,
             execRoot,
             ArtifactPathResolver.forExecRoot(execRoot),
+            /* spawnScrubber= */ null,
             DIGEST_UTIL);
     Digest digest = DIGEST_UTIL.compute(virtualActionInput.getBytes().toByteArray());
 
