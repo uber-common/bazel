@@ -37,6 +37,8 @@ java_library(
             "RemoteOutputChecker.java",
             "AbstractActionInputPrefetcher.java",
             "LeaseService.java",
+            "Scrubber.java",
+            "Store.java",
         ],
     ),
     exports = [
@@ -87,6 +89,7 @@ java_library(
         "//src/main/java/com/google/devtools/build/lib/exec/local",
         "//src/main/java/com/google/devtools/build/lib/packages/semantics",
         "//src/main/java/com/google/devtools/build/lib/profiler",
+        "//src/main/java/com/google/devtools/build/lib/remote:scrubber",
         "//src/main/java/com/google/devtools/build/lib/remote/circuitbreaker",
         "//src/main/java/com/google/devtools/build/lib/remote/common",
         "//src/main/java/com/google/devtools/build/lib/remote/common:bulk_transfer_exception",
@@ -246,3 +249,22 @@ java_library(
         "//third_party:jsr305",
     ],
 )
+
+java_library(
+    name = "scrubber",
+    srcs = ["Scrubber.java"],
+    deps = [
+        "//src/main/java/com/google/devtools/build/lib/actions",
+        "//src/main/java/com/google/devtools/build/lib/actions:artifacts",
+        "//src/main/protobuf:remote_scrubbing_java_proto",
+        "//third_party:guava",
+        "//third_party:jsr305",
+        "//third_party/protobuf:protobuf_java",
+    ],
+)
+
+java_library(
+    name = "store",
+    srcs = ["Store.java"],
+)
+
