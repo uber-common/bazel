@@ -189,11 +189,18 @@ public class WorkerParser {
         }
       }
     } else {
+      boolean workerJvmExtraFlagsAdded = false;
       for (String arg : args) {
         if (isLegacyFlagFileArg(arg)) {
           flagFiles.add(arg);
         } else {
           workerArgs.add(arg);
+        }
+        if (!workerJvmExtraFlagsAdded) {
+          workerJvmExtraFlagsAdded = true;
+          workerOptions.workerJvmExtraFlags.stream()
+                  .filter(entry -> entry.getKey().equals(spawn.getMnemonic()))
+                  .forEach(entry -> workerArgs.add(entry.getValue()));
         }
       }
       if (flagFiles.isEmpty()) {

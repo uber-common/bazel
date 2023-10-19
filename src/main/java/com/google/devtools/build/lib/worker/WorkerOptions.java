@@ -140,6 +140,18 @@ public class WorkerOptions extends OptionsBase {
   public List<Map.Entry<String, String>> workerExtraFlags;
 
   @Option(
+          name = "worker_jvm_extra_flag",
+          converter = Converters.AssignmentConverter.class,
+          defaultValue = "null",
+          documentationCategory = OptionDocumentationCategory.EXECUTION_STRATEGY,
+          effectTags = {OptionEffectTag.EXECUTION, OptionEffectTag.HOST_MACHINE_RESOURCE_OPTIMIZATIONS},
+          help =
+                  "Extra jvm command-flags that will be passed to worker processes"
+                          + ", keyed by mnemonic (e.g. --worker_jvm_extra_flag=Javac=-Xmx10g",
+          allowMultiple = true)
+  public List<Map.Entry<String, String>> workerJvmExtraFlags;
+
+  @Option(
       name = "worker_sandboxing",
       defaultValue = "false",
       documentationCategory = OptionDocumentationCategory.EXECUTION_STRATEGY,
