@@ -126,6 +126,8 @@ public final class CppLinkAction extends AbstractAction implements CommandAction
   private final PathFragment ldExecutable;
   private final String targetCpu;
 
+  private final CppConfiguration cppConfiguration;
+
 
   /**
    * Use {@link CppLinkActionBuilder} to create instances of this class. Also see there for the
@@ -149,7 +151,8 @@ public final class CppLinkAction extends AbstractAction implements CommandAction
       ImmutableMap<String, String> toolchainEnv,
       ImmutableMap<String, String> executionRequirements,
       PathFragment ldExecutable,
-      String targetCpu) {
+      String targetCpu,
+      CppConfiguration cppConfiguration) {
     super(owner, inputs, outputs, env);
     this.mnemonic = getMnemonic(mnemonic, isLtoIndexing);
     this.outputLibrary = outputLibrary;
@@ -162,6 +165,7 @@ public final class CppLinkAction extends AbstractAction implements CommandAction
     this.executionRequirements = executionRequirements;
     this.ldExecutable = ldExecutable;
     this.targetCpu = targetCpu;
+    this.cppConfiguration = cppConfiguration;
   }
 
   @VisibleForTesting
@@ -299,7 +303,8 @@ public final class CppLinkAction extends AbstractAction implements CommandAction
           () ->
               estimateResourceConsumptionLocal(
                   OS.getCurrent(),
-                  getLinkCommandLine().getLinkerInputArtifacts().memoizedFlattenAndGetSize()));
+                  getLinkCommandLine().getLinkerInputArtifacts().memoizedFlattenAndGetSize(),
+                  cppConfiguration));
     } catch (CommandLineExpansionException e) {
       String message =
           String.format(
@@ -416,15 +421,30 @@ public final class CppLinkAction extends AbstractAction implements CommandAction
    * estimation we are using form C + K * inputs, where C and K selected in such way, that more than
    * 95% of actions used less than C + K * inputs MB of memory during execution.
    */
-  public ResourceSet estimateResourceConsumptionLocal(OS os, int inputs) {
+  public ResourceSet estimateResourceConsumptionLocal(OS os, int inputs, CppConfiguration cppConfiguration) {
+    int estimationCpu = 1;
+    Double estimationMinMemory = -1.0;
+    if (mnemonic.toLowerCase().endsWith("link")) {
+      estimationCpu = cppConfiguration.getExperimentalCppLinkResourcesEstimationCpu();
+      estimationMinMemory = cppConfiguration.getExperimentalCppLinkResourcesEstimationMinMemory();
+    }
     switch (os) {
       case DARWIN:
-        return ResourceSet.createWithRamCpu(/* memoryMb= */ 15 + 0.05 * inputs, /* cpuUsage= */ 1);
+        if (estimationMinMemory == -1.0) {
+          estimationMinMemory = 15.0;
+        }
+        return ResourceSet.createWithRamCpu(/* memoryMb= */ estimationMinMemory + 0.05 * inputs, /* cpuUsage= */ estimationCpu);
       case LINUX:
+        if (estimationMinMemory == -1.0) {
+          estimationMinMemory = -100.0;
+        }
         return ResourceSet.createWithRamCpu(
-            /* memoryMb= */ Math.max(50, -100 + 0.1 * inputs), /* cpuUsage= */ 1);
+            /* memoryMb= */ Math.max(50, estimationMinMemory + 0.1 * inputs), /* cpuUsage= */ estimationCpu);
       default:
-        return ResourceSet.createWithRamCpu(/* memoryMb= */ 1500 + inputs, /* cpuUsage= */ 1);
+        if (estimationMinMemory == -1.0) {
+          estimationMinMemory = 1500.0;
+        }
+        return ResourceSet.createWithRamCpu(/* memoryMb= */ estimationMinMemory + inputs, /* cpuUsage= */ estimationCpu);
     }
   }
 
