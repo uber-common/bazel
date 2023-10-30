@@ -122,7 +122,7 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
             .getSelectorList(attr.getName(), attr.getType())
             .getSelectors()
             .stream()
-            .map(Selector::getEntries)
+            .map(Selector::mapCopy)
             .collect(ImmutableList.toImmutableList());
         return selectors;
       }
@@ -152,10 +152,8 @@ public class JsonOutputFormatter extends AbstractUnorderedFormatter {
       result.addProperty("class", rule.getRuleClass());
       for (Attribute attr : rule.getAttributes()) {
         Iterable<Object> values = reader.getPossibleValues(rule, attr);
-
-        AttributeValueSource attributeValueSource =
-             AttributeValueSource.forRuleAndAttribute(rule, attr);
-        if (attributeValueSource == AttributeValueSource.DEFAULT) {
+        
+        if (!rule.isAttributeValueExplicitlySpecified(attr)) {
           continue;
         }
 
