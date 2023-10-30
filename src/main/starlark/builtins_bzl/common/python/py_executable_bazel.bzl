@@ -201,6 +201,8 @@ def _create_executable(
 
     # NOTE: --build_python_zip defauls to true on Windows
     build_zip_enabled = ctx.fragments.py.build_python_zip
+    if "python_build_executable_zip" in ctx.features:
+        build_zip_enabled = True
 
     # When --build_python_zip is enabled, then the zip file becomes
     # one of the default outputs.
