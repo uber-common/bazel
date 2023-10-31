@@ -350,7 +350,7 @@ public class ActionInputUsageTracker {
     }
 
     private static boolean isLocalRArtifact(Action action, Artifact artifact) {
-        String artifactExecPath = artifact.getExecPathString();
+        String artifactExecPath = artifact.getExecPathString().replace("/_migrated/", "/");
         String path = action.getOwner().getLabel().toString().replace("//", "/").replace("_kt", "").replace(":", "/");
         return isRArtifact(artifact) && artifactExecPath.indexOf(path) > 0;
     }
