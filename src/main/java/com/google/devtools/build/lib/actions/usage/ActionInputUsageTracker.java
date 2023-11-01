@@ -358,7 +358,7 @@ public class ActionInputUsageTracker {
     }
 
     private static boolean isLocalRArtifactPath(Action action, String artifactExecPath) {
-        artifactExecPath = artifactExecPath..replace("/_migrated/", "/"); // Bazel7 uses a different path
+        artifactExecPath = artifactExecPath.replace("/_migrated/", "/"); // Bazel7 uses a different path
         String path = action.getOwner().getLabel().toString().replace("//", "/").replace("_kt", "").replace(":", "/");
         return isRArtifactPath(artifactExecPath) && artifactExecPath.indexOf(path) > 0;
     }
