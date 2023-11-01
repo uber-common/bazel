@@ -136,6 +136,7 @@ public class ActionInputUsageTracker {
             Deps.Dependencies deps = Deps.Dependencies.parseFrom(input);
             checkState(deps.getRuleLabel().equals(action.getOwner().getLabel().toString()));
 
+            Set<String> usedResources = deps.getUsedResourcesList().stream().collect(Collectors.toCollection(LinkedHashSet::new));
             Set<String> usedPaths = deps.getDependencyList().stream()
                     .filter(d -> d.getKind() == Deps.Dependency.Kind.EXPLICIT || d.getKind() == Deps.Dependency.Kind.IMPLICIT)
                     .map(d -> d.getPath())
@@ -144,6 +145,7 @@ public class ActionInputUsageTracker {
                     .filter(ActionInputUsageTracker::canArtifactBeUnused)
                     .map(d -> d.getExecPathString())
                     .filter(Predicate.not(usedPaths::contains))
+                    .filter(d -> usedResources.size() == 0 || !isLocalRArtifactPath(action, d))
                     .collect(Collectors.toCollection(LinkedHashSet::new));
             Map<String, Set<ClassUsageInfo>> usedClassesMap = deps.getDependencyList().stream()
                     .filter(d -> d.getKind() == Deps.Dependency.Kind.EXPLICIT || d.getKind() == Deps.Dependency.Kind.IMPLICIT)
@@ -152,7 +154,6 @@ public class ActionInputUsageTracker {
                             d -> d.getUsedClassesList().stream()
                                     .map(ClassUsageInfo::create)
                                     .collect(Collectors.toCollection(LinkedHashSet::new))));
-            Set<String> usedResources = deps.getUsedResourcesList().stream().collect(Collectors.toCollection(LinkedHashSet::new));
 
             UsageInfo usageInfo = new UsageInfo(unusedArtifactsPath, usedClassesMap, usedResources);
             trackerInfoMap.put(getKey(action), usageInfo);
@@ -239,7 +240,7 @@ public class ActionInputUsageTracker {
                         s.append(" (" + trackingInfo.getUsedClasses().size() + " tracked classes)");
                     }
                     if (trackingInfo.tracksUsedResources() && isLocalRArtifact(action, input)) {
-                        s.append(" (" + trackingInfo.getUsedClasses().size() + " tracked resources)");
+                        s.append(" (" + trackingInfo.getUsedResources().size() + " tracked resources)");
                     }
                 }
             } else {
@@ -345,14 +346,20 @@ public class ActionInputUsageTracker {
     }
 
     private static boolean isRArtifact(Artifact artifact) {
-        String artifactExecPath = artifact.getExecPathString();
+        return isRArtifactPath(artifact.getExecPathString());
+    }
+
+    private static boolean isRArtifactPath(String artifactExecPath) {
         return artifactExecPath.endsWith("_resources.jar");
     }
 
     private static boolean isLocalRArtifact(Action action, Artifact artifact) {
-        String artifactExecPath = artifact.getExecPathString();
+        return isLocalRArtifactPath(action, artifact.getExecPathString());
+    }
+
+    private static boolean isLocalRArtifactPath(Action action, String artifactExecPath) {
         String path = action.getOwner().getLabel().toString().replace("//", "/").replace("_kt", "").replace(":", "/");
-        return isRArtifact(artifact) && artifactExecPath.indexOf(path) > 0;
+        return isRArtifactPath(artifactExecPath) && artifactExecPath.indexOf(path) > 0;
     }
 
     public static void log(Action action, String msg) {
