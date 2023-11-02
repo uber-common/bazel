@@ -69,6 +69,7 @@ public class ActionInputUsageTracker {
 
     private static final Set<String> SUPPORTED_DEPENDENCY_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile", "KotlinKsp");
     private static final Set<String> SUPPORTED_CLASS_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile", "KotlinKsp");
+    private static final String ANDROID_RESOURCES_NAMESPACE = "com.uber.";
     private static final boolean VERBOSE_MODE = false;
 
     private final ArtifactPathResolver pathResolver;
@@ -384,7 +385,7 @@ public class ActionInputUsageTracker {
             return true;
         }
 
-        resId = resId.replace("com.uber.", "");
+        resId = resId.replace(ANDROID_RESOURCES_NAMESPACE, "");
         if (resId.indexOf("R.") != 0) {
             if (resId.indexOf("android.R.") != 0) {
                 System.err.println("WARN: Malformed res: " + resId);
@@ -392,10 +393,15 @@ public class ActionInputUsageTracker {
             return true;
         }
 
+        if (resId.lastIndexOf('.') == 1) {
+            // Ignore bogus entry like R.attr, caused by 'import R.attr;'
+            return true;
+        }
+
         try {
             String resourceName = resId.substring(resId.lastIndexOf('.') + 1);
             String resourceType = resId.substring(0, resId.lastIndexOf('.'));
-            String resourceClassName = "com.uber." + resourceType.replace(".", "$");
+            String resourceClassName = ANDROID_RESOURCES_NAMESPACE + resourceType.replace(".", "$");
             Class<?> resourceClass = urlClassLoader.loadClass(resourceClassName);
             Field f = resourceClass.getField(resourceName);
             return f != null;
