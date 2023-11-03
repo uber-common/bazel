@@ -89,6 +89,8 @@ public class ActionCacheChecker {
     // True iff --verbose_explanations flag is set.
     abstract boolean verboseExplanations();
 
+    @Nullable abstract String verboseActionCacheLabels();
+
     abstract boolean storeOutputMetadata();
 
     public static Builder builder() {
@@ -99,6 +101,8 @@ public class ActionCacheChecker {
     @AutoValue.Builder
     public abstract static class Builder {
       public abstract Builder setVerboseExplanations(boolean value);
+
+      public abstract Builder setVerboseActionCacheLabels(String value);
 
       public abstract Builder setEnabled(boolean value);
 
@@ -125,6 +129,7 @@ public class ActionCacheChecker {
             : CacheConfig.builder()
                 .setEnabled(true)
                 .setVerboseExplanations(false)
+                .setVerboseActionCacheLabels(null)
                 .setStoreOutputMetadata(false)
                 .build();
     if (this.cacheConfig.enabled()) {
@@ -261,16 +266,22 @@ public class ActionCacheChecker {
       }
     }
 
-    // Output debug info about action if needed
-    if (actionInputUsageTracker.supportsInputTracking(action) && false) {
-      System.out.println(actionInputUsageTracker.dump(action));
-    }
-
     byte[] digest = entry.getFileDigest();
-    boolean result = !Arrays.equals(MetadataDigestUtils.fromMetadata(mdMap), digest);
-    if (this.cacheConfig.verboseExplanations()) {
-      String verb = result ? "MISS" : "HIT";
-      System.out.println("ActionCacheChecker: " + verb + " " + entry.getActionKey() + " " + Base64.getEncoder().encodeToString(digest) + " [" + action.getOwner().getLabel() + "]");
+    byte[] currentDigest = MetadataDigestUtils.fromMetadata(mdMap);
+    boolean result = !Arrays.equals(currentDigest, digest);
+    if (this.cacheConfig.verboseActionCacheLabels() != null) {
+      boolean all = this.cacheConfig.verboseActionCacheLabels().equals("*");
+      String label = action.getOwner().getLabel() != null ? action.getOwner().getLabel().toString() : "";
+      if (all || (label != "" && this.cacheConfig.verboseActionCacheLabels().indexOf(label) >= 0)) {
+        String verb = result ? "MISS" : "HIT";
+        System.out.println("ActionCacheChecker: " + verb + " actionKey=" + entry.getActionKey() + " value=" + Base64.getEncoder().encodeToString(currentDigest) + " action=" + action.getProgressMessage());
+        if (result) {
+          System.out.println("ActionCacheChecker: expected value=" + Base64.getEncoder().encodeToString(digest));
+        }
+        if (actionInputUsageTracker.supportsInputTracking(action)) {
+          System.out.println(actionInputUsageTracker.dump(action, !all));
+        }
+      }
     }
     return result;
   }
@@ -826,9 +837,15 @@ public class ActionCacheChecker {
     }
     byte[] digest = entry.getFileDigest();
     actionCache.put(key, entry);
-
-    if (this.cacheConfig.verboseExplanations()) {
-      System.out.println("ActionCacheChecker: PUT " + entry.getActionKey() + " " + Base64.getEncoder().encodeToString(digest) + " [" + action.getOwner().getLabel() + "]");
+    if (this.cacheConfig.verboseActionCacheLabels() != null) {
+      boolean all = this.cacheConfig.verboseActionCacheLabels().equals("*");
+      String label = action.getOwner().getLabel() != null ? action.getOwner().getLabel().toString() : "";
+      if (all || (label != "" && this.cacheConfig.verboseActionCacheLabels().indexOf(label) >= 0)) {
+        System.out.println("ActionCacheChecker: PUT " + entry.getActionKey() + " value=" + Base64.getEncoder().encodeToString(digest) + " action=" + action.getProgressMessage());
+        if (actionInputUsageTracker.supportsInputTracking(action)) {
+          System.out.println(actionInputUsageTracker.dump(action, !all));
+        }
+      }
     }
   }
 
