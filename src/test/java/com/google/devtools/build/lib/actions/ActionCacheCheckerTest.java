@@ -130,6 +130,7 @@ public class ActionCacheCheckerTest {
         ActionCacheChecker.CacheConfig.builder()
             .setEnabled(true)
             .setVerboseExplanations(false)
+            .setVerboseActionCacheLabels(null)
             .setStoreOutputMetadata(storeOutputMetadata)
             .build());
   }
