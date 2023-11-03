@@ -270,7 +270,7 @@ public class ActionInputUsageTracker {
      * Returns the cache key used internally for a given action
      */
     private String getKey(Action action) {
-        return action.getOwner().getLabel().toString() + "(" + action.getMnemonic() + ")";
+        return action.getOwner().getLabel().toString() + "(" + action.getMnemonic() + ")" + (action.getOwner().isBuildConfigurationForTool() ? "[tool]" : "");
     }
 
     /**
