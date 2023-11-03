@@ -70,7 +70,6 @@ public class ActionInputUsageTracker {
     private static final Set<String> SUPPORTED_DEPENDENCY_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile", "KotlinKsp");
     private static final Set<String> SUPPORTED_CLASS_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile", "KotlinKsp");
     private static final String ANDROID_RESOURCES_NAMESPACE = "com.uber.";
-    private static final boolean VERBOSE_MODE = false;
 
     private final ArtifactPathResolver pathResolver;
     private final ActionInputUsageTrackerMode trackerMode;
@@ -219,7 +218,7 @@ public class ActionInputUsageTracker {
     /**
      * For debugging purpose.
      */
-    public String dump(Action action) {
+    public String dump(Action action, boolean verbose) {
         int unusedCount = 0;
         int usedCount = 0;
         int usedClasses = 0;
@@ -231,10 +230,10 @@ public class ActionInputUsageTracker {
             }
             boolean isUnused = supportsInputTracking(action) && isUnusedInput(action, input);
             TrackingInfo trackingInfo = getTrackingInfo(action, input, false);
-            if (VERBOSE_MODE) {
+            if (verbose) {
                 s.append("\n");
                 if (isUnused) {
-                    s.append("\t(-) " + input.getExecPathString() + "\n");
+                    s.append("\t(-) " + input.getExecPathString());
                 } else {
                     s.append("\t(+) " + input.getExecPathString());
                     if (trackingInfo.tracksUsedClasses()) {
@@ -258,7 +257,7 @@ public class ActionInputUsageTracker {
                 }
             }
         }
-        if (!VERBOSE_MODE) {
+        if (!verbose) {
             String usedClassesStr = supportsClassTracking(action) ? String.format(", %d tracked classes", usedClasses) : "";
             String usedResourcesStr = supportsResourceTracking(action) ? String.format(", %d tracked resources", usedResources) : "";
             s.append(String.format("[%d used dep, %d unused dep%s%s]", usedCount, unusedCount, usedClassesStr, usedResourcesStr));
