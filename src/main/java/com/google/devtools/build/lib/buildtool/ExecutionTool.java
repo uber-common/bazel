@@ -981,6 +981,7 @@ public class ExecutionTool {
             ActionCacheChecker.CacheConfig.builder()
                 .setEnabled(options.useActionCache)
                 .setVerboseExplanations(options.verboseExplanations)
+                .setVerboseActionCacheLabels(options.verboseActionCacheLabels)
                 .setStoreOutputMetadata(shouldStoreRemoteOutputMetadataInActionCache)
                 .build()),
         modifiedOutputFiles,

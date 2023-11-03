@@ -111,6 +111,14 @@ public class BuildRequestOptions extends OptionsBase {
   public boolean verboseExplanations;
 
   @Option(
+          name = "verbose_action_cache_labels",
+          defaultValue = "null",
+          documentationCategory = OptionDocumentationCategory.LOGGING,
+          effectTags = {OptionEffectTag.AFFECTS_OUTPUTS},
+          help = "Increase the verbosity of action cache checker for the specified (comma-separated) action labels, or all actions of if '*' is specifed.")
+  public String verboseActionCacheLabels;
+
+  @Option(
       name = "output_filter",
       converter = Converters.RegexPatternConverter.class,
       defaultValue = "null",
