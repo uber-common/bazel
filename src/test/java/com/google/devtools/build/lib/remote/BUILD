@@ -75,11 +75,8 @@ java_test(
         "//src/main/java/com/google/devtools/build/lib/remote",
         "//src/main/java/com/google/devtools/build/lib/remote:abstract_action_input_prefetcher",
         "//src/main/java/com/google/devtools/build/lib/remote:remote_output_checker",
-<<<<<<< HEAD
-=======
         "//src/main/java/com/google/devtools/build/lib/remote:scrubber",
         "//src/main/java/com/google/devtools/build/lib/remote:store",
->>>>>>> 24de276977 (Introduce options for remote cache key scrubbing.)
         "//src/main/java/com/google/devtools/build/lib/remote/circuitbreaker",
         "//src/main/java/com/google/devtools/build/lib/remote/common",
         "//src/main/java/com/google/devtools/build/lib/remote/common:bulk_transfer_exception",
@@ -103,11 +100,8 @@ java_test(
         "//src/main/java/com/google/devtools/build/lib/vfs/inmemoryfs",
         "//src/main/java/com/google/devtools/common/options",
         "//src/main/protobuf:failure_details_java_proto",
-<<<<<<< HEAD
         "//src/main/protobuf:remote_execution_log_java_proto",
-=======
         "//src/main/protobuf:remote_scrubbing_java_proto",
->>>>>>> 24de276977 (Introduce options for remote cache key scrubbing.)
         "//src/main/protobuf:spawn_java_proto",
         "//src/test/java/com/google/devtools/build/lib:test_runner",
         "//src/test/java/com/google/devtools/build/lib/actions/util",

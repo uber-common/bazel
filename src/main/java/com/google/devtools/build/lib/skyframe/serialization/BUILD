@@ -50,3 +50,9 @@ java_library(
         "//src/main/java/com/google/devtools/build/lib/util:resource_usage",
     ],
 )
+
+java_library(
+    name = "visible-for-serialization",
+    srcs = ["VisibleForSerialization.java"],
+)
+

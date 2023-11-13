@@ -15,13 +15,14 @@
 package com.google.devtools.build.lib.query2.cquery;
 
 import com.google.common.collect.ImmutableList;
-import com.google.devtools.build.lib.analysis.ConfiguredTarget;
 import com.google.devtools.build.lib.analysis.configuredtargets.OutputFileConfiguredTarget;
 import com.google.devtools.build.lib.events.ExtendedEventHandler;
 import com.google.devtools.build.lib.packages.Attribute;
 import com.google.devtools.build.lib.packages.ConfiguredAttributeMapper;
+import com.google.devtools.build.lib.packages.LabelPrinter;
 import com.google.devtools.build.lib.packages.Rule;
 import com.google.devtools.build.lib.packages.Target;
+import com.google.devtools.build.lib.query2.common.CqueryNode;
 import com.google.devtools.build.lib.query2.engine.QueryEnvironment.TargetAccessor;
 import com.google.devtools.build.lib.query2.query.output.BuildOutputFormatter;
 import com.google.devtools.build.lib.query2.query.output.BuildOutputFormatter.AttributeReader;
@@ -33,13 +34,14 @@ import javax.annotation.Nullable;
 
 /** Cquery implementation of BUILD-style output. */
 class BuildOutputFormatterCallback extends CqueryThreadsafeCallback {
+
   BuildOutputFormatterCallback(
       ExtendedEventHandler eventHandler,
       CqueryOptions options,
       OutputStream out,
       SkyframeExecutor skyframeExecutor,
-      TargetAccessor<ConfiguredTarget> accessor) {
-    super(eventHandler, options, out, skyframeExecutor, accessor, /*uniquifyResults=*/ false);
+      TargetAccessor<CqueryNode> accessor) {
+    super(eventHandler, options, out, skyframeExecutor, accessor, /* uniquifyResults= */ false);
   }
 
   @Override
@@ -67,8 +69,7 @@ class BuildOutputFormatterCallback extends CqueryThreadsafeCallback {
   }
 
   @Nullable
-  private ConfiguredAttributeMapper getAttributeMap(ConfiguredTarget kct)
-      throws InterruptedException {
+  private ConfiguredAttributeMapper getAttributeMap(CqueryNode kct) throws InterruptedException {
     Rule associatedRule = accessor.getTarget(kct).getAssociatedRule();
     if (associatedRule == null) {
       return null;
@@ -88,7 +89,7 @@ class BuildOutputFormatterCallback extends CqueryThreadsafeCallback {
   }
 
   @Override
-  public void processOutput(Iterable<ConfiguredTarget> partialResult)
+  public void processOutput(Iterable<CqueryNode> partialResult)
       throws InterruptedException, IOException {
     BuildOutputFormatter.TargetOutputter outputter =
         new TargetOutputter(
@@ -99,7 +100,7 @@ class BuildOutputFormatterCallback extends CqueryThreadsafeCallback {
             // and which path is chosen, which people may find even more informative.
             (rule, attr) -> false,
             System.lineSeparator());
-    for (ConfiguredTarget configuredTarget : partialResult) {
+    for (CqueryNode configuredTarget : partialResult) {
       Target target = accessor.getTarget(configuredTarget);
       outputter.output(target, new CqueryAttributeReader(getAttributeMap(configuredTarget)));
     }

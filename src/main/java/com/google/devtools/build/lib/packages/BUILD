@@ -135,3 +135,12 @@ java_library(
         "//third_party:guava",
     ],
 )
+
+java_library(
+    name = "label_printer",
+    srcs = ["LabelPrinter.java"],
+    deps = [
+        "//src/main/java/com/google/devtools/build/lib/cmdline",
+        "//src/main/java/net/starlark/java/eval",
+    ],
+)

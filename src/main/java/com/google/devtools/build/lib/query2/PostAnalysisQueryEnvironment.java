@@ -24,7 +24,9 @@ import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.devtools.build.lib.actions.ActionLookupKey;
 import com.google.devtools.build.lib.analysis.AliasProvider;
+import com.google.devtools.build.lib.analysis.AspectValue;
 import com.google.devtools.build.lib.analysis.ConfiguredTargetValue;
 import com.google.devtools.build.lib.analysis.TargetAndConfiguration;
 import com.google.devtools.build.lib.analysis.config.BuildConfigurationValue;
@@ -74,6 +76,7 @@ import com.google.devtools.build.lib.skyframe.SkyframeExecutor;
 import com.google.devtools.build.lib.supplier.InterruptibleSupplier;
 import com.google.devtools.build.lib.vfs.PathFragment;
 import com.google.devtools.build.skyframe.SkyKey;
+import com.google.devtools.build.skyframe.SkyValue;
 import com.google.devtools.build.skyframe.WalkableGraph;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -141,7 +144,7 @@ public abstract class PostAnalysisQueryEnvironment<T> extends AbstractBlazeQuery
 
   public abstract String getOutputFormat();
 
-  protected abstract KeyExtractor<T, ConfiguredTargetKey> getConfiguredTargetKeyExtractor();
+  protected abstract KeyExtractor<T, ActionLookupKey> getConfiguredTargetKeyExtractor();
 
   @Override
   public QueryEvalResult evaluateQuery(
@@ -214,12 +217,18 @@ public abstract class PostAnalysisQueryEnvironment<T> extends AbstractBlazeQuery
   protected abstract T getNullConfiguredTarget(Label label) throws InterruptedException;
 
   @Nullable
-  public ConfiguredTargetValue getConfiguredTargetValue(SkyKey key) throws InterruptedException {
-    return (ConfiguredTargetValue) walkableGraphSupplier.get().getValue(key);
+  public SkyValue getConfiguredTargetValue(SkyKey key) throws InterruptedException {
+    return walkableGraphSupplier.get().getValue(key);
+  }
+
+  @Nullable
+  public AspectValue getAspectValue(SkyKey key) throws InterruptedException {
+    return (AspectValue) walkableGraphSupplier.get().getValue(key);
   }
 
   private boolean isAliasConfiguredTarget(ConfiguredTargetKey key) throws InterruptedException {
-    return AliasProvider.isAlias(getConfiguredTargetValue(key).getConfiguredTarget());
+    return AliasProvider.isAlias(
+        ((ConfiguredTargetValue) getConfiguredTargetValue(key)).getConfiguredTarget());
   }
 
   public InterruptibleSupplier<ImmutableSet<PathFragment>>
@@ -359,7 +368,7 @@ public abstract class PostAnalysisQueryEnvironment<T> extends AbstractBlazeQuery
       if (!rdep.functionName().equals(SkyFunctions.CONFIGURED_TARGET)) {
         continue;
       }
-      ConfiguredTargetKey actualParentKey = getConfiguredTargetKey(getValueFromKey(rdep));
+      var actualParentKey = getConfiguredTargetKey(getValueFromKey(rdep));
       if (actualParentKey.equals(child)) {
         // The parent has the same value as the child because it is delegating.
         foundDelegatingRdep = true;
@@ -383,7 +392,7 @@ public abstract class PostAnalysisQueryEnvironment<T> extends AbstractBlazeQuery
         output.add(rdep);
         continue;
       }
-      ConfiguredTargetKey actualParentKey = getConfiguredTargetKey(getValueFromKey(rdep));
+      var actualParentKey = getConfiguredTargetKey(getValueFromKey(rdep));
       if (!actualParentKey.equals(child)) {
         output.add(rdep);
         continue;
@@ -476,6 +485,9 @@ public abstract class PostAnalysisQueryEnvironment<T> extends AbstractBlazeQuery
       }
     }
 
+    boolean explicitAspects =
+        settings.containsAll(ImmutableSet.of(Setting.INCLUDE_ASPECTS, Setting.EXPLICIT_ASPECTS));
+
     ImmutableList.Builder<ClassifiedDependency<T>> values = ImmutableList.builder();
     // TODO(bazel-team): An even better approach would be to treat aspects and toolchains as
     // first-class query nodes just like targets. In other words, let query expressions reference
@@ -488,7 +500,8 @@ public abstract class PostAnalysisQueryEnvironment<T> extends AbstractBlazeQuery
       if (knownCtDeps.contains(key)) {
         continue;
       }
-      if (key.functionName().equals(SkyFunctions.CONFIGURED_TARGET)) {
+      if (key.functionName().equals(SkyFunctions.CONFIGURED_TARGET)
+          || (explicitAspects && key.functionName().equals(SkyFunctions.ASPECT))) {
         T dependency = getValueFromKey(key);
         Preconditions.checkState(
             dependency != null,
@@ -498,13 +511,24 @@ public abstract class PostAnalysisQueryEnvironment<T> extends AbstractBlazeQuery
                 + " configurability team.",
             key);
 
+        boolean implicitConfiguredTarget =
+            // Check both the original guess key and the second correct key. In the case of the
+            // target platform, Util.findImplicitDeps also uses the original guess key.
+            implicitDeps == null
+                || implicitDeps.contains(key)
+                || implicitDeps.contains(getConfiguredTargetKey(dependency));
+
         boolean implicit =
-            implicitDeps == null || implicitDeps.contains(getConfiguredTargetKey(dependency));
+            !(key.argument() instanceof ConfiguredTargetKey) || implicitConfiguredTarget;
+
         values.add(new ClassifiedDependency<>(dependency, implicit));
         knownCtDeps.add(key);
       } else if (settings.contains(Setting.INCLUDE_ASPECTS)
-          && key.functionName().equals(SkyFunctions.ASPECT)
-          && !resolvedAspectClasses.contains(((AspectKey) key).getAspectClass())) {
+          && key.functionName().equals(SkyFunctions.ASPECT)) {
+        Preconditions.checkState(!settings.contains(Setting.EXPLICIT_ASPECTS));
+        if (resolvedAspectClasses.contains(((AspectKey) key).getAspectClass())) {
+          continue;
+        }
         // When an aspect is attached to an alias configured target, it bypasses standard dependency
         // resolution and just Skyframe-loads the same aspect for the alias' referent. That means
         // the original aspect's attribute deps aren't Skyframe-resolved through AspectFunction's
@@ -579,7 +603,7 @@ public abstract class PostAnalysisQueryEnvironment<T> extends AbstractBlazeQuery
   @Nullable
   protected abstract BuildConfigurationValue getConfiguration(T target);
 
-  protected abstract ConfiguredTargetKey getConfiguredTargetKey(T target);
+  protected abstract ActionLookupKey getConfiguredTargetKey(T target);
 
   @Override
   public ThreadSafeMutableSet<T> getTransitiveClosure(

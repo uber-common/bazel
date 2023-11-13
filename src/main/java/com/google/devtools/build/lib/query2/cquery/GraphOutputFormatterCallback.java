@@ -15,12 +15,13 @@
 package com.google.devtools.build.lib.query2.cquery;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.devtools.build.lib.analysis.ConfiguredTarget;
 import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.cmdline.RepositoryMapping;
 import com.google.devtools.build.lib.events.ExtendedEventHandler;
 import com.google.devtools.build.lib.graph.Digraph;
 import com.google.devtools.build.lib.graph.Node;
+import com.google.devtools.build.lib.packages.LabelPrinter;
+import com.google.devtools.build.lib.query2.common.CqueryNode;
 import com.google.devtools.build.lib.query2.engine.QueryEnvironment.TargetAccessor;
 import com.google.devtools.build.lib.query2.query.output.GraphOutputWriter;
 import com.google.devtools.build.lib.query2.query.output.GraphOutputWriter.NodeReader;
@@ -38,15 +39,15 @@ class GraphOutputFormatterCallback extends CqueryThreadsafeCallback {
   /** Interface for finding a configured target's direct dependencies. */
   @FunctionalInterface
   public interface DepsRetriever {
-    Iterable<ConfiguredTarget> getDirectDeps(ConfiguredTarget target) throws InterruptedException;
+    Iterable<CqueryNode> getDirectDeps(CqueryNode target) throws InterruptedException;
   }
 
   private final DepsRetriever depsRetriever;
 
-  private final GraphOutputWriter.NodeReader<ConfiguredTarget> nodeReader =
-      new NodeReader<ConfiguredTarget>() {
+  private final GraphOutputWriter.NodeReader<CqueryNode> nodeReader =
+      new NodeReader<CqueryNode>() {
 
-        private final Comparator<ConfiguredTarget> configuredTargetOrdering =
+        private final Comparator<CqueryNode> configuredTargetOrdering =
             (ct1, ct2) -> {
               // Order graph output first by target label, then by configuration hash.
               Label label1 = ct1.getOriginalLabel();
@@ -67,10 +68,10 @@ class GraphOutputFormatterCallback extends CqueryThreadsafeCallback {
 
         @Override
         public String getLabel(
-            Node<ConfiguredTarget> node, RepositoryMapping mainRepositoryMapping) {
+            Node<CqueryNode> node, RepositoryMapping mainRepositoryMapping) {
           // Node payloads are ConfiguredTargets. Output node labels are target labels + config
           // hashes.
-          ConfiguredTarget kct = node.getLabel();
+          CqueryNode kct = node.getLabel();
           return String.format(
               "%s (%s)",
               kct.getOriginalLabel().getDisplayForm(mainRepositoryMapping),
@@ -78,7 +79,7 @@ class GraphOutputFormatterCallback extends CqueryThreadsafeCallback {
         }
 
         @Override
-        public Comparator<ConfiguredTarget> comparator() {
+        public Comparator<CqueryNode> comparator() {
           return configuredTargetOrdering;
         }
       };
@@ -90,7 +91,7 @@ class GraphOutputFormatterCallback extends CqueryThreadsafeCallback {
       CqueryOptions options,
       OutputStream out,
       SkyframeExecutor skyframeExecutor,
-      TargetAccessor<ConfiguredTarget> accessor,
+      TargetAccessor<CqueryNode> accessor,
       DepsRetriever depsRetriever,
       RepositoryMapping mainRepoMapping) {
     super(eventHandler, options, out, skyframeExecutor, accessor, /*uniquifyResults=*/ false);
@@ -99,23 +100,23 @@ class GraphOutputFormatterCallback extends CqueryThreadsafeCallback {
   }
 
   @Override
-  public void processOutput(Iterable<ConfiguredTarget> partialResult) throws InterruptedException {
+  public void processOutput(Iterable<CqueryNode> partialResult) throws InterruptedException {
     // Transform the cquery-backed graph into a Digraph to make it suitable for GraphOutputWriter.
     // Note that this involves an extra iteration over the entire query result subgraph. We could
     // conceptually merge transformation and output writing into the same iteration if needed.
-    Digraph<ConfiguredTarget> graph = new Digraph<>();
-    ImmutableSet<ConfiguredTarget> allNodes = ImmutableSet.copyOf(partialResult);
-    for (ConfiguredTarget configuredTarget : partialResult) {
-      Node<ConfiguredTarget> node = graph.createNode(configuredTarget);
-      for (ConfiguredTarget dep : depsRetriever.getDirectDeps(configuredTarget)) {
+    Digraph<CqueryNode> graph = new Digraph<>();
+    ImmutableSet<CqueryNode> allNodes = ImmutableSet.copyOf(partialResult);
+    for (CqueryNode configuredTarget : partialResult) {
+      Node<CqueryNode> node = graph.createNode(configuredTarget);
+      for (CqueryNode dep : depsRetriever.getDirectDeps(configuredTarget)) {
         if (allNodes.contains(dep)) {
-          Node<ConfiguredTarget> depNode = graph.createNode(dep);
+          Node<CqueryNode> depNode = graph.createNode(dep);
           graph.addEdge(node, depNode);
         }
       }
     }
 
-    GraphOutputWriter<ConfiguredTarget> graphWriter =
+    GraphOutputWriter<CqueryNode> graphWriter =
         new GraphOutputWriter<>(
             nodeReader,
             options.getLineTerminator(),
