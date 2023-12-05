@@ -364,11 +364,7 @@ function create_and_run_classpath_jar() {
     die "ERROR: $self failed because $JARBIN failed"
 
   # Execute JAVA command
-  $JAVABIN -classpath "$MANIFEST_JAR_FILE" "${ARGS[@]}"
-  exit_code=$?
-  rm -f "$MANIFEST_FILE"
-  rm -f "$MANIFEST_JAR_FILE"
-  exit $exit_code
+  exec $JAVABIN -classpath "$MANIFEST_JAR_FILE" "${ARGS[@]}"
 }
 
 # If the user didn't specify a --classpath_limit, use the default value.
