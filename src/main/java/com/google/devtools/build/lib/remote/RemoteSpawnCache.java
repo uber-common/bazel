@@ -106,7 +106,7 @@ final class RemoteSpawnCache implements SpawnCache {
 
         String verb = (result != null && result.getExitCode() == 0) ? "HIT" : "MISS";
         if (options.remotePrintExecutionMessages == RemoteOptions.ExecutionMessagePrintMode.ALL) {
-          System.out.println("RemoteSpawnCache: Lookup " + verb + " with key " + action.getActionKey().getDigest().getHash() + " for action " + action.getSpawn().getResourceOwner().getOwner().getLabel());
+          System.out.println("RemoteSpawnCache: Lookup " + verb + " with key " + action.getActionKey().getDigest().getHash() + " for action " + action.getSpawn().getResourceOwner().getOwner().getLabel() + " [" + action.getSpawn().getResourceOwner().getMnemonic() + "]");
         }
 
         // In case the remote cache returned a failed action (exit code != 0) we treat it as a
