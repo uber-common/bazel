@@ -264,6 +264,8 @@ public final class RemoteModule extends BlazeModule {
       DigestUtil digestUtil) {
     RemoteCacheClient cacheClient;
     try {
+      Retrier.CircuitBreaker circuitBreaker =
+        CircuitBreakerFactory.createCircuitBreaker(remoteOptions);
       cacheClient =
           RemoteCacheClientFactory.create(
               remoteOptions,
@@ -272,7 +274,7 @@ public final class RemoteModule extends BlazeModule {
               Preconditions.checkNotNull(env.getWorkingDirectory(), "workingDirectory"),
               digestUtil,
               new RemoteRetrier(
-                  remoteOptions, RETRIABLE_HTTP_ERRORS, retryScheduler, Retrier.ALLOW_ALL_CALLS));
+                  remoteOptions, RETRIABLE_HTTP_ERRORS, retryScheduler, circuitBreaker));
     } catch (IOException e) {
       handleInitFailure(env, e, Code.CACHE_INIT_FAILURE);
       return;
