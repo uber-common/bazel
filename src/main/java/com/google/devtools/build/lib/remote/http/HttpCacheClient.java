@@ -55,7 +55,6 @@ import io.netty.channel.pool.SimpleChannelPool;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.channel.unix.DomainSocketAddress;
 import io.netty.handler.codec.http.HttpClientCodec;
-import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestEncoder;
@@ -476,7 +475,6 @@ public final class HttpCacheClient implements RemoteCacheClient {
                     "timeout-handler",
                     new IdleTimeoutHandler(timeoutSeconds, ReadTimeoutException.INSTANCE));
                 pipeline.addLast(new HttpClientCodec());
-                pipeline.addLast("inflater", new HttpContentDecompressor());
                 synchronized (credentialsLock) {
                   pipeline.addLast(new HttpDownloadHandler(creds, extraHttpHeaders));
                 }
@@ -507,7 +505,6 @@ public final class HttpCacheClient implements RemoteCacheClient {
       try {
         ch.pipeline().remove(IdleTimeoutHandler.class);
         ch.pipeline().remove(HttpClientCodec.class);
-        ch.pipeline().remove(HttpContentDecompressor.class);
         ch.pipeline().remove(HttpDownloadHandler.class);
       } catch (NoSuchElementException e) {
         // If the channel is in the process of closing but not yet closed, some handlers could have
