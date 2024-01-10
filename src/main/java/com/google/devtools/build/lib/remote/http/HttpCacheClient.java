@@ -721,7 +721,7 @@ public final class HttpCacheClient implements RemoteCacheClient {
             () ->
                 Utils.downloadAsActionResult(
                     actionKey,
-                    (digest, out) -> get(digest, out, /* casBytesDownloaded= */ Optional.empty(), /* casDownload= */ true))),
+                    (digest, out) -> get(digest, out, /* casBytesDownloaded= */ Optional.empty(), /* casDownload= */ false))),
         CachedActionResult::remote,
         MoreExecutors.directExecutor());
   }
