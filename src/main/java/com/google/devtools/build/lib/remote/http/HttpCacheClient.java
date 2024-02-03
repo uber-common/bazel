@@ -581,7 +581,13 @@ public final class HttpCacheClient implements RemoteCacheClient {
             if (casBytesDownloaded.isPresent()) {
               casBytesDownloaded.get().addAndGet(length);
             }
-            outputStream.write(b, offset, length);
+            try {
+              outputStream.write(b, offset, length);
+            } catch (IOException e) {
+              String errorMessage = String.format("Writing/Unzipping failed for: %s %s. Original error: %s", 
+                                         casDownload, digest.getHash(), e.getMessage());
+              throw new IOException(errorMessage, e);
+            }
           }
 
           @Override
@@ -590,7 +596,13 @@ public final class HttpCacheClient implements RemoteCacheClient {
             if (casBytesDownloaded.isPresent()) {
               casBytesDownloaded.get().incrementAndGet();
             }
-            outputStream.write(b);
+            try {
+              outputStream.write(b);
+            } catch (IOException e) {
+              String errorMessage = String.format("Writing/Unzipping failed for: %s %s. Original error: %s", 
+                                         casDownload, digest.getHash(), e.getMessage());
+              throw new IOException(errorMessage, e);
+            }
           }
 
           @Override
