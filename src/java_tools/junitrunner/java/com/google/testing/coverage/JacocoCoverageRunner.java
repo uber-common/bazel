@@ -365,7 +365,7 @@ public class JacocoCoverageRunner {
     // If the classpath was too long then a temporary top-level jar is created containing nothing
     // but a manifest with
     // the original classpath. Those are the URLs we are looking for.
-    if (wasWrappedJar && urls != null && urls.length == 1) {
+    if (wasWrappedJar && urls != null && (urls.length == 1 || urls[0].toString().endsWith("-classpath.jar"))) {
       try {
         String jarClassPath =
             new JarInputStream(urls[0].openStream())
