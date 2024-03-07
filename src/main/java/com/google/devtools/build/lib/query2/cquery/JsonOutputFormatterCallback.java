@@ -13,7 +13,8 @@
 // limitations under the License.
 
 package com.google.devtools.build.lib.query2.cquery;
-
+import java.util.List;
+import java.util.ArrayList;
 import com.google.common.collect.ImmutableList;
 import com.google.devtools.build.lib.actions.Artifact;
 import com.google.devtools.build.lib.analysis.ConfiguredTarget;
@@ -29,6 +30,7 @@ import com.google.devtools.build.lib.packages.LabelPrinter;
 import com.google.devtools.build.lib.packages.ConfiguredAttributeMapper;
 import com.google.devtools.build.lib.packages.Rule;
 import com.google.devtools.build.lib.packages.Target;
+import com.google.devtools.build.lib.query2.common.CqueryNode;
 import com.google.devtools.build.lib.query2.engine.QueryEnvironment.TargetAccessor;
 import com.google.devtools.build.lib.query2.query.output.BuildOutputFormatter.AttributeReader;
 import com.google.devtools.build.lib.query2.query.output.JsonOutputFormatter;
@@ -58,7 +60,7 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
       CqueryOptions options,
       OutputStream out,
       SkyframeExecutor skyframeExecutor,
-      TargetAccessor<ConfiguredTarget> accessor,
+      TargetAccessor<CqueryNode> accessor,
       LabelPrinter labelPrinter) {
     super(eventHandler, options, out, skyframeExecutor, accessor, /*uniquifyResults=*/ false);
     this.labelPrinter = labelPrinter;
@@ -69,9 +71,9 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
     return "json";
   }
 
-  private AbstractAttributeMapper getAttributeMap(Rule rule, ConfiguredTarget keyedConfiguredTarget)
+  private AbstractAttributeMapper getAttributeMap(Rule rule, CqueryNode keyedConfiguredTarget)
       throws InterruptedException {
-    ConfiguredTarget configuredTarget = keyedConfiguredTarget;
+    CqueryNode configuredTarget = keyedConfiguredTarget;
     if (configuredTarget instanceof RuleConfiguredTarget) {
       return ConfiguredAttributeMapper
           .of(rule, ((RuleConfiguredTarget) configuredTarget).getConfigConditions(), keyedConfiguredTarget.getConfigurationChecksum(),/*alwaysSucceed=*/ false);
@@ -114,19 +116,18 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
   }
 
   @Override
-  public void processOutput(Iterable<ConfiguredTarget> partialResult)
+  public void processOutput(Iterable<CqueryNode> partialResult)
       throws IOException, InterruptedException {
 
     JsonObject result = new JsonObject();
     Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
-    for (ConfiguredTarget configuredTarget : partialResult) {
+    for (CqueryNode configuredTarget : partialResult) {
       Target target = accessor.getTarget(configuredTarget);
       Rule rule = target.getAssociatedRule();
       AbstractAttributeMapper attributeMap = getAttributeMap(rule, configuredTarget);
       AttributeReader attributeReader = new JsonCQueryAttributeReader(attributeMap);
       JsonObject partial = JsonOutputFormatter.createTargetJsonObject(target, attributeReader, labelPrinter);
-
       partial.add("output groups", createOutputGroupsJsonObject(configuredTarget, gson));
       partial.add("default outputs", createDefaultOutputsJson(configuredTarget, gson));
 
@@ -135,14 +136,16 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
     printStream.write(gson.toJson(result));
   }
 
-  private static JsonElement createDefaultOutputsJson(ConfiguredTarget target, Gson gson) {
-    List<String> paths;
+  private static JsonElement createDefaultOutputsJson(CqueryNode target, Gson gson) {
+    List<String> paths = new ArrayList<>();
     try {
-      DefaultInfo provider = target.get(DefaultInfo.PROVIDER);
+      if (target instanceof RuleConfiguredTarget) {
+        DefaultInfo provider = ((RuleConfiguredTarget) target).get(DefaultInfo.PROVIDER);
       paths = ((Collection<Artifact>) provider.getFiles().toList())
           .stream()
           .map(Artifact::getExecPathString)
           .collect(Collectors.toList());
+      }
     }
     catch (NullPointerException e){
       // Some rules do not have default info provider (e.g. Package Groups) and
@@ -152,11 +155,13 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
     return gson.toJsonTree(paths);
   }
 
-  private static JsonObject createOutputGroupsJsonObject(ConfiguredTarget target, Gson gson) {
+  private static JsonObject createOutputGroupsJsonObject(CqueryNode configuredTarget, Gson gson) {
     JsonObject outputGroups = new JsonObject();
-    OutputGroupInfo provider = target.get(OutputGroupInfo.STARLARK_CONSTRUCTOR);
-    if (provider != null) {
-      for (String group : provider) {
+    if (configuredTarget instanceof RuleConfiguredTarget) {
+        RuleConfiguredTarget ruleConfiguredTarget = (RuleConfiguredTarget) configuredTarget;
+        OutputGroupInfo provider = ruleConfiguredTarget.get(OutputGroupInfo.STARLARK_CONSTRUCTOR);
+        if (provider != null) {
+            for (String group : provider) {
         List<String> outputPaths = provider
             .getOutputGroup(group)
             .toList()
@@ -164,9 +169,9 @@ class JsonOutputFormatterCallback extends CqueryThreadsafeCallback {
             .map(Artifact::getExecPathString)
             .collect(Collectors.toList());
         outputGroups.add(group, gson.toJsonTree(outputPaths));
-      }
+          }
+        }
     }
-
     return outputGroups;
   }
 }
