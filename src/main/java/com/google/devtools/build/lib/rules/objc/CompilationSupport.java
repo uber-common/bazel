@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import java.util.List;
 import com.google.devtools.build.lib.actions.Artifact;
 import com.google.devtools.build.lib.actions.CommandLine;
 import com.google.devtools.build.lib.actions.ParamFileInfo;
@@ -426,10 +427,9 @@ public class CompilationSupport implements StarlarkValue {
     return Pair.of(asNeededlibrariesBuilder.build(), alwaysLinkLibraries);
   }
 
-  private static ImmutableList<String> dedupSdkLinkopts(NestedSet<LinkOptions> linkopts) {
+  private static ImmutableList<String> dedupSdkLinkopts(NestedSet<LinkOptions> linkopts, Set<String> objcLinkOptsToDedup) {
     HashSet<String> duplicates = new HashSet<>();
     ImmutableList.Builder<String> finalLinkopts = ImmutableList.builder();
-
     for (LinkOptions linkOptions : linkopts.toList()) {
       ImmutableList<String> args = linkOptions.get();
       for (Iterator<String> iterator = args.iterator(); iterator.hasNext(); ) {
@@ -453,12 +453,17 @@ public class CompilationSupport implements StarlarkValue {
             finalLinkopts.add(arg);
             duplicates.add(arg);
           }
+        } else if (objcLinkOptsToDedup.contains(arg)) {
+          if (!duplicates.contains(arg)) {
+            finalLinkopts.add(arg);
+            duplicates.add(arg);
+          }
         } else {
           finalLinkopts.add(arg);
         }
       }
     }
-
+    
     return finalLinkopts.build();
   }
 
@@ -552,14 +557,14 @@ public class CompilationSupport implements StarlarkValue {
     } catch (EvalException e) {
       throw ruleContext.throwWithRuleError(e);
     }
-
+    AppleConfiguration appleConfiguration = buildConfiguration.getFragment(AppleConfiguration.class);
     ObjcVariablesExtension.Builder extensionBuilder =
         new ObjcVariablesExtension.Builder()
             .setRuleContext(ruleContext)
             .setIntermediateArtifacts(intermediateArtifacts)
             .setForceLoadArtifacts(alwaysLinkLibrarySet)
             .setAttributeLinkopts(attributes.linkopts())
-            .setDepLinkopts(dedupSdkLinkopts(linkingInfoProvider.getUserLinkFlags()))
+            .setDepLinkopts(dedupSdkLinkopts(linkingInfoProvider.getUserLinkFlags(), appleConfiguration.getExperimentalObjCLinkOptsToDedup()))
             .addVariableCategory(VariableCategory.EXECUTABLE_LINKING_VARIABLES);
 
     Artifact binaryToLink = getBinaryToLink();
