@@ -258,6 +258,16 @@ public class AppleCommandLineOptions extends FragmentOptions {
   public List<String> iosMultiCpus;
 
   @Option(
+      name = "experimental_objc_linkopts_to_dedup",
+      defaultValue = "null",
+      documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
+      effectTags = {OptionEffectTag.LOSES_INCREMENTAL_STATE, OptionEffectTag.LOADING_AND_ANALYSIS},
+      metadataTags = {OptionMetadataTag.EXPERIMENTAL},
+      help =
+          "experimentalLinkOptsToDedup")
+  public String experimentalObjCLinkOptsToDedup;
+
+  @Option(
       name = "visionos_cpus",
       allowMultiple = true,
       converter = CommaSeparatedOptionListConverter.class,
