@@ -15,6 +15,10 @@
 package com.google.devtools.build.lib.rules.apple;
 
 import com.google.auto.value.AutoValue;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.Arrays;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
@@ -172,6 +176,14 @@ public class AppleConfiguration extends Fragment implements AppleConfigurationAp
 
   public AppleCommandLineOptions getOptions() {
     return options;
+  }
+
+  public Set<String> getExperimentalObjCLinkOptsToDedup() {
+    if (options.experimentalObjCLinkOptsToDedup == null || options.experimentalObjCLinkOptsToDedup.isEmpty()) {
+        return Collections.emptySet();
+    } else {
+        return new HashSet<>(Arrays.asList(options.experimentalObjCLinkOptsToDedup.split(";")));
+    }
   }
 
   /**
