@@ -1,0 +1,21 @@
+diff --git a/toolchains/default_java_toolchain.bzl b/toolchains/default_java_toolchain.bzl
+index 47cb877..a713aec 100644
+--- a/toolchains/default_java_toolchain.bzl
++++ b/toolchains/default_java_toolchain.bzl
+@@ -48,6 +48,7 @@ BASE_JDK9_JVM_OPTS = [
+     # makes it go to stderr instead.
+     "-Xlog:disable",
+     "-Xlog:all=warning:stderr:uptime,level,tags",
++    "-Xss4m",
+ ]
+ 
+ JDK9_JVM_OPTS = BASE_JDK9_JVM_OPTS
+@@ -92,7 +93,7 @@ _BASE_TOOLCHAIN_CONFIGURATION = dict(
+     reduced_classpath_incompatible_processors = [
+         "dagger.hilt.processor.internal.root.RootProcessor",  # see b/21307381
+     ],
+-    java_runtime = Label("//toolchains:remotejdk_21"),
++    java_runtime = Label("//toolchains:remote_jdk11"),
+ )
+ 
+ DEFAULT_TOOLCHAIN_CONFIGURATION = _BASE_TOOLCHAIN_CONFIGURATION
