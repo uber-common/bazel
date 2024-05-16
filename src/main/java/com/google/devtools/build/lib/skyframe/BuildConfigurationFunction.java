@@ -98,7 +98,7 @@ public final class BuildConfigurationFunction implements SkyFunction {
       }
 
       transitionDirectoryNameFragment =
-          computeNameFragmentWithDiff(targetOptions, baselineOptionsValue.toOptions());
+          computeNameFragmentWithDiff(targetOptions, baselineOptionsValue.toOptions(), coreOptions.noAndroidApkInOutputDir);
     } else {
       transitionDirectoryNameFragment =
           computeNameFragmentWithAffectedByStarlarkTransition(targetOptions);
@@ -135,7 +135,7 @@ public final class BuildConfigurationFunction implements SkyFunction {
    */
   @VisibleForTesting
   public static String computeNameFragmentWithDiff(
-      BuildOptions toOptions, BuildOptions baselineOptions) {
+      BuildOptions toOptions, BuildOptions baselineOptions, boolean noAndroidApkInOutputDir) {
     // Quick short-circuit for trivial case.
     if (toOptions.equals(baselineOptions)) {
       return "";
@@ -145,6 +145,15 @@ public final class BuildConfigurationFunction implements SkyFunction {
     //   details of the corresponding option. Could incorporate this instead of hashChosenOptions
     //   regenerating the OptionDefinitions and values.
     BuildOptions.OptionsDiff diff = BuildOptions.diff(toOptions, baselineOptions);
+
+    // HACK: do not differentiate android binary CPU configs, so that cache artifacts can be shared between tests and
+    // binaries. This enables to use twice less disk space, build actions, and remote server cache entries - for major
+    // performances gain.
+    boolean isAndroidBinaryBuildOptions = diff.getFirst().keySet().stream().anyMatch(optionDef -> optionDef.getOptionName().equals("fat_apk_cpu"));
+    if (isAndroidBinaryBuildOptions && noAndroidApkInOutputDir) {
+      return "";
+    }
+
     // Note: getFirst only excludes options trimmed between baselineOptions to toOptions and this is
     //   considered OK as a given Rule should not be being built with options of different
     //   trimmings. See longform note in {@link ConfiguredTargetKey} for details.

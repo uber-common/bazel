@@ -106,6 +106,16 @@ public class CoreOptions extends FragmentOptions implements Cloneable {
           "If true, the target platform is used in the output directory name instead of the CPU.")
   public boolean platformInOutputDir;
 
+  @Option(
+          name = "experimental_noandroid_apk_in_output_dir",
+          defaultValue = "false",
+          documentationCategory = OptionDocumentationCategory.OUTPUT_PARAMETERS,
+          effectTags = {OptionEffectTag.AFFECTS_OUTPUTS},
+          metadataTags = {OptionMetadataTag.EXPERIMENTAL},
+          help =
+                  "If true, android binary transition config is not used in the output directory name, which enables sharing cached artifacts with library/tests of the binary. Doing so may limits the ability to build apk for different CPU - use with cautions.")
+  public boolean noAndroidApkInOutputDir;
+
   // Note: This value may contain conflicting duplicate values for the same define.
   // Use `getNormalizedCommandLineBuildVariables` if you wish for these to be deduplicated
   // (last-wins).
