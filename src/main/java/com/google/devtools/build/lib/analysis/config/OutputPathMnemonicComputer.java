@@ -232,7 +232,7 @@ public final class OutputPathMnemonicComputer {
           "Transition directory name fragment");
     } else {
       ctx.checkedAddToMnemonic(
-          computeNameFragmentWithDiff(buildOptions, baselineOptions, explicitInOutputPathOptions),
+          computeNameFragmentWithDiff(buildOptions, baselineOptions, explicitInOutputPathOptions, coreOptions.noAndroidApkInOutputDir),
           "Transition directory name fragment");
     }
     return ctx.getMnemonic();
@@ -293,7 +293,8 @@ public final class OutputPathMnemonicComputer {
   public static String computeNameFragmentWithDiff(
       BuildOptions toOptions,
       BuildOptions baselineOptions,
-      ImmutableSet<String> explicitInOutputPathOptions) {
+      ImmutableSet<String> explicitInOutputPathOptions,
+      boolean noAndroidApkInOutputDir) {
     // Quick short-circuit for trivial case.
     if (toOptions.equals(baselineOptions)) {
       return "";
@@ -303,6 +304,15 @@ public final class OutputPathMnemonicComputer {
     //   details of the corresponding option. Could incorporate this instead of hashChosenOptions
     //   regenerating the OptionDefinitions and values.
     BuildOptions.OptionsDiff diff = BuildOptions.diff(toOptions, baselineOptions);
+
+    // HACK: do not differentiate android binary CPU configs, so that cache artifacts can be shared between tests and
+    // binaries. This enables to use twice less disk space, build actions, and remote server cache entries - for major
+    // performances gain.
+    boolean isAndroidBinaryBuildOptions = diff.getFirst().keySet().stream().anyMatch(optionDef -> optionDef.getOptionName().equals("Android configuration distinguisher"));
+    if (isAndroidBinaryBuildOptions && noAndroidApkInOutputDir) {
+      return "";
+    }
+
     // Note: getFirst only excludes options trimmed between baselineOptions to toOptions and this is
     //   considered OK as a given Rule should not be being built with options of different
     //   trimmings. See longform note in {@link ConfiguredTargetKey} for details.
