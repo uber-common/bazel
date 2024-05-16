@@ -1503,7 +1503,7 @@ public class AndroidConfiguration extends Fragment implements AndroidConfigurati
   public void processForOutputPathMnemonic(Fragment.OutputDirectoriesContext ctx)
       throws Fragment.OutputDirectoriesContext.AddToMnemonicException {
     ctx.markAsExplicitInOutputPathFor("Android configuration distinguisher");
-    if (configurationDistinguisher.suffix != null) {
+    if (configurationDistinguisher.suffix != null && !experimentalDisableAndroidPlatformDistinguisher) {
       ctx.addToMnemonic(configurationDistinguisher.suffix);
     }
   }
