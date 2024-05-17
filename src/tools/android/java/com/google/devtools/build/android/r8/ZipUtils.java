@@ -69,6 +69,10 @@ public class ZipUtils {
     if (entry.getLastAccessTime() != null) {
       copy.setLastAccessTime(entry.getLastAccessTime());
     }
+
+    // Ensure no timestamp is output jar. These are OS-specific and would break x-platform artifact sharing.
+    copy.setTime(0);
+
     return copy;
   }
 
