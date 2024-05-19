@@ -53,7 +53,11 @@ public final class MapBasedActionGraph implements MutableActionGraph {
             actionKeyContext, action, previousAction)) {
           return; // All outputs can be shared. No need to register the remaining outputs.
         }
-        throw new ActionConflictException(actionKeyContext, artifact, previousAction, action);
+        ActionConflictException exception = new ActionConflictException(actionKeyContext, artifact, previousAction, action);
+        if (exception.canBeIgnored()) {
+          return;
+        }
+        throw exception;
       }
     }
   }
