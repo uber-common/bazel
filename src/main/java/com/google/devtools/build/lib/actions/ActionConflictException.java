@@ -138,6 +138,17 @@ public sealed class ActionConflictException extends AbstractSaneAnalysisExceptio
             .build());
   }
 
+  /**
+   * HACK: custom logic to ignore specific conflicts when enabling sharing artifacts between android
+   * APKs and libraries/tests. Doing so enable 2X improvements in build times, cache size, remote
+   * cache network requests.
+   */
+  public boolean canBeIgnored() {
+    String mnemonic = attemptedAction.getMnemonic();
+    return mnemonic != null
+        && (mnemonic.equals("AarNativeLibsFilter") || mnemonic.equals("RepoMappingManifest"));
+  }
+
   private static void addStringDetail(StringBuilder sb, String key, String valueA, String valueB) {
     valueA = valueA != null ? valueA : "(null)";
     valueB = valueB != null ? valueB : "(null)";
