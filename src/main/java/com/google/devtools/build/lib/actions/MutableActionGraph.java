@@ -30,6 +30,7 @@ import com.google.devtools.build.lib.server.FailureDetails.Analysis.Code;
 import com.google.devtools.build.lib.server.FailureDetails.FailureDetail;
 import com.google.devtools.build.lib.skyframe.SaneAnalysisException;
 import com.google.devtools.build.lib.util.DetailedExitCode;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -67,6 +68,7 @@ public interface MutableActionGraph extends ActionGraph {
     private final String suffix;
 
     private static final int MAX_DIFF_ARTIFACTS_TO_REPORT = 5;
+    private String mnemonic;
 
     public ActionConflictException(
         ActionKeyContext actionKeyContext,
@@ -78,6 +80,7 @@ public interface MutableActionGraph extends ActionGraph {
               "for %s, previous action: %s, attempted action: %s",
               artifact.prettyPrint(), previousAction.prettyPrint(), attemptedAction.prettyPrint()));
       this.artifact = artifact;
+      this.mnemonic = attemptedAction.getMnemonic();
       this.suffix = debugSuffix(actionKeyContext, attemptedAction, previousAction);
     }
 
@@ -101,6 +104,14 @@ public interface MutableActionGraph extends ActionGraph {
               .setMessage(getMessage())
               .setAnalysis(Analysis.newBuilder().setCode(Code.ACTION_CONFLICT))
               .build());
+    }
+
+    /**
+     * HACK: custom logic to ignore specific conflicts when enabling sharing artifacts between android APKs and
+     * libraries/tests. Doing so enable 2X improvements in build times, cache size, remote cache network requests.
+     */
+    public boolean canBeIgnored() {
+      return this.mnemonic != null && (this.mnemonic.equals("AarNativeLibsFilter") || this.mnemonic.equals("RepoMappingManifest"));
     }
 
     private static void addStringDetail(
