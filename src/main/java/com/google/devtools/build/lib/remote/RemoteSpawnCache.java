@@ -131,8 +131,18 @@ final class RemoteSpawnCache implements SpawnCache {
         }
         try {
           RemoteActionResult result;
-          try (SilentCloseable c = prof.profile(ProfilerTask.REMOTE_CACHE_CHECK, "check cache hit for " + action.getActionKey().getDigest().getHash())) {
-            result = remoteExecutionService.lookupCache(action);
+          try (SilentCloseable c = prof.profileAction(
+                  ProfilerTask.REMOTE_CACHE_CHECK,
+                  action.getSpawn().getResourceOwner().getMnemonic(),
+                  "check cache hit",
+                  action.getActionKey().getDigest().getHash(),
+                  action.getSpawn().getResourceOwner().getOwner().getLabel() != null ? action.getSpawn().getResourceOwner().getOwner().getLabel().toString() : "")) {
+            result = remoteExecutionService.lookupCache(action); // arteghem
+          }
+
+          String verb = (result != null && result.getExitCode() == 0) ? "HIT" : "MISS";
+          if (options.remotePrintExecutionMessages == RemoteOptions.ExecutionMessagePrintMode.ALL) {
+            System.out.println("RemoteSpawnCache: Lookup " + verb + " with key " + action.getActionKey().getDigest().getHash() + " for action " + action.getSpawn().getResourceOwner().getOwner().getLabel() + " [" + action.getSpawn().getResourceOwner().getMnemonic() + "]");
           }
 
           // In case the remote cache returned a failed action (exit code != 0) we treat it as a
