@@ -1604,8 +1604,12 @@ public class RemoteExecutionService {
                 }
               });
     } else {
-      try (SilentCloseable c =
-          Profiler.instance().profile(ProfilerTask.UPLOAD_TIME, "upload outputs for " + action.getActionKey().getDigest().getHash())) {
+      try (SilentCloseable c = Profiler.instance().profileAction(
+              ProfilerTask.UPLOAD_TIME,
+              action.getSpawn().getResourceOwner().getMnemonic(),
+              "upload outputs",
+              action.getActionKey().getDigest().getHash(),
+              action.getSpawn().getResourceOwner().getOwner().getLabel() != null ? action.getSpawn().getResourceOwner().getOwner().getLabel().toString() : "")) {
         UploadManifest manifest = buildUploadManifest(action, spawnResult);
         manifest.upload(action.getRemoteActionExecutionContext(), remoteCache, reporter);
       } catch (IOException e) {
