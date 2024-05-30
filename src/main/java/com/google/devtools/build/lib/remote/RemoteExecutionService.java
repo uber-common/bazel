@@ -1462,7 +1462,13 @@ public class RemoteExecutionService {
     }
 
     ImmutableList<ListenableFuture<FileMetadata>> downloads = downloadsBuilder.build();
-    try (SilentCloseable c = Profiler.instance().profile("Remote.download")) {
+    try (SilentCloseable c = Profiler.instance().profileAction(
+            ProfilerTask.INFO,
+            action.getSpawn().getResourceOwner().getMnemonic(),
+            "Remote.download",
+            action.getActionKey().getDigest().getHash() + " " + (result != null ? result.cacheName() : "unknown"),
+            action.getSpawn().getResourceOwner().getOwner().getLabel() != null ? action.getSpawn().getResourceOwner().getOwner().getLabel().toString() : "",
+            "")) {
       waitForBulkTransfer(downloads);
     } catch (Exception e) {
       // TODO(bazel-team): Consider adding better case-by-case exception handling instead of just
@@ -1910,7 +1916,13 @@ public class RemoteExecutionService {
       RemoteAction action, SpawnResult spawnResult, Runnable onUploadComplete)
       throws ExecException, InterruptedException {
     try (SilentCloseable c =
-        Profiler.instance().profile(ProfilerTask.UPLOAD_TIME, "upload outputs for " + action.getActionKey().getDigest().getHash())) {
+        Profiler.instance().profileAction(
+            ProfilerTask.UPLOAD_TIME,
+            action.getSpawn().getResourceOwner().getMnemonic(),
+            "upload outputs",
+            action.getActionKey().getDigest().getHash(),
+            action.getSpawn().getResourceOwner().getOwner().getLabel() != null ? action.getSpawn().getResourceOwner().getOwner().getLabel().toString() : "",
+            "")) {
       UploadManifest manifest = buildUploadManifest(action, spawnResult);
       var unused =
           manifest.upload(action.getRemoteActionExecutionContext(), combinedCache, reporter);
