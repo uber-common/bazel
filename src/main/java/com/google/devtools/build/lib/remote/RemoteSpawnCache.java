@@ -135,11 +135,16 @@ final class RemoteSpawnCache implements SpawnCache {
         }
         try {
           RemoteActionResult result;
-          try (SilentCloseable c =
-              prof.profile(ProfilerTask.REMOTE_CACHE_CHECK, "check cache hit for " + action.getActionKey().getDigest().getHash())) {
+          try (SilentCloseable c = prof.profileAction(
+              ProfilerTask.REMOTE_CACHE_CHECK,
+              action.getSpawn().getResourceOwner().getMnemonic(),
+              "check cache hit",
+              action.getActionKey().getDigest().getHash(),
+              action.getSpawn().getResourceOwner().getOwner().getLabel() != null ? action.getSpawn().getResourceOwner().getOwner().getLabel().toString() : "",
+              "")) {
             result = remoteExecutionService.lookupCache(action);
           }
-          
+
           String verb = (result != null && result.getExitCode() == 0) ? "HIT" : "MISS";
           if (options.remotePrintExecutionMessages == RemoteOptions.ExecutionMessagePrintMode.ALL) {
             System.out.println("RemoteSpawnCache: Lookup " + verb + " with key " + action.getActionKey().getDigest().getHash() + " for action " + action.getSpawn().getResourceOwner().getOwner().getLabel() + " [" + action.getSpawn().getResourceOwner().getMnemonic() + "]");
@@ -150,7 +155,13 @@ final class RemoteSpawnCache implements SpawnCache {
           if (result != null && result.getExitCode() == 0) {
             Stopwatch fetchTime = Stopwatch.createStarted();
             InMemoryOutput inMemoryOutput;
-            try (SilentCloseable c = prof.profile(REMOTE_DOWNLOAD, "download outputs")) {
+            try (SilentCloseable c = prof.profileAction(
+                REMOTE_DOWNLOAD,
+                action.getSpawn().getResourceOwner().getMnemonic(),
+                "download outputs",
+                action.getActionKey().getDigest().getHash(),
+                action.getSpawn().getResourceOwner().getOwner().getLabel() != null ? action.getSpawn().getResourceOwner().getOwner().getLabel().toString() : "",
+                "")) {
               inMemoryOutput = remoteExecutionService.downloadOutputs(action, result);
             }
             fetchTime.stop();
