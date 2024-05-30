@@ -144,7 +144,13 @@ final class RemoteSpawnCache implements SpawnCache {
         try {
           RemoteActionResult result;
           try (SilentCloseable c =
-              prof.profile(ProfilerTask.REMOTE_CACHE_CHECK, "check cache hit")) {
+              prof.profileAction(
+              ProfilerTask.REMOTE_CACHE_CHECK,
+              action.getSpawn().getResourceOwner().getMnemonic(),
+              "check cache hit",
+              action.getActionKey().getDigest().getHash(),
+              action.getSpawn().getResourceOwner().getOwner().getLabel() != null ? action.getSpawn().getResourceOwner().getOwner().getLabel().toString() : "",
+              "")) {
             result = remoteExecutionService.lookupCache(action);
           }
 
