@@ -100,8 +100,13 @@ final class RemoteSpawnCache implements SpawnCache {
       // This is done via a thread-local variable.
       try {
         RemoteActionResult result;
-        try (SilentCloseable c = prof.profile(ProfilerTask.REMOTE_CACHE_CHECK, "check cache hit for " + action.getActionKey().getDigest().getHash())) {
-          result = remoteExecutionService.lookupCache(action);
+        try (SilentCloseable c = prof.profileAction(
+                ProfilerTask.REMOTE_CACHE_CHECK,
+                action.getSpawn().getResourceOwner().getMnemonic(),
+                "check cache hit",
+                action.getActionKey().getDigest().getHash(),
+                action.getSpawn().getResourceOwner().getOwner().getLabel().toString())) {
+          result = remoteExecutionService.lookupCache(action); // arteghem
         }
 
         String verb = (result != null && result.getExitCode() == 0) ? "HIT" : "MISS";
@@ -114,7 +119,12 @@ final class RemoteSpawnCache implements SpawnCache {
         if (result != null && result.getExitCode() == 0) {
           Stopwatch fetchTime = Stopwatch.createStarted();
           InMemoryOutput inMemoryOutput;
-          try (SilentCloseable c = prof.profile(REMOTE_DOWNLOAD, "download outputs")) {
+          try (SilentCloseable c = prof.profileAction(
+                  REMOTE_DOWNLOAD,
+                  action.getSpawn().getResourceOwner().getMnemonic(),
+                  "download outputs",
+                  action.getActionKey().getDigest().getHash(),
+                  action.getSpawn().getResourceOwner().getOwner().getLabel().toString())) {
             inMemoryOutput = remoteExecutionService.downloadOutputs(action, result);
           }
           fetchTime.stop();
