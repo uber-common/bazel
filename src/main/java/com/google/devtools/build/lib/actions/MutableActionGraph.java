@@ -68,7 +68,6 @@ public interface MutableActionGraph extends ActionGraph {
     private final String suffix;
 
     private static final int MAX_DIFF_ARTIFACTS_TO_REPORT = 5;
-    private Set<Artifact> diff = new HashSet<>();
     private String mnemonic;
 
     public ActionConflictException(
@@ -110,28 +109,9 @@ public interface MutableActionGraph extends ActionGraph {
     /**
      * HACK: custom logic to ignore specific conflicts when enabling sharing artifacts between android APKs and
      * libraries/tests. Doing so enable 2X improvements in build times, cache size, remote cache network requests.
-     *
-     * Need to investigate the issue with protobuf external rule, where input is present only for android targets.
-     * The second issues are AarNativeLibsFilter action causing legitimate conflicts. For these, we ignore conflicts
-     * and assume we only build for the same CPU from now on.
      */
     public boolean canBeIgnored() {
-      if (this.mnemonic != null) {
-        if (this.mnemonic.equals("AarNativeLibsFilter")) {
-          return true;
-        }
-        if (this.mnemonic.equals("Javac") || this.mnemonic.equals("JdepsMerge") || this.mnemonic.equals("FileWrite")) {
-          if (diff.size() == 1) {
-            if (((Artifact)diff.toArray()[0]).getExecPathString().indexOf("external/com_google_protobuf_javalite/java/core/liblite-ijar.jar") > 0) {
-              return true;
-            }
-          }
-          if (artifact.getExecPathString().indexOf("external/io_grpc_grpc_java/protobuf-lite/") > 0) {
-            return true;
-          }
-        }
-      }
-      return false;
+      return this.mnemonic != null && (this.mnemonic.equals("AarNativeLibsFilter") || this.mnemonic.equals("RepoMappingManifest"));
     }
 
     private static void addStringDetail(
@@ -146,7 +126,7 @@ public interface MutableActionGraph extends ActionGraph {
       sb.append("\n");
     }
 
-    private void addListDetail(
+    private static void addListDetail(
         StringBuilder sb, String key, Iterable<Artifact> valueA, Iterable<Artifact> valueB) {
       Set<Artifact> diffA = differenceWithoutOwner(valueA, valueB);
       Set<Artifact> diffB = differenceWithoutOwner(valueB, valueA);
@@ -156,7 +136,6 @@ public interface MutableActionGraph extends ActionGraph {
         sb.append("are equal\n");
       } else {
         if (!diffA.isEmpty()) {
-          diff.addAll(diffA);
           sb.append(
               "Attempted action contains artifacts not in previous action (first "
                   + MAX_DIFF_ARTIFACTS_TO_REPORT
@@ -165,7 +144,6 @@ public interface MutableActionGraph extends ActionGraph {
         }
 
         if (!diffB.isEmpty()) {
-          diff.addAll(diffB);
           sb.append(
               "Previous action contains artifacts not in attempted action (first "
                   + MAX_DIFF_ARTIFACTS_TO_REPORT
@@ -208,7 +186,7 @@ public interface MutableActionGraph extends ActionGraph {
     }
 
     // See also Actions.canBeShared()
-    private String debugSuffix(
+    private static String debugSuffix(
         ActionKeyContext actionKeyContext, ActionAnalysisMetadata a, ActionAnalysisMetadata b) {
       // Note: the error message reveals to users the names of intermediate files that are not
       // documented in the BUILD language.  This error-reporting logic is rather elaborate but it
