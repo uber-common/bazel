@@ -1069,6 +1069,5 @@ class BazelModuleTest(test_base.TestBase):
     self.ScratchFile('testdata/WORKSPACE')
     self.RunBazel(['build', ':all'])
 
-
 if __name__ == '__main__':
   absltest.main()
