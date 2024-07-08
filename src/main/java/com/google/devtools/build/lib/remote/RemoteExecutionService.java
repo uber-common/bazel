@@ -403,7 +403,8 @@ public class RemoteExecutionService {
                       walker,
                       inputMetadataProvider,
                       context.getPathResolver(),
-                      spawnScrubber)));
+                      spawnScrubber,
+                      spawn)));
       if (!outputDirMap.isEmpty()) {
         subMerkleTrees.add(
             MerkleTree.build(
@@ -412,6 +413,7 @@ public class RemoteExecutionService {
                 execRoot,
                 context.getPathResolver(),
                 /* spawnScrubber= */ null,
+                /* spawn= */ null,
                 digestUtil));
       }
       return MerkleTree.merge(subMerkleTrees, digestUtil);
@@ -434,6 +436,7 @@ public class RemoteExecutionService {
           execRoot,
           context.getPathResolver(),
           spawnScrubber,
+          spawn,
           digestUtil);
     }
   }
@@ -443,7 +446,8 @@ public class RemoteExecutionService {
       InputWalker walker,
       InputMetadataProvider inputMetadataProvider,
       ArtifactPathResolver artifactPathResolver,
-      @Nullable SpawnScrubber spawnScrubber)
+      @Nullable SpawnScrubber spawnScrubber,
+      Spawn spawn)
       throws IOException, ForbiddenActionInputException {
     // Deduplicate concurrent computations for the same node. It's not possible to use
     // MerkleTreeCache#get(key, loader) because the loading computation may cause other nodes to be
@@ -456,7 +460,7 @@ public class RemoteExecutionService {
       try {
         freshFuture.complete(
             uncachedBuildMerkleTreeVisitor(
-                walker, inputMetadataProvider, artifactPathResolver, spawnScrubber));
+                walker, inputMetadataProvider, artifactPathResolver, spawnScrubber, spawn));
       } catch (Exception e) {
         freshFuture.completeExceptionally(e);
       }
@@ -481,7 +485,8 @@ public class RemoteExecutionService {
       InputWalker walker,
       InputMetadataProvider inputMetadataProvider,
       ArtifactPathResolver artifactPathResolver,
-      @Nullable SpawnScrubber scrubber)
+      @Nullable SpawnScrubber scrubber,
+      Spawn spawn)
       throws IOException, ForbiddenActionInputException {
     ConcurrentLinkedQueue<MerkleTree> subMerkleTrees = new ConcurrentLinkedQueue<>();
     subMerkleTrees.add(
@@ -491,12 +496,13 @@ public class RemoteExecutionService {
             execRoot,
             artifactPathResolver,
             scrubber,
+            spawn,
             digestUtil));
     walker.visitNonLeaves(
         (Object subNodeKey, InputWalker subWalker) ->
             subMerkleTrees.add(
                 buildMerkleTreeVisitor(
-                    subNodeKey, subWalker, inputMetadataProvider, artifactPathResolver, scrubber)));
+                    subNodeKey, subWalker, inputMetadataProvider, artifactPathResolver, scrubber, spawn)));
     return MerkleTree.merge(subMerkleTrees, digestUtil);
   }
 
