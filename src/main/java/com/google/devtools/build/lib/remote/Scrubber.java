@@ -108,8 +108,10 @@ public class Scrubber {
     private final boolean matchTools;
 
     private final ImmutableList<Pattern> omittedInputPatterns;
+    private final ImmutableList<Pattern> omittedInputPatternsExternal;
     private final ImmutableMap<Pattern, String> argReplacements;
     private final String salt;
+    private final boolean debug = false;
 
     private SpawnScrubber(Config.Rule ruleProto) {
       Config.Matcher matcherProto = ruleProto.getMatcher();
@@ -123,6 +125,10 @@ public class Scrubber {
           transformProto.getOmittedInputsList().stream()
               .map(Pattern::compile)
               .collect(toImmutableList());
+      this.omittedInputPatternsExternal =
+              transformProto.getOmittedInputsExternalList().stream()
+                      .map(Pattern::compile)
+                      .collect(toImmutableList());
       this.argReplacements =
           transformProto.getArgReplacementsList().stream()
               .collect(toImmutableMap(r -> Pattern.compile(r.getSource()), r -> r.getTarget()));
@@ -148,10 +154,20 @@ public class Scrubber {
     }
 
     /** Whether an input with the given exec-relative path should be omitted from the cache key. */
-    public boolean shouldOmitInput(PathFragment execPath) {
+    public boolean shouldOmitInput(PathFragment execPath, Spawn spawn) {
       for (Pattern pattern : omittedInputPatterns) {
         if (pattern.matcher(execPath.getPathString()).matches()) {
           return true;
+        }
+      }
+      if (isMainRepo(spawn) && isInputExternal(execPath, spawn)) {
+        for (Pattern pattern : omittedInputPatternsExternal) {
+          if (pattern.matcher(execPath.getPathString()).matches()) {
+            if (debug) {
+              System.err.println("Skipping " + execPath.getPathString() + " for: " + spawn.getResourceOwner().getOwner().getLabel() + " [" + spawn.getMnemonic() + "]");
+            }
+            return true;
+          }
         }
       }
       return false;
@@ -174,6 +190,15 @@ public class Scrubber {
     /** Returns the scrubbing salt. */
     public String getSalt() {
       return salt;
+    }
+
+    private boolean isMainRepo(Spawn spawn) {
+      return spawn.getResourceOwner().getOwner().getLabel().getRepository().isMain();
+    }
+
+    private boolean isInputExternal(PathFragment execPath, Spawn spawn) {
+      PathFragment f = spawn.getResourceOwner().getOwner().getLabel().getPackageIdentifier().getPackagePath(false);
+      return !execPath.getParentDirectory().endsWith(f) && (execPath.getParentDirectory().getParentDirectory() == null || !execPath.getParentDirectory().getParentDirectory().endsWith(f));
     }
   }
 }
