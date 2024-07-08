@@ -24,6 +24,7 @@ import com.google.devtools.build.lib.actions.FileArtifactValue;
 import com.google.devtools.build.lib.actions.FileStateType;
 import com.google.devtools.build.lib.actions.InputMetadataProvider;
 import com.google.devtools.build.lib.actions.cache.VirtualActionInput;
+import com.google.devtools.build.lib.actions.Spawn;
 import com.google.devtools.build.lib.remote.Scrubber.SpawnScrubber;
 import com.google.devtools.build.lib.remote.merkletree.DirectoryTree.DirectoryNode;
 import com.google.devtools.build.lib.remote.merkletree.DirectoryTree.FileNode;
@@ -67,6 +68,7 @@ class DirectoryTreeBuilder {
       Path execRoot,
       ArtifactPathResolver artifactPathResolver,
       @Nullable SpawnScrubber spawnScrubber,
+      Spawn spawn,
       DigestUtil digestUtil)
       throws IOException {
     Map<PathFragment, DirectoryNode> tree = new HashMap<>();
@@ -78,6 +80,7 @@ class DirectoryTreeBuilder {
             execRoot,
             artifactPathResolver,
             spawnScrubber,
+            spawn,
             digestUtil,
             tree);
     return new DirectoryTree(tree, numFiles);
@@ -120,6 +123,7 @@ class DirectoryTreeBuilder {
         inputs,
         tree,
         /* scrubber= */ null,
+        /* spawn= */ null,
         (input, path, currDir) -> {
           if (!input.isFile(Symlinks.NOFOLLOW)) {
             throw new IOException(String.format("Input '%s' is not a file.", input));
@@ -144,6 +148,7 @@ class DirectoryTreeBuilder {
       Path execRoot,
       ArtifactPathResolver artifactPathResolver,
       @Nullable SpawnScrubber spawnScrubber,
+      Spawn spawn,
       DigestUtil digestUtil,
       Map<PathFragment, DirectoryNode> tree)
       throws IOException {
@@ -151,6 +156,7 @@ class DirectoryTreeBuilder {
         inputs,
         tree,
         spawnScrubber,
+        spawn,
         (input, path, currDir) -> {
           if (input instanceof VirtualActionInput virtualActionInput) {
             Digest d = digestUtil.compute(virtualActionInput);
@@ -198,6 +204,7 @@ class DirectoryTreeBuilder {
                   execRoot,
                   artifactPathResolver,
                   spawnScrubber,
+                  spawn,
                   digestUtil,
                   tree);
             }
@@ -233,6 +240,7 @@ class DirectoryTreeBuilder {
       SortedMap<PathFragment, T> inputs,
       Map<PathFragment, DirectoryNode> tree,
       @Nullable SpawnScrubber scrubber,
+      Spawn spawn,
       FileNodeVisitor<T> fileNodeVisitor)
       throws IOException {
     if (inputs.isEmpty()) {
@@ -247,7 +255,7 @@ class DirectoryTreeBuilder {
       PathFragment path = e.getKey();
       T input = e.getValue();
 
-      if (scrubber != null && scrubber.shouldOmitInput(path)) {
+      if (scrubber != null && scrubber.shouldOmitInput(path, spawn)) {
         continue;
       }
 
