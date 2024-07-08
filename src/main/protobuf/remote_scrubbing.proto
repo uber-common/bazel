@@ -60,6 +60,12 @@ message Config {
     // An arbitrary value to be included in the remote cache key.
     // It may be used to forcefully invalidate cache entries.
     string salt = 3;
+
+    // A list of regexes matching an input path.
+    // An input whose path (relative to the execution root) is external and
+    // exactly matches at least one of the regexes will be omitted from the cache key.
+    // Use .* if a partial match is desired.
+    repeated string omitted_inputs_external = 4;
   }
 
   // Describes a set of transformations to be applied against a set of actions.
