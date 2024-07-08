@@ -31,6 +31,7 @@ import com.google.common.collect.Multimap;
 import com.google.devtools.build.lib.actions.ActionInput;
 import com.google.devtools.build.lib.actions.ArtifactPathResolver;
 import com.google.devtools.build.lib.actions.InputMetadataProvider;
+import com.google.devtools.build.lib.actions.Spawn;
 import com.google.devtools.build.lib.profiler.Profiler;
 import com.google.devtools.build.lib.profiler.SilentCloseable;
 import com.google.devtools.build.lib.remote.Scrubber.SpawnScrubber;
@@ -225,6 +226,7 @@ public class MerkleTree {
       Path execRoot,
       ArtifactPathResolver artifactPathResolver,
       @Nullable SpawnScrubber spawnScrubber,
+      Spawn spawn,
       DigestUtil digestUtil)
       throws IOException {
     try (SilentCloseable c = Profiler.instance().profile("MerkleTree.build(ActionInput)")) {
@@ -235,6 +237,7 @@ public class MerkleTree {
               execRoot,
               artifactPathResolver,
               spawnScrubber,
+              spawn,
               digestUtil);
       return build(tree, digestUtil);
     }
@@ -258,6 +261,7 @@ public class MerkleTree {
       Path execRoot,
       ArtifactPathResolver artifactPathResolver,
       @Nullable SpawnScrubber spawnScrubber,
+      Spawn spawn,
       DigestUtil digestUtil)
       throws IOException {
     try (SilentCloseable c = Profiler.instance().profile("MerkleTree.build(ActionInput)")) {
@@ -269,6 +273,7 @@ public class MerkleTree {
               execRoot,
               artifactPathResolver,
               spawnScrubber,
+              spawn,
               digestUtil);
       return build(tree, digestUtil);
     }
