@@ -50,8 +50,8 @@ bind(
 #   2. Set the $ANDROID_HOME and $ANDROID_NDK_HOME environment variables
 #   3. Uncomment the two lines below
 #
-# android_sdk_repository(name = "androidsdk")
-# android_ndk_repository(name = "androidndk")
+android_sdk_repository(name = "androidsdk")
+android_ndk_repository(name = "androidndk", api_level=21)
 
 # Introduce the "kythe_release" repo for Kythe build.
 local_repository(
