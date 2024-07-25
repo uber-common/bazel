@@ -543,14 +543,13 @@ public abstract class CommandLines {
     @Override
     public Iterable<String> arguments(
         @Nullable ArtifactExpander artifactExpander, PathMapper pathMapper) {
-      return ImmutableList.of(
-          switch (arg) {
-            case PathStrippable ps -> ps.expand(pathMapper::map);
-            // StarlarkAction stores the executable path as a string to save memory, but it should
-            // still be mapped just like a PathFragment.
-            case String s -> pathMapper.map(PathFragment.create(s)).getPathString();
-            default -> CommandLineItem.expandToCommandLine(arg);
-          });
+      if (arg instanceof PathStrippable) {
+        return ImmutableList.of(((PathStrippable) arg).expand(pathMapper::map));
+      } else if (arg instanceof String) {
+        return ImmutableList.of(pathMapper.map(PathFragment.create((String) arg)).getPathString());
+      } else {
+        return ImmutableList.of(CommandLineItem.expandToCommandLine(arg));
+      }
     }
   }
 }
