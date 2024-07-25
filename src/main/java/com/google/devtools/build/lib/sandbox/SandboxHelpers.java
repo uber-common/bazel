@@ -574,7 +574,8 @@ public final class SandboxHelpers {
       }
       PathFragment pathFragment = e.getKey();
       ActionInput actionInput = e.getValue();
-      if (actionInput instanceof VirtualActionInput input) {
+      if (actionInput instanceof VirtualActionInput) {
+        VirtualActionInput input = (VirtualActionInput) actionInput;
         // TODO(larsrc): Figure out which VAIs actually require atomicity, maybe avoid it.
         byte[] digest =
             input.atomicallyWriteRelativeTo(
@@ -679,12 +680,34 @@ public final class SandboxHelpers {
    *
    * <p>The String keys in the maps are individual path segments.
    */
-  public record StashContents(
-      Map<String, Path> filesToPath,
-      Map<String, PathFragment> symlinksToPathFragment,
-      Map<String, StashContents> dirEntries) {
+  public static class StashContents {
+    private Map<String, Path> filesToPath;
+    private Map<String, PathFragment> symlinksToPathFragment;
+    private Map<String, StashContents> dirEntries;
+
     public StashContents() {
       this(CompactHashMap.create(), CompactHashMap.create(), CompactHashMap.create());
+    }
+
+    public StashContents(Map<String, Path> filesToPath,
+        Map<String, PathFragment> symlinksToPathFragment,
+        Map<String, StashContents> dirEntries
+    ) {
+      this.filesToPath = filesToPath;
+      this.symlinksToPathFragment = symlinksToPathFragment;
+      this.dirEntries = dirEntries;
+    }
+
+    public Map<String, Path> filesToPath() {
+      return filesToPath;
+    }
+
+    public Map<String, PathFragment> symlinksToPathFragment() {
+      return symlinksToPathFragment;
+    }
+
+    public Map<String, StashContents> dirEntries() {
+      return dirEntries;
     }
   }
 }

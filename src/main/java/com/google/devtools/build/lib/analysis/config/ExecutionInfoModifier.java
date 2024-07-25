@@ -115,7 +115,7 @@ public abstract class ExecutionInfoModifier {
     if (isAdditive) {
       return executionInfoList.stream().anyMatch(eim -> eim.matches(mnemonic));
     } else {
-      return executionInfoList.getLast().matches(mnemonic);
+      return executionInfoList.get(executionInfoList.size() - 1).matches(mnemonic);
     }
   }
 
@@ -132,7 +132,7 @@ public abstract class ExecutionInfoModifier {
     if (isAdditive) {
       executionInfoList.forEach(eim -> eim.apply(mnemonic, executionInfo));
     } else {
-      executionInfoList.getLast().apply(mnemonic, executionInfo);
+      executionInfoList.get(executionInfoList.size() - 1).apply(mnemonic, executionInfo);
     }
   }
 

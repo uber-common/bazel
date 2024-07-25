@@ -20,6 +20,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.devtools.build.docgen.annot.DocCategory;
 import com.google.devtools.build.lib.analysis.BlazeDirectories;
 import com.google.devtools.build.lib.bazel.debug.WorkspaceRuleEvent;
+import com.google.devtools.build.lib.bazel.repository.DecompressorDescriptor;
+import com.google.devtools.build.lib.bazel.repository.DecompressorValue;
 import com.google.devtools.build.lib.bazel.repository.PatchUtil;
 import com.google.devtools.build.lib.bazel.repository.downloader.DownloadManager;
 import com.google.devtools.build.lib.cmdline.Label;
@@ -535,7 +537,7 @@ public class StarlarkRepositoryContext extends StarlarkBaseExternalContext {
       String watchArchive,
       StarlarkThread thread)
       throws RepositoryFunctionException, InterruptedException, EvalException {
-    StarlarkPath archivePath = getPath("extract()", archive);
+    StarlarkPath archivePath = getPath(archive);
 
     if (!archivePath.exists()) {
       throw new RepositoryFunctionException(
@@ -546,7 +548,7 @@ public class StarlarkRepositoryContext extends StarlarkBaseExternalContext {
     }
     maybeWatch(archivePath, ShouldWatch.fromString(watchArchive));
 
-    StarlarkPath outputPath = getPath("extract()", output);
+    StarlarkPath outputPath = getPath(output);
     checkInOutputDirectory("write", outputPath);
 
     Map<String, String> renameFilesMap =
