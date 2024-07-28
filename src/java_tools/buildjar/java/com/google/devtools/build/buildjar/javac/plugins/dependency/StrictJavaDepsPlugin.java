@@ -64,6 +64,8 @@ import javax.lang.model.util.SimpleAnnotationValueVisitor8;
 import javax.tools.FileObject;
 import javax.tools.JavaFileObject;
 
+import java.lang.reflect.Field;
+
 /**
  * A plugin for BlazeJavaCompiler that checks for types referenced directly in the source, but
  * included through transitive dependencies. To get this information, we hook into the type
@@ -412,10 +414,32 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
 
     @Override
     public void visitImport(JCTree.JCImport tree) {
-      if (usageTrackerMode) {
-        checkLitteralForAndroidResource(tree.qualid, true);
+      try {
+        JCTree qualid = (JCTree) JCIMPORT_QUALID.get(tree);
+        if (usageTrackerMode) {
+          checkLitteralForAndroidResource(qualid, true);
+        }
+        scan(qualid);
+      } catch (IllegalAccessException e) {}
+    }
+
+    /**
+     * In some versions, the field's type is {@code JCTree}, in others it is {@code JCFieldAccess}, which at the JVM level are not the same.
+     */
+    private static final Field JCIMPORT_QUALID = getField(JCTree.JCImport.class, "qualid");
+
+    private static Field getField(Class<?> c, String fName) {
+      Field f = null;
+      Class<?> oc = c;
+      while (c != null) {
+        try {
+          f = c.getDeclaredField(fName);
+          break;
+        } catch (NoSuchFieldException e) {}
+        c = c.getSuperclass();
       }
-      scan(tree.qualid);
+      f.setAccessible(true);
+      return f;
     }
 
     @Override
