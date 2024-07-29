@@ -134,7 +134,7 @@ import com.google.errorprone.bugpatterns.TheoryButNoTheories;
 import com.google.errorprone.bugpatterns.ThrowIfUncheckedKnownChecked;
 import com.google.errorprone.bugpatterns.ThrowNull;
 import com.google.errorprone.bugpatterns.TreeToString;
-import com.google.errorprone.bugpatterns.TruthSelfEquals;
+import com.google.errorprone.bugpatterns.SelfAssertion;
 import com.google.errorprone.bugpatterns.TryFailThrowable;
 import com.google.errorprone.bugpatterns.TypeParameterQualifier;
 import com.google.errorprone.bugpatterns.UnicodeDirectionalityCharacters;
@@ -371,7 +371,7 @@ final class BazelScannerSuppliers {
           ThrowIfUncheckedKnownChecked.class,
           ThrowNull.class,
           TreeToString.class,
-          TruthSelfEquals.class,
+          SelfAssertion.class,
           TryFailThrowable.class,
           TypeParameterQualifier.class,
           UnicodeDirectionalityCharacters.class,
