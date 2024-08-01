@@ -634,8 +634,8 @@ public class StarlarkNativeModule implements StarlarkNativeModuleApi {
       BazelStarlarkContext.checkLoadingPhase(thread, "native.package_relative_label");
       labelConverter = getContext(thread).getBuilder().getLabelConverter();
     }
-    if (input instanceof Label inputLabel) {
-      return inputLabel;
+    if (input instanceof Label) {
+      return (Label) input;
     }
     try {
       return labelConverter.convert((String) input);

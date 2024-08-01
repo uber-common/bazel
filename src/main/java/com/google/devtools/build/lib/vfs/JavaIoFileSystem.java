@@ -342,12 +342,12 @@ public class JavaIoFileSystem extends AbstractFileSystemWithCustomStat {
       // filesystem implementation. Bazel forces the root locale for the JVM, so the error messages
       // should be stable.
       String filesPart = sourcePath + " -> " + targetPath;
-      throw switch (e.getReason()) {
-        case "Directory not empty" -> new IOException(filesPart + ERR_DIRECTORY_NOT_EMPTY, e);
-        case "Not a directory" -> new IOException(filesPart + ERR_NOT_A_DIRECTORY, e);
-        case "Is a directory" -> new IOException(filesPart + ERR_IS_DIRECTORY, e);
-        default -> e;
-      };
+      switch (e.getReason()) {
+        case "Directory not empty": throw new IOException(filesPart + ERR_DIRECTORY_NOT_EMPTY, e);
+        case "Not a directory": throw new IOException(filesPart + ERR_NOT_A_DIRECTORY, e);
+        case "Is a directory": throw new IOException(filesPart + ERR_IS_DIRECTORY, e);
+        default: throw e;
+      }
     }
   }
 

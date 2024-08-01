@@ -208,11 +208,7 @@ public abstract class FileValue implements SkyValue {
       return new RegularFileValue(originalRootedPath, fileStateValueFromAncestors);
     }
 
-    boolean shouldStoreChain =
-        switch (realFileStateValue.getType()) {
-          case REGULAR_FILE, SPECIAL_FILE, NONEXISTENT -> false;
-          case SYMLINK, DIRECTORY -> true;
-        };
+    boolean shouldStoreChain = realFileStateValue.getType() == FileStateType.SYMLINK || realFileStateValue.getType() == FileStateType.DIRECTORY;
 
     if (fileStateValueFromAncestors.getType() == FileStateType.SYMLINK) {
       PathFragment symlinkTarget = fileStateValueFromAncestors.getSymlinkTarget();
