@@ -808,6 +808,15 @@ public final class BuildLanguageOptions extends OptionsBase {
   public boolean incompatibleDisableNonExecutableJavaBinary;
 
   @Option(
+      name = "incompatible_disable_java_common_instrumentation",
+      defaultValue = "false",
+      documentationCategory = OptionDocumentationCategory.UNCATEGORIZED,
+      effectTags = {OptionEffectTag.LOADING_AND_ANALYSIS},
+      metadataTags = {OptionMetadataTag.INCOMPATIBLE_CHANGE},
+      help = "If true, java_common.compile() will not instrument code even when coverage command is run.")
+  public boolean incompatibleDisableJavaCommonInstrumenation;
+
+  @Option(
       name = "experimental_rule_extension_api",
       defaultValue = "false",
       documentationCategory = OptionDocumentationCategory.UNCATEGORIZED,
@@ -937,6 +946,9 @@ public final class BuildLanguageOptions extends OptionsBase {
             .setBool(
                 INCOMPATIBLE_DISABLE_NON_EXECUTABLE_JAVA_BINARY,
                 incompatibleDisableNonExecutableJavaBinary)
+            .setBool(
+                INCOMPATIBLE_DISABLE_JAVA_COMMON_INSTRUMENTATION,
+                incompatibleDisableJavaCommonInstrumenation)
             .setBool(EXPERIMENTAL_RULE_EXTENSION_API, experimentalRuleExtensionApi)
             .setBool(INCOMPATIBLE_ENABLE_DEPRECATED_LABEL_APIS, enableDeprecatedLabelApis)
             .build();
@@ -1039,6 +1051,8 @@ public final class BuildLanguageOptions extends OptionsBase {
       "-incompatible_enable_proto_toolchain_resolution";
   public static final String INCOMPATIBLE_DISABLE_NON_EXECUTABLE_JAVA_BINARY =
       "-incompatible_disable_non_executable_java_binary";
+  public static final String INCOMPATIBLE_DISABLE_JAVA_COMMON_INSTRUMENTATION =
+      "-incompatible_disable_java_common_instrumentation";
   public static final String EXPERIMENTAL_RULE_EXTENSION_API = "-experimental_rule_extension_api";
   public static final String INCOMPATIBLE_ENABLE_DEPRECATED_LABEL_APIS =
       "+incompatible_enable_deprecated_label_apis";

@@ -79,6 +79,7 @@ public final class JavaCompilationHelper {
   private final StrictDepsMode strictJavaDeps;
   private boolean enableJspecify = true;
   private boolean enableDirectClasspath = true;
+  private boolean enableInstrumentation = true;
   private final String execGroup;
   private NestedSet<Artifact> additionalResourceArtifacts;
 
@@ -158,6 +159,10 @@ public final class JavaCompilationHelper {
 
   public void enableDirectClasspath(boolean enableDirectClasspath) {
     this.enableDirectClasspath = enableDirectClasspath;
+  }
+
+  public void enableInstrumentation(boolean enableInstrumentation) {
+    this.enableInstrumentation = enableInstrumentation;
   }
 
   public RuleContext getRuleContext() {
@@ -506,6 +511,7 @@ public final class JavaCompilationHelper {
     RuleContext ruleContext = getRuleContext();
     return getConfiguration().isCodeCoverageEnabled()
         && attributes.hasSourceFiles()
+        && enableInstrumentation
         && InstrumentedFilesCollector.shouldIncludeLocalSources(
             ruleContext.getConfiguration(), ruleContext.getLabel(), ruleContext.isTestTarget());
   }
