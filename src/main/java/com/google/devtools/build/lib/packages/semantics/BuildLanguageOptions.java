@@ -749,6 +749,15 @@ public final class BuildLanguageOptions extends OptionsBase {
   public boolean incompatibleDisableNonExecutableJavaBinary;
 
   @Option(
+      name = "incompatible_disable_java_common_instrumentation",
+      defaultValue = "false",
+      documentationCategory = OptionDocumentationCategory.UNCATEGORIZED,
+      effectTags = {OptionEffectTag.LOADING_AND_ANALYSIS},
+      metadataTags = {OptionMetadataTag.INCOMPATIBLE_CHANGE},
+      help = "If true, java_common.compile() will not instrument code even when coverage command is run.")
+  public boolean incompatibleDisableJavaCommonInstrumenation;
+
+  @Option(
       name = "experimental_rule_extension_api",
       defaultValue = FlagConstants.DEFAULT_EXPERIMENTAL_RULE_EXTENSION_API,
       documentationCategory = OptionDocumentationCategory.UNCATEGORIZED,
@@ -961,6 +970,9 @@ public final class BuildLanguageOptions extends OptionsBase {
             .setBool(
                 INCOMPATIBLE_DISABLE_TARGET_DEFAULT_PROVIDER_FIELDS,
                 incompatibleDisableTargetDefaultProviderFields)
+            .setBool(
+                INCOMPATIBLE_DISABLE_JAVA_COMMON_INSTRUMENTATION,
+                incompatibleDisableJavaCommonInstrumenation)
             .setBool(EXPERIMENTAL_RULE_EXTENSION_API, experimentalRuleExtensionApi)
             .setBool(EXPERIMENTAL_DORMANT_DEPS, experimentalDormantDeps)
             .setBool(INCOMPATIBLE_ENABLE_DEPRECATED_LABEL_APIS, enableDeprecatedLabelApis)
@@ -1069,6 +1081,8 @@ public final class BuildLanguageOptions extends OptionsBase {
       "-incompatible_disable_non_executable_java_binary";
   public static final String INCOMPATIBLE_DISABLE_TARGET_DEFAULT_PROVIDER_FIELDS =
       "-incompatible_disable_target_default_provider_fields";
+  public static final String INCOMPATIBLE_DISABLE_JAVA_COMMON_INSTRUMENTATION =
+      "-incompatible_disable_java_common_instrumentation";
   public static final String EXPERIMENTAL_RULE_EXTENSION_API =
       FlagConstants.DEFAULT_EXPERIMENTAL_RULE_EXTENSION_API_NAME;
   public static final String EXPERIMENTAL_DORMANT_DEPS = "-experimental_dormant_deps";
