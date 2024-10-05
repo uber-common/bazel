@@ -200,7 +200,8 @@ public class JavaStarlarkCommon
       boolean enableJSpecify,
       boolean enableDirectClasspath,
       Sequence<?> additionalInputs,
-      Sequence<?> additionalOutputs)
+      Sequence<?> additionalOutputs,
+      boolean enableInstrumentation)
       throws EvalException,
           TypeException,
           RuleErrorException,
@@ -261,6 +262,7 @@ public class JavaStarlarkCommon
         Depset.cast(javaBuilderJvmFlags, String.class, "javabuilder_jvm_flags"));
     compilationHelper.enableJspecify(enableJSpecify);
     compilationHelper.enableDirectClasspath(enableDirectClasspath);
+    compilationHelper.enableInstrumentation(enableInstrumentation);
     compilationHelper.createCompileAction(outputs);
   }
 

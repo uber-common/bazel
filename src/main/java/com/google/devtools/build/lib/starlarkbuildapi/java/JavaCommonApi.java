@@ -561,6 +561,9 @@ public interface JavaCommonApi<
         @Param(name = "enable_direct_classpath", defaultValue = "True", named = true),
         @Param(name = "additional_inputs", defaultValue = "[]", named = true),
         @Param(name = "additional_outputs", defaultValue = "[]", named = true),
+        @Param(name = "enable_instrumentation", named = true, defaultValue = "True",
+                disableWithFlag = BuildLanguageOptions.INCOMPATIBLE_DISABLE_JAVA_COMMON_INSTRUMENTATION,
+                valueWhenDisabled = "False"),
       })
   void createCompilationAction(
       StarlarkRuleContextT ctx,
@@ -590,7 +593,8 @@ public interface JavaCommonApi<
       boolean enableJSpecify,
       boolean enableDirectClasspath,
       Sequence<?> additionalInputs,
-      Sequence<?> additionalOutputs)
+      Sequence<?> additionalOutputs,
+      boolean enable_instrumentation)
       throws EvalException,
           TypeException,
           RuleErrorException,
