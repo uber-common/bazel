@@ -1239,7 +1239,12 @@ public class RemoteExecutionService {
     }
 
     ImmutableList<ListenableFuture<FileMetadata>> downloads = downloadsBuilder.build();
-    try (SilentCloseable c = Profiler.instance().profile("Remote.download")) {
+    try (SilentCloseable c = Profiler.instance().profileAction(
+            ProfilerTask.INFO,
+            action.getSpawn().getResourceOwner().getMnemonic(),
+            "Remote.download",
+            action.getActionKey().getDigest().getHash() + " " + (result != null ? result.cacheName() : "unknown"),
+            action.getSpawn().getResourceOwner().getOwner().getLabel() != null ? action.getSpawn().getResourceOwner().getOwner().getLabel().toString() : "")) {
       waitForBulkTransfer(downloads, /* cancelRemainingOnInterrupt= */ true);
     } catch (Exception e) {
       // TODO(bazel-team): Consider adding better case-by-case exception handling instead of just
