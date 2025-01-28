@@ -466,7 +466,7 @@ def get_auth(ctx, urls):
       the auth dict which can be passed to repository_ctx.download
     """
     if hasattr(ctx.attr, "netrc") and ctx.attr.netrc:
-        netrc = read_netrc(ctx, ctx.attr.netrc)
+        netrc = read_netrc(ctx, ctx.path(ctx.attr.netrc))
     elif "NETRC" in ctx.os.environ:
         netrc = read_netrc(ctx, ctx.os.environ["NETRC"])
     else:
