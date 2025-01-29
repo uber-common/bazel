@@ -226,6 +226,14 @@ public class ConfiguredTargetQueryEnvironment extends PostAnalysisQueryEnvironme
             getLabelPrinter()),
         new BuildOutputFormatterCallback(
             eventHandler, cqueryOptions, out, skyframeExecutor, accessor, getLabelPrinter()),
+        new JsonOutputFormatterCallback(
+	    eventHandler,
+	    cqueryOptions,
+	    out,
+	    skyframeExecutor,
+	    accessor,
+	    getLabelPrinter()
+	),
         new GraphOutputFormatterCallback(
             eventHandler,
             cqueryOptions,
