@@ -13,6 +13,7 @@
 // limitations under the License.
 package com.google.devtools.build.lib.actions.usage;
 
+import com.google.common.hash.Hasher;
 import com.google.common.io.ByteStreams;
 import com.google.devtools.build.lib.actions.Action;
 import com.google.devtools.build.lib.actions.Artifact;
@@ -40,9 +41,16 @@ class Utils {
             if (entry == null) {
                 return null;
             }
-            InputStream stream = jarFile.getInputStream(entry);
-            byte[] targetArray = ByteStreams.toByteArray(stream);
-            return DigestHashFunction.SHA256.getHashFunction().hashBytes(targetArray).asBytes();
+
+            try (InputStream stream = jarFile.getInputStream(entry)) {
+                Hasher hasher = DigestHashFunction.SHA256.getHashFunction().newHasher();
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = stream.read(buffer)) != -1) {
+                    hasher.putBytes(buffer, 0, read);
+                }
+                return hasher.hash().asBytes();
+            }
         } catch (IOException e) {
         }
         return new byte[0];
@@ -57,5 +65,24 @@ class Utils {
                 .filter(output -> output.getExecPathString().endsWith(".jdeps"))
                 .collect(Collectors.toList());
         return jdepsOutput.size() == 1 ? jdepsOutput.get(0) : null;
+    }
+
+    /**
+     * Checks whether the resourceId is valid.
+     */
+    static boolean isResourceValid(String resId) {
+        if (resId.indexOf("R.") != 0) {
+            if (resId.indexOf("android.R.") != 0) {
+                System.err.println("WARN: Malformed res: " + resId);
+            }
+            return false;
+        }
+
+        if (resId.lastIndexOf('.') == 1) {
+            // Ignore bogus entry like R.attr, caused by 'import R.attr;'
+            return false;
+        }
+
+        return true;
     }
 }

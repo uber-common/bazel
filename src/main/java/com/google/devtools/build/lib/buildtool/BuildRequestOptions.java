@@ -364,6 +364,17 @@ public class BuildRequestOptions extends OptionsBase {
   public ActionInputUsageTrackerMode experimentalActionInputUsageTrackerMode;
 
   @Option(
+      name = "experimental_action_input_usage_tracker_use_rtxt",
+      defaultValue = "false",
+      documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
+      effectTags = {
+        OptionEffectTag.BAZEL_INTERNAL_CONFIGURATION,
+        OptionEffectTag.HOST_MACHINE_RESOURCE_OPTIMIZATIONS
+      },
+      help = "Whether to use R.txt in android resource tracker to speed up performance.")
+  public boolean experimentalActionInputUsageTrackerUseRtxt;
+
+  @Option(
       name = "rewind_lost_inputs",
       defaultValue = "false",
       documentationCategory = OptionDocumentationCategory.UNDOCUMENTED,
