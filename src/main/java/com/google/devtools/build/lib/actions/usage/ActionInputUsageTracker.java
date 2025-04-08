@@ -21,20 +21,19 @@ import com.google.devtools.build.lib.view.proto.Deps;
 import javax.annotation.Nullable;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
-import java.lang.reflect.Field;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.*;
 import java.util.Enumeration;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.devtools.build.lib.actions.usage.Utils.getHashFromJarEntry;
 import static com.google.devtools.build.lib.actions.usage.Utils.getJDepsOutput;
+import static com.google.devtools.build.lib.actions.usage.Utils.isResourceValid;
 
 /**
  * Class responsible for removing irrelevant inputs used for an action cache key computation. The goal here is to
@@ -67,18 +66,51 @@ public class ActionInputUsageTracker {
         }
     }
 
+    /**
+     * Internal class used when agressively caching pre-computed hash of ABI jar class entries.
+     */
+    class JarEntryHash {
+        private Map<String, PreComputedMetadataValue> hashMetadataValueMap;
+        private long lastModified;
+
+        JarEntryHash(Artifact artifact) {
+            this.hashMetadataValueMap = new ConcurrentHashMap<>();
+            this.lastModified = artifact.getPath().getPathFile().lastModified();
+        }
+
+        long lastModified() {
+            return lastModified;
+        }
+
+        PreComputedMetadataValue get(String path) {
+            return hashMetadataValueMap.get(path);
+        }
+
+        void put(String path, PreComputedMetadataValue hash) {
+            hashMetadataValueMap.put(path, hash);
+        }
+    }
+
     private static final Set<String> SUPPORTED_DEPENDENCY_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile", "KotlinKsp");
     private static final Set<String> SUPPORTED_CLASS_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile", "KotlinKsp");
-    private static final String ANDROID_RESOURCES_NAMESPACE = "com.uber.";
+    protected static final String ANDROID_RESOURCES_NAMESPACE = "com.uber.";
 
     private final ArtifactPathResolver pathResolver;
     private final ActionInputUsageTrackerMode trackerMode;
     private final Map<String, UsageInfo> trackerInfoMap;
+    private final Map<String, JarEntryHash> jarEntryHashCache;
+    private final boolean useRDotTxt;
 
     public ActionInputUsageTracker(ArtifactPathResolver pathResolver, ActionInputUsageTrackerMode trackerMode) {
+        this(pathResolver, trackerMode, false);
+    }
+
+    public ActionInputUsageTracker(ArtifactPathResolver pathResolver, ActionInputUsageTrackerMode trackerMode, boolean useRDotTxt) {
         this.pathResolver = pathResolver;
         this.trackerMode = trackerMode;
         this.trackerInfoMap = new ConcurrentHashMap<>();
+        this.jarEntryHashCache = new ConcurrentHashMap<>();
+        this.useRDotTxt = useRDotTxt;
     }
 
     /**
@@ -173,8 +205,9 @@ public class ActionInputUsageTracker {
         boolean isUnused = supportsInputTracking(action) && isUnusedInput(action, artifact);
 
         Set<ClassUsageInfo> usedClasses = null;
+        UsageInfo usageInfo = null;
         if (supportsClassTracking(action) && canArtifactTrackUsedClasses(artifact)) {
-            UsageInfo usageInfo = getUsageInfo(action);
+            usageInfo = getUsageInfo(action);
             if (usageInfo != null &&
                     usageInfo.usedClassesMap != null &&
                     usageInfo.usedClassesMap.getOrDefault(artifact.getExecPathString(), Collections.emptySet()).size() > 0) {
@@ -185,7 +218,7 @@ public class ActionInputUsageTracker {
                                     d.getFullyQualifiedName(),
                                     d.getInternalPath(),
                                     d.getCompileTimeFileArtifactValue(),
-                                    new PreComputedMetadataValue(getHashFromJarEntry(artifact, d.getInternalPath()))))
+                                    getHashFromJarEntryFromCache(artifact, d.getInternalPath())))
                             .collect(Collectors.toCollection(LinkedHashSet::new));
                 }
             }
@@ -193,17 +226,17 @@ public class ActionInputUsageTracker {
 
         Set<String> usedResources = null;
         if (supportsResourceTracking(action) && canArtifactTrackUsedResources(action, artifact)) {
-            UsageInfo usageInfo = getUsageInfo(action);
             if (usageInfo != null && usageInfo.usedResources != null) {
                 usedResources = usageInfo.usedResources;
-                if (includeDependencyHash) {
+                if (includeDependencyHash && usedResources.size() > 0) {
                     try {
-                        Path output = pathResolver.toPath(artifact);
-                        URL classUrl = new URL("file:" + output);
-                        URLClassLoader urlClassLoader = new URLClassLoader(new URL[]{classUrl});
+                        final AndroidResourceChecker resourceChecker = AndroidResourceCheckerFactory.create(pathResolver, artifact, useRDotTxt);
                         usedResources = usedResources.stream()
-                                .filter(resource -> resourceExists(artifact, resource, output, urlClassLoader))
-                                .collect(Collectors.toCollection(LinkedHashSet::new));
+                                .filter(resId -> {
+                                    resId = resId.replace(ANDROID_RESOURCES_NAMESPACE, "");
+                                    boolean isTracked = !isResourceValid(resId) || resourceChecker == null || resourceChecker.resourceExists(resId);
+                                    return isTracked;
+                                }).collect(Collectors.toCollection(LinkedHashSet::new));
                     } catch (Exception e) {
                         System.err.println("ActionInputUsageTracker: Failure computing res hash");
                         usedResources = null;
@@ -264,6 +297,19 @@ public class ActionInputUsageTracker {
         }
 
         return s.toString();
+    }
+
+    /**
+     * Returns possibly cached sha256 of the jar entry corresponding to provided path.
+     */
+    private PreComputedMetadataValue getHashFromJarEntryFromCache(Artifact artifact, String path) {
+        String key = artifact.getExecPathString();
+        JarEntryHash jarEntryHash = jarEntryHashCache.computeIfAbsent(key, k -> new JarEntryHash(artifact));
+        if (jarEntryHash.lastModified() != artifact.getPath().getPathFile().lastModified()) {
+            jarEntryHash = new JarEntryHash(artifact);
+            jarEntryHashCache.put(key, jarEntryHash);
+        }
+        return jarEntryHash.hashMetadataValueMap.computeIfAbsent(path, k -> new PreComputedMetadataValue(getHashFromJarEntry(artifact, path)));
     }
 
     /**
@@ -368,44 +414,10 @@ public class ActionInputUsageTracker {
             System.out.println("ActionCacheChecker: " + msg + " " + action.prettyPrint());
         }
     }
+
     public static boolean isDebug(Action action) {
         if (action.getOwner().getLabel() != null && action.getOwner().getLabel().toString().startsWith("//experimental/sample/simple/androidlib3:src_main")) {
             return true;
-        }
-        return false;
-    }
-
-    /**
-     * Check wheter the provided resourceId is defined in the artifact.
-     */
-    private boolean resourceExists(Artifact artifact, String resId, Path localResourcesArtifact, URLClassLoader urlClassLoader) {
-        if (!localResourcesArtifact.exists()) {
-            // Missing file can happen due to BwoB. In this case, assume the resource is there.
-            return true;
-        }
-
-        resId = resId.replace(ANDROID_RESOURCES_NAMESPACE, "");
-        if (resId.indexOf("R.") != 0) {
-            if (resId.indexOf("android.R.") != 0) {
-                System.err.println("WARN: Malformed res: " + resId);
-            }
-            return true;
-        }
-
-        if (resId.lastIndexOf('.') == 1) {
-            // Ignore bogus entry like R.attr, caused by 'import R.attr;'
-            return true;
-        }
-
-        try {
-            String resourceName = resId.substring(resId.lastIndexOf('.') + 1);
-            String resourceType = resId.substring(0, resId.lastIndexOf('.'));
-            String resourceClassName = ANDROID_RESOURCES_NAMESPACE + resourceType.replace(".", "$");
-            Class<?> resourceClass = urlClassLoader.loadClass(resourceClassName);
-            Field f = resourceClass.getField(resourceName);
-            return f != null;
-        } catch (Exception e) {
-            System.err.println("ActionInputUsageTracker: Lookup failed for " + resId + " in " + artifact.getExecPathString() + " : " + e);
         }
         return false;
     }

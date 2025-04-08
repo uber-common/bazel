@@ -977,7 +977,8 @@ public class ExecutionTool {
             ArtifactPathResolver.createPathResolver(
                     executor.getFileSystem(),
                     executor.getExecRoot()),
-            options.experimentalActionInputUsageTrackerMode);
+            options.experimentalActionInputUsageTrackerMode,
+            options.experimentalActionInputUsageTrackerUseRtxt);
     return new SkyframeBuilder(
         skyframeExecutor,
         env.getLocalResourceManager(),
