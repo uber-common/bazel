@@ -110,6 +110,7 @@ public class Scrubber {
     private final ImmutableList<Pattern> omittedInputPatterns;
     private final ImmutableList<Pattern> omittedInputPatternsExternal;
     private final ImmutableMap<Pattern, String> argReplacements;
+    private final ImmutableList<String> omittedEnvVars;
     private final String salt;
     private final boolean debug = false;
 
@@ -129,6 +130,8 @@ public class Scrubber {
               transformProto.getOmittedInputsExternalList().stream()
                       .map(Pattern::compile)
                       .collect(toImmutableList());
+      this.omittedEnvVars =
+          ImmutableList.copyOf(transformProto.getOmittedEnvVariablesList());
       this.argReplacements =
           transformProto.getArgReplacementsList().stream()
               .collect(toImmutableMap(r -> Pattern.compile(r.getSource()), r -> r.getTarget()));
@@ -185,6 +188,12 @@ public class Scrubber {
         }
       }
       return arg;
+    }
+
+    public ImmutableMap<String, String> scrubEnvironment(ImmutableMap<String, String> env) {
+      return env.entrySet().stream()
+          .filter(entry -> !omittedEnvVars.contains(entry.getKey()))
+          .collect(toImmutableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /** Returns the scrubbing salt. */

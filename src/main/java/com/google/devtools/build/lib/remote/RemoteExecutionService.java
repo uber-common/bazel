@@ -275,6 +275,9 @@ public class RemoteExecutionService {
       command.addArguments(decodeBytestringUtf8(arg));
     }
     // Sorting the environment pairs by variable name.
+    if (spawnScrubber != null) {
+      env = spawnScrubber.scrubEnvironment(env);
+    }
     TreeSet<String> variables = new TreeSet<>(env.keySet());
     for (String var : variables) {
       command
