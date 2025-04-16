@@ -70,6 +70,9 @@ message Config {
     // exactly matches at least one of the regexes will be omitted from the cache key.
     // Use .* if a partial match is desired.
     repeated string omitted_inputs_external = 4;
+
+    // A list of environment variable names to be scrubbed from spawn environment list.
+    repeated string omitted_env_variables= 5;
   }
 
   // Describes a set of transformations to be applied against a set of actions.
