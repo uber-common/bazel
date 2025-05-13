@@ -137,7 +137,7 @@ final class RemoteSpawnCache implements SpawnCache {
             "check cache hit",
             action.getActionKey().getDigest().getHash(),
             action.getSpawn().getResourceOwner().getOwner().getLabel() != null ? action.getSpawn().getResourceOwner().getOwner().getLabel().toString() : "")) {
-              result = remoteExecutionService.lookupCache(action); // arteghem
+              result = remoteExecutionService.lookupCache(action);
           }
           // In case the remote cache returned a failed action (exit code != 0) we treat it as a
           // cache miss
