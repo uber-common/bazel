@@ -30,7 +30,9 @@ import com.google.devtools.build.lib.vfs.PathFragment;
 import io.netty.channel.unix.DomainSocketAddress;
 import java.io.IOException;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
+import java.util.List;
 import javax.annotation.Nullable;
 
 /**
@@ -47,12 +49,14 @@ public final class RemoteCacheClientFactory {
       DigestUtil digestUtil,
       ExecutorService executorService,
       boolean remoteVerifyDownloads,
-      RemoteCacheClient remoteCacheClient)
+      RemoteCacheClient remoteCacheClient,
+      List<RemoteCacheClient> secondaryRemoteCacheClients,
+      boolean secondaryRemoteCachesFindMissingBlobs)
       throws IOException {
     DiskCacheClient diskCacheClient =
         createDiskCache(
             workingDirectory, diskCachePath, digestUtil, executorService, remoteVerifyDownloads);
-    return new DiskAndRemoteCacheClient(diskCacheClient, remoteCacheClient);
+    return new DiskAndRemoteCacheClient(diskCacheClient, remoteCacheClient, secondaryRemoteCacheClients, secondaryRemoteCachesFindMissingBlobs);
   }
 
   public static RemoteCacheClient create(
@@ -172,7 +176,10 @@ public final class RemoteCacheClientFactory {
         digestUtil,
         executorService,
         options.remoteVerifyDownloads,
-        httpCache);
+        httpCache,
+        new ArrayList<>(),
+        false /* secondaryRemoteCachesFindMissingBlobs */);
+
   }
 
   public static boolean isDiskCache(RemoteOptions options) {
