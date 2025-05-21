@@ -113,6 +113,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.channels.ClosedChannelException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -592,6 +594,31 @@ public final class RemoteModule extends BlazeModule {
             cacheChannel.retain(), callCredentialsProvider, remoteOptions, retrier, digestUtil);
     cacheChannel.release();
 
+    List<RemoteCacheClient> secondaryCacheClients = new ArrayList<>();
+    for (String secondaryRemoteCache : remoteOptions.secondaryRemoteCaches) {
+      ReferenceCountedChannel secondaryCacheChannel =
+              createChannel(
+                      executorService,
+                      remoteOptions,
+                      authAndTlsOptions,
+                      TracingMetadataUtils.newCacheHeadersInterceptor(remoteOptions),
+                      loggingInterceptor,
+                      channelFactory,
+                      secondaryRemoteCache,
+                      remoteOptions.remoteProxy,
+                      maxConcurrencyPerConnection,
+                      maxConnections,
+                      verboseFailures,
+                      env.getReporter(),
+                      rsc,
+                      digestUtil.getDigestFunction(),
+                      ServerCapabilitiesRequirement.CACHE);
+      GrpcCacheClient client = new GrpcCacheClient(
+              secondaryCacheChannel.retain(), callCredentialsProvider, remoteOptions, retrier, digestUtil);
+      secondaryCacheChannel.release();
+      secondaryCacheClients.add(client);
+    }
+
     if (enableRemoteExecution) {
       if (enableDiskCache) {
         try {
@@ -602,7 +629,9 @@ public final class RemoteModule extends BlazeModule {
                   digestUtil,
                   executorService,
                   remoteOptions.remoteVerifyDownloads,
-                  cacheClient);
+                  cacheClient,
+                  secondaryCacheClients,
+                  remoteOptions.secondaryRemoteCachesFindMissingBlobs);
         } catch (Exception e) {
           handleInitFailure(env, e, Code.CACHE_INIT_FAILURE);
           return;
@@ -664,7 +693,9 @@ public final class RemoteModule extends BlazeModule {
                   digestUtil,
                   executorService,
                   remoteOptions.remoteVerifyDownloads,
-                  cacheClient);
+                  cacheClient,
+                  secondaryCacheClients,
+                  remoteOptions.secondaryRemoteCachesFindMissingBlobs);
         } catch (Exception e) {
           handleInitFailure(env, e, Code.CACHE_INIT_FAILURE);
           return;

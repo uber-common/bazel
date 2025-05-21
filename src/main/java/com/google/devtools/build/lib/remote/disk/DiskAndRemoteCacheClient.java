@@ -33,6 +33,8 @@ import com.google.devtools.build.lib.vfs.Path;
 import com.google.protobuf.ByteString;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A {@link RemoteCacheClient} implementation combining two blob stores. A local disk blob store and
@@ -43,10 +45,14 @@ public final class DiskAndRemoteCacheClient implements RemoteCacheClient {
 
   private final RemoteCacheClient remoteCache;
   private final DiskCacheClient diskCache;
+  private final List<RemoteCacheClient> secondaryRemoteCaches;
+  private final boolean secondaryRemoteCachesFindMissingBlobs;
 
-  public DiskAndRemoteCacheClient(DiskCacheClient diskCache, RemoteCacheClient remoteCache) {
+  public DiskAndRemoteCacheClient(DiskCacheClient diskCache, RemoteCacheClient remoteCache, List<RemoteCacheClient> secondaryRemoteCaches, boolean secondaryRemoteCachesFindMissingBlobs) {
     this.diskCache = Preconditions.checkNotNull(diskCache);
     this.remoteCache = Preconditions.checkNotNull(remoteCache);
+    this.secondaryRemoteCaches = secondaryRemoteCaches;
+    this.secondaryRemoteCachesFindMissingBlobs = secondaryRemoteCachesFindMissingBlobs;
   }
 
   @Override
@@ -64,6 +70,13 @@ public final class DiskAndRemoteCacheClient implements RemoteCacheClient {
               future,
               v -> remoteCache.uploadActionResult(context, actionKey, actionResult),
               directExecutor());
+      for (RemoteCacheClient secondaryRemoteCache : secondaryRemoteCaches) {
+        future =
+            Futures.transformAsync(
+                future,
+                v -> secondaryRemoteCache.uploadActionResult(context, actionKey, actionResult),
+                directExecutor());
+      }
     }
     return future;
   }
@@ -72,6 +85,9 @@ public final class DiskAndRemoteCacheClient implements RemoteCacheClient {
   public void close() {
     diskCache.close();
     remoteCache.close();
+    for (RemoteCacheClient secondaryRemoteCache : secondaryRemoteCaches) {
+      secondaryRemoteCache.close();
+    }
   }
 
   @Override
@@ -87,6 +103,11 @@ public final class DiskAndRemoteCacheClient implements RemoteCacheClient {
       future =
           Futures.transformAsync(
               future, v -> remoteCache.uploadFile(context, digest, file), directExecutor());
+      for (RemoteCacheClient secondaryRemoteCache : secondaryRemoteCaches) {
+        future =
+            Futures.transformAsync(
+                future, v -> secondaryRemoteCache.uploadFile(context, digest, file), directExecutor());
+      }
     }
     return future;
   }
@@ -104,6 +125,11 @@ public final class DiskAndRemoteCacheClient implements RemoteCacheClient {
       future =
           Futures.transformAsync(
               future, v -> remoteCache.uploadBlob(context, digest, data), directExecutor());
+      for (RemoteCacheClient secondaryRemoteCache : secondaryRemoteCaches) {
+        future =
+            Futures.transformAsync(
+                future, v -> secondaryRemoteCache.uploadBlob(context, digest, data), directExecutor());
+      }
     }
     return future;
   }
@@ -117,20 +143,34 @@ public final class DiskAndRemoteCacheClient implements RemoteCacheClient {
     }
 
     ListenableFuture<ImmutableSet<Digest>> remoteQuery = immediateFuture(ImmutableSet.of());
+    List<ListenableFuture<ImmutableSet<Digest>>> secondaryRemoteQueries = new ArrayList<>();
     if (context.getWriteCachePolicy().allowRemoteCache()) {
       remoteQuery = remoteCache.findMissingDigests(context, digests);
+
+      if (secondaryRemoteCachesFindMissingBlobs) {
+        for (RemoteCacheClient secondaryRemoteCache : secondaryRemoteCaches) {
+          secondaryRemoteQueries.add(secondaryRemoteCache.findMissingDigests(context, digests));
+        }
+      }
     }
 
     ListenableFuture<ImmutableSet<Digest>> diskQueryFinal = diskQuery;
     ListenableFuture<ImmutableSet<Digest>> remoteQueryFinal = remoteQuery;
+    ListenableFuture<List<ImmutableSet<Digest>>> secondaryRemoteQueriesFinal = Futures.successfulAsList(secondaryRemoteQueries);
 
-    return Futures.whenAllSucceed(remoteQueryFinal, diskQueryFinal)
+    return Futures.whenAllSucceed(remoteQueryFinal, secondaryRemoteQueriesFinal, diskQueryFinal)
         .call(
-            () ->
-                ImmutableSet.<Digest>builder()
-                    .addAll(remoteQueryFinal.get())
-                    .addAll(diskQueryFinal.get())
-                    .build(),
+            () -> {
+              ImmutableSet.Builder<Digest> result = ImmutableSet.builder();
+              result.addAll(remoteQueryFinal.get());
+              for (ImmutableSet<Digest> remoteResult : secondaryRemoteQueriesFinal.get()) {
+                if (remoteResult != null) {
+                  result.addAll(remoteResult);
+                }
+              }
+              result.addAll(diskQueryFinal.get());
+              return result.build();
+            },
             directExecutor());
   }
 

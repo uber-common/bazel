@@ -125,6 +125,27 @@ public final class RemoteOptions extends CommonRemoteOptions {
   public String remoteCache;
 
   @Option(
+      name = "experimental_secondary_remote_cache",
+      defaultValue = "null",
+      documentationCategory = OptionDocumentationCategory.REMOTE,
+      effectTags = {OptionEffectTag.UNKNOWN},
+      help =
+          "A list of URI for secondary caching endpoint, these are used only for mirroring cache write. "
+              + "This avoids, in environment where geo-replication is not available, to have to re-run "
+              + "separate build to populate additional remote cache servers.",
+      allowMultiple = true)
+  public List<String> secondaryRemoteCaches;
+
+  @Option(
+          name = "experimental_secondary_remote_cache_find_missing_blobs",
+          defaultValue = "false",
+          documentationCategory = OptionDocumentationCategory.REMOTE,
+          effectTags = {OptionEffectTag.UNKNOWN},
+          help = "Whether to force re-uploading blobs that may be missing from secondary remote cache. "
+               + "This default behavior is to only push artifacts that is missing from primary remote server.")
+  public boolean secondaryRemoteCachesFindMissingBlobs;
+
+  @Option(
       name = "experimental_remote_downloader",
       defaultValue = "null",
       documentationCategory = OptionDocumentationCategory.REMOTE,
