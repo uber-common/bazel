@@ -118,6 +118,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.channels.ClosedChannelException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -758,6 +759,31 @@ public final class RemoteModule extends BlazeModule {
     cacheChannel.release();
     DiskCacheClient diskCacheClient = null;
 
+    List<RemoteCacheClient> secondaryCacheClients = new ArrayList<>();
+    for (String secondaryRemoteCache : remoteOptions.secondaryRemoteCaches) {
+      ReferenceCountedChannel secondaryCacheChannel =
+              createChannel(
+                      executorService,
+                      remoteOptions,
+                      authAndTlsOptions,
+                      TracingMetadataUtils.newCacheHeadersInterceptor(remoteOptions),
+                      loggingInterceptor,
+                      channelFactory,
+                      secondaryRemoteCache,
+                      remoteOptions.remoteProxy,
+                      maxConcurrencyPerConnection,
+                      maxConnections,
+                      verboseFailures,
+                      env.getReporter(),
+                      rsc,
+                      digestUtil.getDigestFunction(),
+                      ServerCapabilitiesRequirement.CACHE);
+      GrpcCacheClient client = new GrpcCacheClient(
+              secondaryCacheChannel.retain(), callCredentialsProvider, remoteOptions, retrier, digestUtil);
+      secondaryCacheChannel.release();
+      secondaryCacheClients.add(client);
+    }
+
     if (enableRemoteExecution) {
       if (enableDiskCache) {
         try {
@@ -798,7 +824,13 @@ public final class RemoteModule extends BlazeModule {
       }
       execChannel.release();
       RemoteExecutionCache remoteCache =
-          new RemoteExecutionCache(remoteCacheClient, diskCacheClient, remoteOptions, digestUtil);
+          new RemoteExecutionCache(
+              remoteCacheClient,
+              diskCacheClient,
+              secondaryCacheClients,
+              remoteOptions.secondaryRemoteCachesFindMissingBlobs,
+              remoteOptions,
+              digestUtil);
       actionContextProvider =
           RemoteActionContextProvider.createForRemoteExecution(
               env,
@@ -826,7 +858,13 @@ public final class RemoteModule extends BlazeModule {
       }
 
       CombinedCache combinedCache =
-          new CombinedCache(remoteCacheClient, diskCacheClient, remoteOptions, digestUtil);
+          new CombinedCache(
+              remoteCacheClient,
+              diskCacheClient,
+              secondaryCacheClients,
+              remoteOptions.secondaryRemoteCachesFindMissingBlobs,
+              remoteOptions,
+              digestUtil);
       actionContextProvider =
           RemoteActionContextProvider.createForRemoteCaching(
               env,

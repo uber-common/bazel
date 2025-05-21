@@ -126,6 +126,7 @@ public final class CombinedCacheClientFactory {
     return new DiskCacheClient(cacheDir, digestUtil, verifyDownloads);
   }
 
+
   public static boolean isDiskCache(RemoteOptions options) {
     return options.diskCache != null && !options.diskCache.isEmpty();
   }
