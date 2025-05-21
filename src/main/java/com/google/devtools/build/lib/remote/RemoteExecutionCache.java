@@ -113,6 +113,22 @@ public class RemoteExecutionCache extends CombinedCache {
     super(checkNotNull(remoteCacheClient), diskCacheClient, options, digestUtil);
   }
 
+  public RemoteExecutionCache(
+      RemoteCacheClient remoteCacheClient,
+      @Nullable DiskCacheClient diskCacheClient,
+      List<RemoteCacheClient> secondaryRemoteCacheClients,
+      boolean secondaryRemoteCachesFindMissingBlobs,
+      RemoteOptions options,
+      DigestUtil digestUtil) {
+    super(
+        checkNotNull(remoteCacheClient),
+        diskCacheClient,
+        secondaryRemoteCacheClients,
+        secondaryRemoteCachesFindMissingBlobs,
+        options,
+        digestUtil);
+  }
+
   @VisibleForTesting
   void setRemotePathChecker(RemotePathChecker remotePathChecker) {
     this.remotePathChecker = remotePathChecker;

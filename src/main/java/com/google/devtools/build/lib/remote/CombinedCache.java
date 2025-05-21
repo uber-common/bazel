@@ -95,6 +95,8 @@ public class CombinedCache extends AbstractReferenceCounted {
 
   @Nullable protected final RemoteCacheClient remoteCacheClient;
   @Nullable protected final DiskCacheClient diskCacheClient;
+  protected final List<RemoteCacheClient> secondaryRemoteCacheClients;
+  protected final boolean secondaryRemoteCachesFindMissingBlobs;
   protected final RemoteOptions options;
   protected final DigestUtil digestUtil;
 
@@ -103,11 +105,23 @@ public class CombinedCache extends AbstractReferenceCounted {
       @Nullable DiskCacheClient diskCacheClient,
       RemoteOptions options,
       DigestUtil digestUtil) {
+    this(remoteCacheClient, diskCacheClient, new ArrayList<>(), false, options, digestUtil);
+  }
+
+  public CombinedCache(
+      @Nullable RemoteCacheClient remoteCacheClient,
+      @Nullable DiskCacheClient diskCacheClient,
+      List<RemoteCacheClient> secondaryRemoteCacheClients,
+      boolean secondaryRemoteCachesFindMissingBlobs,
+      RemoteOptions options,
+      DigestUtil digestUtil) {
     checkArgument(
         remoteCacheClient != null || diskCacheClient != null,
         "remoteCacheClient and diskCacheClient cannot be null at the same time");
     this.remoteCacheClient = remoteCacheClient;
     this.diskCacheClient = diskCacheClient;
+    this.secondaryRemoteCacheClients = secondaryRemoteCacheClients;
+    this.secondaryRemoteCachesFindMissingBlobs = secondaryRemoteCachesFindMissingBlobs;
     this.options = options;
     this.digestUtil = digestUtil;
   }
@@ -244,20 +258,35 @@ public class CombinedCache extends AbstractReferenceCounted {
     }
 
     ListenableFuture<ImmutableSet<Digest>> remoteQuery = immediateFuture(ImmutableSet.of());
+    List<ListenableFuture<ImmutableSet<Digest>>> secondaryRemoteQueries = new ArrayList<>();
     if (remoteCacheClient != null && context.getWriteCachePolicy().allowRemoteCache()) {
       remoteQuery = remoteCacheClient.findMissingDigests(context, digests);
+
+      if (secondaryRemoteCachesFindMissingBlobs) {
+        for (RemoteCacheClient secondaryRemoteCache : secondaryRemoteCacheClients) {
+          secondaryRemoteQueries.add(secondaryRemoteCache.findMissingDigests(context, digests));
+        }
+      }
     }
 
     ListenableFuture<ImmutableSet<Digest>> diskQueryFinal = diskQuery;
     ListenableFuture<ImmutableSet<Digest>> remoteQueryFinal = remoteQuery;
+    ListenableFuture<List<ImmutableSet<Digest>>> secondaryRemoteQueriesFinal =
+        Futures.successfulAsList(secondaryRemoteQueries);
 
-    return Futures.whenAllSucceed(remoteQueryFinal, diskQueryFinal)
+    return Futures.whenAllSucceed(remoteQueryFinal, secondaryRemoteQueriesFinal, diskQueryFinal)
         .call(
-            () ->
-                ImmutableSet.<Digest>builder()
-                    .addAll(remoteQueryFinal.get())
-                    .addAll(diskQueryFinal.get())
-                    .build(),
+            () -> {
+              ImmutableSet.Builder<Digest> result = ImmutableSet.builder();
+              result.addAll(remoteQueryFinal.get());
+              for (ImmutableSet<Digest> remoteResult : secondaryRemoteQueriesFinal.get()) {
+                if (remoteResult != null) {
+                  result.addAll(remoteResult);
+                }
+              }
+              result.addAll(diskQueryFinal.get());
+              return result.build();
+            },
             directExecutor());
   }
 
@@ -283,7 +312,20 @@ public class CombinedCache extends AbstractReferenceCounted {
       remoteCacheFuture = remoteCacheClient.uploadActionResult(context, actionKey, actionResult);
     }
 
-    return Futures.whenAllSucceed(diskCacheFuture, remoteCacheFuture)
+    List<ListenableFuture<Void>> secondaryFutures = new ArrayList<>();
+    if (context.getWriteCachePolicy().allowRemoteCache()) {
+      for (RemoteCacheClient secondaryRemoteCache : secondaryRemoteCacheClients) {
+        secondaryFutures.add(
+            secondaryRemoteCache.uploadActionResult(context, actionKey, actionResult));
+      }
+    }
+
+    List<ListenableFuture<Void>> allFutures = new ArrayList<>();
+    allFutures.add(diskCacheFuture);
+    allFutures.add(remoteCacheFuture);
+    allFutures.addAll(secondaryFutures);
+
+    return Futures.whenAllSucceed(allFutures)
         .call(() -> null, directExecutor());
   }
 
@@ -324,7 +366,19 @@ public class CombinedCache extends AbstractReferenceCounted {
       remoteCacheFuture = RxFutures.toListenableFuture(upload);
     }
 
-    return Futures.whenAllSucceed(diskCacheFuture, remoteCacheFuture)
+    List<ListenableFuture<Void>> secondaryFutures = new ArrayList<>();
+    if (context.getWriteCachePolicy().allowRemoteCache()) {
+      for (RemoteCacheClient secondaryRemoteCache : secondaryRemoteCacheClients) {
+        secondaryFutures.add(secondaryRemoteCache.uploadFile(context, digest, file));
+      }
+    }
+
+    List<ListenableFuture<Void>> allFutures = new ArrayList<>();
+    allFutures.add(diskCacheFuture);
+    allFutures.add(remoteCacheFuture);
+    allFutures.addAll(secondaryFutures);
+
+    return Futures.whenAllSucceed(allFutures)
         .call(() -> null, directExecutor());
   }
 
@@ -366,7 +420,19 @@ public class CombinedCache extends AbstractReferenceCounted {
       remoteCacheFuture = RxFutures.toListenableFuture(upload);
     }
 
-    return Futures.whenAllSucceed(diskCacheFuture, remoteCacheFuture)
+    List<ListenableFuture<Void>> secondaryFutures = new ArrayList<>();
+    if (context.getWriteCachePolicy().allowRemoteCache()) {
+      for (RemoteCacheClient secondaryRemoteCache : secondaryRemoteCacheClients) {
+        secondaryFutures.add(secondaryRemoteCache.uploadBlob(context, digest, data));
+      }
+    }
+
+    List<ListenableFuture<Void>> allFutures = new ArrayList<>();
+    allFutures.add(diskCacheFuture);
+    allFutures.add(remoteCacheFuture);
+    allFutures.addAll(secondaryFutures);
+
+    return Futures.whenAllSucceed(allFutures)
         .call(() -> null, directExecutor());
   }
 
@@ -680,6 +746,9 @@ public class CombinedCache extends AbstractReferenceCounted {
     casUploadCache.shutdown();
     if (remoteCacheClient != null) {
       remoteCacheClient.close();
+    }
+    for (RemoteCacheClient secondaryRemoteCache : secondaryRemoteCacheClients) {
+      secondaryRemoteCache.close();
     }
 
     closeCountDownLatch.countDown();
