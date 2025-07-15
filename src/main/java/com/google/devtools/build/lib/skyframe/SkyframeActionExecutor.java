@@ -792,7 +792,8 @@ public final class SkyframeActionExecutor {
           artifactExpander,
           clientEnv,
           getOutputPermissions(),
-          remoteDefaultProperties);
+          remoteDefaultProperties,
+          false /* isDelayedUpdate */);
     } catch (IOException e) {
       // Skyframe has already done all the filesystem access needed for outputs and swallows
       // IOExceptions for inputs. So an IOException is impossible here.
