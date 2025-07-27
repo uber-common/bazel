@@ -98,6 +98,7 @@ def _create_proto_info(*, srcs, deps, descriptor_set, proto_path = "", workspace
     transitive_proto_path = depset(
         direct = [_empty_to_dot(_from_root(root, workspace_root, proto_path)) for root in root_paths],
         transitive = [dep.transitive_proto_path for dep in deps],
+        order = "preorder",
     )
 
     if srcs:
