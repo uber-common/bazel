@@ -116,6 +116,21 @@ static NSString *ExpandVersion(NSString *version) {
   return version;
 }
 
+static NSString *SelectedXcode(void) {
+  NSTask *t = [NSTask new];
+  t.launchPath = @"/usr/bin/xcode-select";
+  t.arguments = @[ @"-p" ];
+  NSPipe *p = [NSPipe pipe];
+  t.standardOutput = p;
+  [t launch];
+  [t waitUntilExit];
+  NSString *devDir = [[[NSString alloc]
+                       initWithData:[[p fileHandleForReading] readDataToEndOfFile]
+                       encoding:NSUTF8StringEncoding]
+                      stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+  return devDir;
+}
+
 // Searches for all available Xcodes in the system and returns a dictionary that
 // maps version identifiers of any form (X, X.Y, and X.Y.Z) to the directory
 // where the Xcode bundle lives.
@@ -136,6 +151,21 @@ static NSMutableDictionary<NSString *, XcodeVersionEntry *> *FindXcodes()
     NSError *nsError = (__bridge NSError *)cfError;
     fprintf(stderr, "error: %s\n", nsError.description.UTF8String);
     return nil;
+  }
+  
+  NSString *selectedXcode = SelectedXcode();
+  if ((selectedXcode.length > 0) && ![selectedXcode containsString:@"CommandLineTools"]) {
+    NSURL *selectedXcodeURL = [NSURL fileURLWithPath:selectedXcode];
+    NSString *path = selectedXcodeURL.path;
+    if ([path hasSuffix:@"/Contents/Developer"]) {
+      path = [path substringToIndex:
+              path.length - @"/Contents/Developer".length];
+    }
+    
+    NSURL *appURL = [NSURL fileURLWithPath:path isDirectory:YES];
+    if (![array containsObject:appURL]) {
+      array = [array arrayByAddingObject:appURL];
+    }
   }
 
   // Scan all bundles but delay returning in case of errors until we are
