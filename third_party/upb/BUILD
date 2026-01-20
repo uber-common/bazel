@@ -9,4 +9,5 @@ filegroup(
 exports_files([
     "BUILD",
     "01_remove_werror.patch",
+    "upb_c23_extensions.patch",
 ])
