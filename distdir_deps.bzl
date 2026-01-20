@@ -330,10 +330,10 @@ DIST_DEPS = {
     #
     ###################################################
     "android_gmaven_r8": {
-        "archive": "r8-8.5.35.jar",
+        "archive": "r8-9.0.32.jar",
         "sha256": "57a696749695a09381a87bc2f08c3a8ed06a717a5caa3ef878a3077e0d3af19d",
         "urls": [
-            "https://maven.google.com/com/android/tools/r8/8.5.35/r8-8.5.35.jar",
+            "https://storage.googleapis.com/r8-releases/raw/9.0.32/r8lib.jar",
         ],
         "used_in": [
         ],
