@@ -648,6 +648,17 @@ public final class RemoteModule extends BlazeModule {
     if ((enableHttpCache || enableDiskCache) && !enableGrpcCache) {
       initHttpAndDiskCache(env, credentials, authAndTlsOptions, remoteOptions, digestUtil);
       initRepoHelpersAndOverlayFs(env, buildRequestId, invocationId, verboseFailures);
+      buildEventArtifactUploaderFactoryDelegate.init(
+          new ByteStreamBuildEventArtifactUploaderFactory(
+              executorService,
+              env.getReporter(),
+              verboseFailures,
+              actionContextProvider.getCombinedCache(),
+              remoteOptions.remoteInstanceName,
+              remoteOptions.remoteBytestreamUriPrefix,
+              buildRequestId,
+              invocationId,
+              remoteOptions.remoteBuildEventUploadMode));
       return true;
     }
 
