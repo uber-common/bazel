@@ -964,7 +964,9 @@ public class ExecutionTool {
                     executor.getFileSystem(),
                     executor.getExecRoot()),
             options.experimentalActionInputUsageTrackerMode,
-            options.experimentalActionInputUsageTrackerUseRtxt);
+            options.experimentalActionInputUsageTrackerUseRtxt,
+            options.experimentalActionInputUsageTrackerUseKotlinJdeps,
+            options.experimentalActionInputUsageTrackerUseKotlinJdepsForKsp);
     return new SkyframeBuilder(
         skyframeExecutor,
         env.getLocalResourceManager(),
