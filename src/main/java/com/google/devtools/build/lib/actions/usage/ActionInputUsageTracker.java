@@ -14,6 +14,8 @@
 package com.google.devtools.build.lib.actions.usage;
 
 import com.google.devtools.build.lib.actions.*;
+import com.google.devtools.build.lib.actions.ActionCacheChecker.Token;
+import com.google.devtools.build.lib.actions.cache.OutputMetadataStore;
 import com.google.devtools.build.lib.buildtool.BuildRequestOptions.ActionInputUsageTrackerMode;
 import com.google.devtools.build.lib.vfs.Path;
 import com.google.devtools.build.lib.view.proto.Deps;
@@ -91,6 +93,18 @@ public class ActionInputUsageTracker {
         }
     }
 
+    public class DelayedCachedActionData {
+        public Action action;
+        public Token token;
+        public OutputMetadataStore outputMetadataStore;
+
+        public DelayedCachedActionData(Action action, Token token, OutputMetadataStore outputMetadataStore) {
+            this.action = action;
+            this.token = token;
+            this.outputMetadataStore = outputMetadataStore;
+        }
+    }
+
     private static final Set<String> SUPPORTED_DEPENDENCY_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile", "KotlinKsp");
     private static final Set<String> SUPPORTED_CLASS_TRACKING_MNEMONICS = Set.of("Javac", "KotlinCompile", "KotlinKsp");
     protected static final String ANDROID_RESOURCES_NAMESPACE = "com.uber.";
@@ -99,18 +113,24 @@ public class ActionInputUsageTracker {
     private final ActionInputUsageTrackerMode trackerMode;
     private final Map<String, UsageInfo> trackerInfoMap;
     private final Map<String, JarEntryHash> jarEntryHashCache;
+    private final Map<String, DelayedCachedActionData> delayedCachedActionsData;
     private final boolean useRDotTxt;
+    private final boolean useKotlinJdeps;
+    private final boolean useKotlinJdepsForKsp;
 
     public ActionInputUsageTracker(ArtifactPathResolver pathResolver, ActionInputUsageTrackerMode trackerMode) {
-        this(pathResolver, trackerMode, false);
+        this(pathResolver, trackerMode, false, false, false);
     }
 
-    public ActionInputUsageTracker(ArtifactPathResolver pathResolver, ActionInputUsageTrackerMode trackerMode, boolean useRDotTxt) {
+    public ActionInputUsageTracker(ArtifactPathResolver pathResolver, ActionInputUsageTrackerMode trackerMode, boolean useRDotTxt, boolean useKotlinJdeps, boolean useKotlinJdepsForKsp) {
         this.pathResolver = pathResolver;
         this.trackerMode = trackerMode;
         this.trackerInfoMap = new ConcurrentHashMap<>();
         this.jarEntryHashCache = new ConcurrentHashMap<>();
+        this.delayedCachedActionsData = new ConcurrentHashMap<>();
         this.useRDotTxt = useRDotTxt;
+        this.useKotlinJdeps = useKotlinJdeps;
+        this.useKotlinJdepsForKsp = useKotlinJdepsForKsp;
     }
 
     /**
@@ -127,7 +147,6 @@ public class ActionInputUsageTracker {
         return enabled() &&
                 action.getOwner().getLabel() != null &&
                 action.getOwner().getLabel().getRepository().isMain() &&
-                getJDepsOutput(action) != null &&
                 SUPPORTED_DEPENDENCY_TRACKING_MNEMONICS.contains(action.getMnemonic());
     }
 
@@ -138,7 +157,6 @@ public class ActionInputUsageTracker {
         return (this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES || this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES_AND_RESOURCES) &&
                 action.getOwner().getLabel() != null &&
                 action.getOwner().getLabel().getRepository().isMain() &&
-                getJDepsOutput(action) != null &&
                 SUPPORTED_CLASS_TRACKING_MNEMONICS.contains(action.getMnemonic());
     }
 
@@ -149,7 +167,6 @@ public class ActionInputUsageTracker {
         return (this.trackerMode == ActionInputUsageTrackerMode.UNUSED_RESOURCES || this.trackerMode == ActionInputUsageTrackerMode.UNUSED_CLASSES_AND_RESOURCES) &&
                 action.getOwner().getLabel() != null &&
                 action.getOwner().getLabel().getRepository().isMain() &&
-                getJDepsOutput(action) != null &&
                 SUPPORTED_CLASS_TRACKING_MNEMONICS.contains(action.getMnemonic());
     }
 
@@ -161,34 +178,41 @@ public class ActionInputUsageTracker {
             return;
         }
 
+        if (isKspAction(action) && !useKotlinJdepsForKsp) {
+            return;
+        }
+
         try {
-            Artifact jdeps = getJDepsOutput(action);
-            Path output = pathResolver.toPath(jdeps);
-            InputStream input = output.getInputStream();
-            Deps.Dependencies deps = Deps.Dependencies.parseFrom(input);
-            checkState(deps.getRuleLabel().equals(action.getOwner().getLabel().toString()));
+            Path jdepsPath = getJDepsOutputPath(action);
+            if (jdepsPath != null) {
+                InputStream input = jdepsPath.getInputStream();
+                Deps.Dependencies deps = Deps.Dependencies.parseFrom(input);
+                checkState(deps.getRuleLabel().equals(action.getOwner().getLabel().toString()));
 
-            Set<String> usedResources = deps.getUsedResourcesList().stream().collect(Collectors.toCollection(LinkedHashSet::new));
-            Set<String> usedPaths = deps.getDependencyList().stream()
-                    .filter(d -> d.getKind() == Deps.Dependency.Kind.EXPLICIT || d.getKind() == Deps.Dependency.Kind.IMPLICIT)
-                    .map(d -> d.getPath())
-                    .collect(Collectors.toCollection(LinkedHashSet::new));
-            Set<String> unusedArtifactsPath = action.getInputs().toList().stream()
-                    .filter(ActionInputUsageTracker::canArtifactBeUnused)
-                    .map(d -> d.getExecPathString())
-                    .filter(Predicate.not(usedPaths::contains))
-                    .filter(d -> usedResources.size() == 0 || !isLocalRArtifactPath(action, d))
-                    .collect(Collectors.toCollection(LinkedHashSet::new));
-            Map<String, Set<ClassUsageInfo>> usedClassesMap = deps.getDependencyList().stream()
-                    .filter(d -> d.getKind() == Deps.Dependency.Kind.EXPLICIT || d.getKind() == Deps.Dependency.Kind.IMPLICIT)
-                    .collect(Collectors.toMap(
-                            d -> d.getPath(),
-                            d -> d.getUsedClassesList().stream()
-                                    .map(ClassUsageInfo::create)
-                                    .collect(Collectors.toCollection(LinkedHashSet::new))));
+                Set<String> usedResources = deps.getUsedResourcesList().stream().collect(Collectors.toCollection(LinkedHashSet::new));
+                Set<String> usedPaths = deps.getDependencyList().stream()
+                        .filter(d -> d.getKind() == Deps.Dependency.Kind.EXPLICIT || d.getKind() == Deps.Dependency.Kind.IMPLICIT)
+                        .map(d -> d.getPath())
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+                Set<String> unusedArtifactsPath = action.getInputs().toList().stream()
+                        .filter(ActionInputUsageTracker::canArtifactBeUnused)
+                        .map(d -> d.getExecPathString())
+                        .filter(Predicate.not(usedPaths::contains))
+                        .filter(d -> usedResources.size() == 0 || !isLocalRArtifactPath(action, d))
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+                Map<String, Set<ClassUsageInfo>> usedClassesMap = deps.getDependencyList().stream()
+                        .filter(d -> d.getKind() == Deps.Dependency.Kind.EXPLICIT || d.getKind() == Deps.Dependency.Kind.IMPLICIT)
+                        .collect(Collectors.toMap(
+                                d -> d.getPath(),
+                                d -> d.getUsedClassesList().stream()
+                                        .map(ClassUsageInfo::create)
+                                        .collect(Collectors.toCollection(LinkedHashSet::new))));
 
-            UsageInfo usageInfo = new UsageInfo(unusedArtifactsPath, usedClassesMap, usedResources);
-            trackerInfoMap.put(getKey(action), usageInfo);
+                UsageInfo usageInfo = ((isKspAction(action) || isKotlinCompileAction(action)) && !useKotlinJdeps) ?
+                        new UsageInfo(unusedArtifactsPath, Collections.emptyMap(), Collections.emptySet()) :
+                        new UsageInfo(unusedArtifactsPath, usedClassesMap, usedResources);
+                trackerInfoMap.put(getKey(action), usageInfo);
+            }
         } catch (FileNotFoundException fileNotFoundException) {
             // Silently ignore, this could be a clean build
         } catch (Exception exception) {
@@ -246,6 +270,29 @@ public class ActionInputUsageTracker {
         }
 
         return new TrackingInfo(isUnused, usedClasses, usedResources);
+    }
+
+    /**
+     * Callback invoked after action cache has been updated.
+     *
+     * We use this to keep a reference on KotlinKsp action, so that we can later
+     * re-compute and update the action cache using the jdeps generated later
+     * by KotlinCompile action. This affects only local action cache, not remote,
+     * so that subsequent local incremental builds can benefit from compilation
+     * avoidance, without affecting remote or create risks of cache poisoning.
+     */
+    @Nullable
+    public DelayedCachedActionData onUpdateActionCacheComplete(Action action, Token token, OutputMetadataStore outputMetadataStore) {
+        switch (action.getMnemonic()) {
+            case "KotlinCompile":
+                String key = getKey(action).replace("KotlinCompile", "KotlinKsp");
+                return delayedCachedActionsData.remove(key);
+            case "KotlinKsp":
+                delayedCachedActionsData.put(getKey(action), new DelayedCachedActionData(action, token, outputMetadataStore));
+                return null;
+            default:
+                return null;
+        }
     }
 
     /**
@@ -334,6 +381,11 @@ public class ActionInputUsageTracker {
             return false;
         }
 
+        // Filter out resources jar inputs from KSP action
+        if (isKspAction(action) && isRArtifact(input) && !useKotlinJdepsForKsp) {
+            return true;
+        }
+
         UsageInfo usageInfo = getUsageInfo(action);
         return usageInfo != null && usageInfo.unusedArtifactPaths.contains(artifactExecPath);
     }
@@ -380,6 +432,41 @@ public class ActionInputUsageTracker {
                 artifactExecPath.endsWith("-hjar.jar") ||
                 artifactExecPath.endsWith(".abi.jar") ||
                 artifactExecPath.endsWith("_resources.jar");
+    }
+
+    /**
+     * Returns the path of the jdeps file corresponding to this action.
+     *
+     * In the case of KotlinKsp action, we are relying on the jdeps file generated by
+     * the KotlinCompile action, in order to track properly inputs that may affects the
+     * code generated by KSP (similarly to Buck). Note that only abi jars input is tracked
+     * and any change in KSP processors code or its dependencies will cause KSP action
+     * to re-run.
+     */
+    @Nullable
+    private Path getJDepsOutputPath(Action action) {
+        if (action.getMnemonic().equals("KotlinKsp")) {
+            Artifact artifact = getJDepsOutput(action, "ksp-kt-gensrc.jar");
+            if (artifact != null) {
+                Path path = pathResolver.toPath(artifact);
+                String filename = path.getBaseName().replace("ksp-kt-gensrc.jar", "kt.jdeps");
+                return path.getParentDirectory().getRelative(filename);
+            }
+        } else {
+            Artifact artifact = getJDepsOutput(action, ".jdeps");
+            if (artifact != null) {
+                return pathResolver.toPath(artifact);
+            }
+        }
+        return null;
+    }
+
+    private boolean isKspAction(Action action) {
+        return "KotlinKsp".equals(action.getMnemonic());
+    }
+
+    private boolean isKotlinCompileAction(Action action) {
+        return "KotlinCompile".equals(action.getMnemonic());
     }
 
     private static boolean isRArtifact(Artifact artifact) {

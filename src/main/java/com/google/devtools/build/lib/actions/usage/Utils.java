@@ -60,9 +60,9 @@ class Utils {
      * Get action .jdeps artifact, used to extract compilation tracking information from.
      */
     @Nullable
-    static Artifact getJDepsOutput(Action action) {
+    static Artifact getJDepsOutput(Action action, String suffix) {
         List<Artifact> jdepsOutput = action.getOutputs().stream()
-                .filter(output -> output.getExecPathString().endsWith(".jdeps"))
+                .filter(output -> output.getExecPathString().endsWith(suffix))
                 .collect(Collectors.toList());
         return jdepsOutput.size() == 1 ? jdepsOutput.get(0) : null;
     }
