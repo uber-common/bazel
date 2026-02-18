@@ -34,6 +34,7 @@ import com.google.devtools.build.lib.actions.cache.MetadataDigestUtils;
 import com.google.devtools.build.lib.actions.cache.OutputMetadataStore;
 import com.google.devtools.build.lib.actions.cache.Protos.ActionCacheStatistics.MissReason;
 import com.google.devtools.build.lib.actions.usage.ActionInputUsageTracker;
+import com.google.devtools.build.lib.actions.usage.ActionInputUsageTracker.DelayedCachedActionData;
 import com.google.devtools.build.lib.actions.usage.TrackingInfo;
 import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
@@ -769,12 +770,13 @@ public class ActionCacheChecker {
       ArtifactExpander artifactExpander,
       Map<String, String> clientEnv,
       OutputPermissions outputPermissions,
-      Map<String, String> remoteDefaultPlatformProperties)
+      Map<String, String> remoteDefaultPlatformProperties,
+      boolean isDelayedUpdate)
       throws IOException, InterruptedException {
     checkState(cacheConfig.enabled(), "cache unexpectedly disabled, action: %s", action);
     Preconditions.checkArgument(token != null, "token unexpectedly null, action: %s", action);
     String key = token.cacheKey;
-    if (actionCache.get(key) != null) {
+    if (actionCache.get(key) != null && !isDelayedUpdate) {
       // This cache entry has already been updated by a shared action. We don't need to do it again.
       return;
     }
@@ -849,6 +851,24 @@ public class ActionCacheChecker {
     }
     byte[] digest = entry.getFileDigest();
     actionCache.put(key, entry);
+
+    if (!isDelayedUpdate) {
+      DelayedCachedActionData delayedActionData = actionInputUsageTracker.onUpdateActionCacheComplete(action, token, outputMetadataStore);
+      if (delayedActionData != null) {
+        updateActionCache(
+                delayedActionData.action,
+                delayedActionData.token,
+                inputMetadataProvider,
+                delayedActionData.outputMetadataStore,
+                artifactExpander,
+                clientEnv,
+                outputPermissions,
+                remoteDefaultPlatformProperties,
+                true /* isDelayedUpdate */
+        );
+      }
+    }
+
     if (this.cacheConfig.verboseActionCacheLabels() != null) {
       boolean all = this.cacheConfig.verboseActionCacheLabels().equals("*");
       String label = action.getOwner().getLabel() != null ? action.getOwner().getLabel().toString() : "";
