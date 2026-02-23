@@ -107,4 +107,12 @@ public interface ObjcConfigurationApi extends StarlarkValue {
           "Returns whether executable strip action should use flag -x, which does not break "
               + "dynamic symbol resolution.")
   boolean stripExecutableSafely();
+
+  @StarlarkMethod(
+      name = "experimental_objc_linkopts_to_dedup",
+      structField = true,
+      doc =
+          "Returns a list of linker options that should be deduplicated during Objective-C "
+              + "linking. Set via --experimental_objc_linkopts_to_dedup flag.")
+  ImmutableList<String> getExperimentalObjcLinkoptsToDedup();
 }

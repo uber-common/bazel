@@ -63,6 +63,7 @@ public class ObjcConfiguration extends Fragment implements ObjcConfigurationApi 
   private final boolean disallowSdkFrameworksAttributes;
   private final boolean alwayslinkByDefault;
   private final boolean stripExecutableSafely;
+  private final ImmutableList<String> experimentalObjcLinkoptsToDedup;
 
   public ObjcConfiguration(BuildOptions buildOptions) {
     CoreOptions options = buildOptions.get(CoreOptions.class);
@@ -81,6 +82,12 @@ public class ObjcConfiguration extends Fragment implements ObjcConfigurationApi 
     this.disallowSdkFrameworksAttributes = objcOptions.incompatibleDisallowSdkFrameworksAttributes;
     this.alwayslinkByDefault = objcOptions.incompatibleObjcAlwayslinkByDefault;
     this.stripExecutableSafely = objcOptions.incompatibleStripExecutableSafely;
+    String linkoptsToDedup = objcOptions.experimentalObjcLinkoptsToDedup;
+    if (linkoptsToDedup == null || linkoptsToDedup.isEmpty()) {
+      this.experimentalObjcLinkoptsToDedup = ImmutableList.of();
+    } else {
+      this.experimentalObjcLinkoptsToDedup = ImmutableList.copyOf(linkoptsToDedup.split(";"));
+    }
   }
 
   /**
@@ -190,5 +197,13 @@ public class ObjcConfiguration extends Fragment implements ObjcConfigurationApi 
   @Override
   public boolean stripExecutableSafely() {
     return stripExecutableSafely;
+  }
+
+  /**
+   * Returns a list of linker options that should be deduplicated during Objective-C linking.
+   */
+  @Override
+  public ImmutableList<String> getExperimentalObjcLinkoptsToDedup() {
+    return experimentalObjcLinkoptsToDedup;
   }
 }
