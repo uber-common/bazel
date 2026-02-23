@@ -162,4 +162,15 @@ public class ObjcCommandLineOptions extends FragmentOptions {
           "If true, strip action for executables will use flag -x, which does not break dynamic "
               + "symbol resolution.")
   public boolean incompatibleStripExecutableSafely;
+
+  @Option(
+      name = "experimental_objc_linkopts_to_dedup",
+      defaultValue = "",
+      documentationCategory = OptionDocumentationCategory.OUTPUT_PARAMETERS,
+      effectTags = {OptionEffectTag.ACTION_COMMAND_LINES},
+      metadataTags = {OptionMetadataTag.EXPERIMENTAL},
+      help =
+          "A semicolon-separated list of linker options that should be deduplicated during "
+              + "Objective-C linking.")
+  public String experimentalObjcLinkoptsToDedup;
 }

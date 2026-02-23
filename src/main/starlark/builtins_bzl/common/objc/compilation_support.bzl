@@ -771,8 +771,9 @@ def _register_binary_strip_action(
     )
     return stripped_binary
 
-def _dedup_sdk_linkopts(linker_inputs):
+def _dedup_sdk_linkopts(linker_inputs, user_linkopts_to_dedup = []):
     duplicates = {}
+    user_dedup_set = {opt: True for opt in user_linkopts_to_dedup}
     final_linkopts = []
 
     for linker_input in linker_inputs.to_list():
@@ -795,6 +796,11 @@ def _dedup_sdk_linkopts(linker_inputs):
                     final_linkopts.extend([arg.split(",")[1], framework])
                     duplicates[key] = None
             elif arg.startswith("-l"):
+                if arg not in duplicates:
+                    final_linkopts.append(arg)
+                    duplicates[arg] = None
+            elif arg in user_dedup_set:
+                # User-specified option to deduplicate
                 if arg not in duplicates:
                     final_linkopts.append(arg)
                     duplicates[arg] = None
@@ -920,7 +926,10 @@ def _register_configuration_specific_link_actions(
         # artifacts to be passed to the linker with `-force_load`
         "force_load_exec_paths": [lib.path for lib in always_link_libraries],
         # linkopts from dependency
-        "dep_linkopts": _dedup_sdk_linkopts(cc_linking_context.linker_inputs),
+        "dep_linkopts": _dedup_sdk_linkopts(
+            cc_linking_context.linker_inputs,
+            common_variables.objc_config.experimental_objc_linkopts_to_dedup,
+        ),
         "attr_linkopts": attr_linkopts,  # linkopts arising from rule attributes
     }
     additional_inputs = [
