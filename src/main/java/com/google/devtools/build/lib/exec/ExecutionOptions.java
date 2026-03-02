@@ -539,6 +539,22 @@ public class ExecutionOptions extends OptionsBase {
               + " code 39.")
   public int remoteRetryOnTransientCacheError;
 
+  @Option(
+      name = "experimental_platform_independent_mnemonics",
+      defaultValue = "",
+      converter = Converters.CommaSeparatedOptionListConverter.class,
+      documentationCategory = OptionDocumentationCategory.EXECUTION_STRATEGY,
+      effectTags = {OptionEffectTag.AFFECTS_OUTPUTS, OptionEffectTag.EXECUTION},
+      help =
+          "Comma-separated list of action mnemonics that produce platform-independent outputs. "
+              + "For these actions, the execution platform will not be included in the action "
+              + "cache key, enabling cache sharing across different platform configurations. "
+              + "IMPORTANT: Only include mnemonics for actions that produce truly platform-"
+              + "independent outputs (e.g., Java/Kotlin bytecode). Using this incorrectly can "
+              + "cause cache correctness issues. "
+              + "Example: --experimental_platform_independent_mnemonics=Javac,KotlinCompile,Turbine")
+  public List<String> experimentalPlatformIndependentMnemonics;
+
   /** An enum for specifying different formats of test output. */
   public enum TestOutputFormat {
     SUMMARY, // Provide summary output only.

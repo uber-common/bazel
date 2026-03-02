@@ -223,6 +223,11 @@ public class ExecutionTool {
 
   /** Creates an executor for the current set of blaze runtime, execution options, and request. */
   private BlazeExecutor createExecutor() {
+    // Configure platform-independent mnemonics for action caching
+    ExecutionOptions executionOptions = request.getOptions(ExecutionOptions.class);
+    com.google.devtools.build.lib.actions.ActionKeyCacher.setPlatformIndependentMnemonics(
+        executionOptions.experimentalPlatformIndependentMnemonics);
+
     return new BlazeExecutor(
         runtime.getFileSystem(),
         env.getExecRoot(),

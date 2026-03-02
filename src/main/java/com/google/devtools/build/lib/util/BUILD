@@ -183,6 +183,7 @@ java_library(
         "LoggingUtil.java",
         "LongArrayList.java",
         "NetUtil.java",
+        "NormalizingFingerprint.java",
         "OnDemandString.java",
         "OptionsUtils.java",
         "OrderedSetMultimap.java",

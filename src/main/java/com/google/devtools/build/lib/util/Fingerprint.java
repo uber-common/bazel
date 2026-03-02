@@ -60,7 +60,7 @@ import javax.annotation.Nullable;
  *
  * @see java.security.MessageDigest
  */
-public final class Fingerprint {
+public class Fingerprint {
 
   // Make novel use of a CodedOutputStream, which is good at efficiently serializing data. By
   // flushing at the end of each digest we can continue to use the stream.

@@ -1217,6 +1217,17 @@ sh_test(
 )
 
 sh_test(
+    name = "bazel_platform_independent_caching_test",
+    size = "medium",
+    srcs = ["bazel_platform_independent_caching_test.sh"],
+    data = [
+        ":test-deps",
+        "@bazel_tools//tools/bash/runfiles",
+    ],
+    tags = ["no_windows"],
+)
+
+sh_test(
     name = "rule_test_test",
     size = "medium",
     srcs = ["rule_test_test.sh"],
