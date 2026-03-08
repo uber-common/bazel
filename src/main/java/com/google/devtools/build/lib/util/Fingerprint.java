@@ -85,6 +85,36 @@ public class Fingerprint {
   }
 
   /**
+   * Creates a new Fingerprint instance of the same type as this one.
+   *
+   * <p>This method can be overridden by subclasses (e.g., NormalizingFingerprint) to ensure
+   * that the same fingerprinting behavior is preserved when creating new instances for
+   * nested computations.
+   *
+   * @return a new Fingerprint instance
+   */
+  public Fingerprint newInstance() {
+    return new Fingerprint();
+  }
+
+  /**
+   * Returns whether structure-independent NestedSet fingerprinting should be used.
+   *
+   * <p>When true, NestedSets will be flattened and sorted before fingerprinting, ensuring
+   * consistent fingerprints regardless of the NestedSet's internal tree structure. This is
+   * necessary for platform-independent caching where different configurations may construct
+   * NestedSets with different structures but identical contents.
+   *
+   * <p>Default implementation returns false. Subclasses like NormalizingFingerprint override
+   * this to return true for platform-independent actions.
+   *
+   * @return true if structure-independent NestedSet fingerprinting should be used
+   */
+  public boolean shouldUseStructureIndependentNestedSets() {
+    return false;
+  }
+
+  /**
    * Completes the hash computation by doing final operations and resets the underlying state,
    * allowing this instance to be used again.
    *

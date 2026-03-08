@@ -49,13 +49,17 @@ public class NormalizingFingerprint extends Fingerprint {
    *   <li>bazel-out/arm64-v8a-fastbuild-android-ST-02e23770d8ba/bin/...
    *   <li>bazel-out/darwin_arm64-opt-exec-ST-fad1763555eb/bin/...
    *   <li>bazel-out/xplat-fastbuild/bin/...
+   *   <li>@bazel-out/arm64-v8a-fastbuild-android/bin/... (params file references)
    * </ul>
    *
    * <p>The configuration part (between "bazel-out/" and "/bin" or "/genfiles") contains
    * platform-specific information that should be normalized for platform-independent actions.
+   *
+   * <p>The pattern includes an optional @ prefix to handle params file references in command
+   * arguments (e.g., @bazel-out/platform/bin/foo.params).
    */
   private static final Pattern BAZEL_OUT_PATTERN =
-      Pattern.compile("bazel-out/([^/]+)/(bin|genfiles|testlogs)");
+      Pattern.compile("(@)?bazel-out/([^/]+)/(bin|genfiles|testlogs)");
 
   private final Fingerprint delegate;
 
@@ -66,6 +70,23 @@ public class NormalizingFingerprint extends Fingerprint {
    */
   public NormalizingFingerprint(Fingerprint delegate) {
     this.delegate = delegate;
+  }
+
+  @Override
+  public Fingerprint newInstance() {
+    return new NormalizingFingerprint(new Fingerprint());
+  }
+
+  @Override
+  public boolean shouldUseStructureIndependentNestedSets() {
+    // Always use structure-independent fingerprinting for platform-independent actions.
+    // This flattens and sorts NestedSets before fingerprinting to ensure consistent
+    // results across different platform configurations that may construct NestedSets
+    // with different internal structures.
+    //
+    // See NestedSetFingerprintCache.addNestedSetToFingerprintStructureIndependent()
+    // for detailed correctness guarantees regarding ordering semantics.
+    return true;
   }
 
   /**
@@ -87,6 +108,8 @@ public class NormalizingFingerprint extends Fingerprint {
    *       → bazel-out/NORMALIZED/bin/foo.jar
    *   <li>bazel-out/xplat-fastbuild/bin/foo.jar
    *       → bazel-out/NORMALIZED/bin/foo.jar
+   *   <li>@bazel-out/arm64-v8a-fastbuild-android/bin/foo.params
+   *       → @bazel-out/NORMALIZED/bin/foo.params
    * </ul>
    *
    * @param path The path string to normalize
@@ -94,7 +117,8 @@ public class NormalizingFingerprint extends Fingerprint {
    */
   private static String normalizePath(String path) {
     Matcher matcher = BAZEL_OUT_PATTERN.matcher(path);
-    return matcher.replaceAll("bazel-out/NORMALIZED/$2");
+    // $1 = optional @ prefix, $2 = platform segment (ignored), $3 = bin/genfiles/testlogs
+    return matcher.replaceAll("$1bazel-out/NORMALIZED/$3");
   }
 
   @Override
@@ -102,6 +126,30 @@ public class NormalizingFingerprint extends Fingerprint {
     // Normalize any paths in the string before adding to fingerprint
     String normalized = normalizePath(s);
     delegate.addString(normalized);
+    return this;
+  }
+
+  @Override
+  public Fingerprint addInt(int value) {
+    delegate.addInt(value);
+    return this;
+  }
+
+  @Override
+  public Fingerprint addLong(long value) {
+    delegate.addLong(value);
+    return this;
+  }
+
+  @Override
+  public Fingerprint addUUID(UUID uuid) {
+    delegate.addUUID(uuid);
+    return this;
+  }
+
+  @Override
+  public Fingerprint addBoolean(boolean value) {
+    delegate.addBoolean(value);
     return this;
   }
 
@@ -164,30 +212,6 @@ public class NormalizingFingerprint extends Fingerprint {
   }
 
   // Delegate all other methods to the underlying fingerprint
-
-  @Override
-  public Fingerprint addBoolean(boolean b) {
-    delegate.addBoolean(b);
-    return this;
-  }
-
-  @Override
-  public Fingerprint addInt(int i) {
-    delegate.addInt(i);
-    return this;
-  }
-
-  @Override
-  public Fingerprint addLong(long l) {
-    delegate.addLong(l);
-    return this;
-  }
-
-  @Override
-  public Fingerprint addUUID(UUID uuid) {
-    delegate.addUUID(uuid);
-    return this;
-  }
 
   @Override
   public Fingerprint addBytes(byte[] bytes) {

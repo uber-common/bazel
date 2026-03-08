@@ -62,6 +62,13 @@ public class NestedSetFingerprintCache {
       addNestedSetToFingerprintSlow(mapFn, fingerprint, nestedSet);
       return;
     }
+
+    // Check if structure-independent fingerprinting is enabled (for platform-independent actions)
+    if (fingerprint.shouldUseStructureIndependentNestedSets()) {
+      addNestedSetToFingerprintStructureIndependent(mapFn, fingerprint, nestedSet);
+      return;
+    }
+
     // Only top-level nested sets can be empty, so we can bail here
     if (nestedSet.isEmpty()) {
       fingerprint.addInt(EMPTY_SET_DIGEST);
@@ -102,6 +109,59 @@ public class NestedSetFingerprintCache {
     }
   }
 
+  /**
+   * Adds a NestedSet to the fingerprint in a structure-independent way.
+   * This flattens the NestedSet and sorts elements before fingerprinting to ensure
+   * consistent results regardless of the NestedSet's internal tree structure.
+   * This is necessary for platform-independent caching where different configurations
+   * may construct NestedSets with different structures but identical contents.
+   *
+   * <p>CORRECTNESS: Sorting the NestedSet elements does not compromise correctness because:
+   * <ul>
+   * <li>NestedSets represent "which files are inputs", not "in what order they appear"
+   * <li>The actual order (e.g., classpath order for Java compilation) is captured separately
+   *     in the command-line arguments (flagLine), not in the NestedSet structure
+   * <li>For cache sharing to occur, BOTH must match:
+   *   <ol>
+   *     <li>The set of input files (transitiveInputs) - now order-independent via sorting
+   *     <li>The command-line arguments (flagLine) - preserves ordering semantics
+   *   </ol>
+   * <li>Therefore, if two actions have different classpath orders, they will have different
+   *     flagLine fingerprints and will NOT share cache entries, even though their sorted
+   *     transitiveInputs fingerprints match
+   * </ul>
+   *
+   * <p>This approach enables platform-independent caching by making the fingerprint invariant
+   * to NestedSet construction order while preserving correctness through command-line ordering.
+   */
+  private <T> void addNestedSetToFingerprintStructureIndependent(
+      MapFn<? super T> mapFn, Fingerprint fingerprint, NestedSet<T> nestedSet)
+      throws CommandLineExpansionException, InterruptedException {
+    if (nestedSet.isEmpty()) {
+      fingerprint.addInt(EMPTY_SET_DIGEST);
+      return;
+    }
+
+    // Flatten to list and sort by string representation for deterministic ordering
+    java.util.List<T> list = nestedSet.toList();
+    java.util.List<String> sortedStrings = new java.util.ArrayList<>(list.size());
+
+    // Collect string representations
+    for (T object : list) {
+      StringBuilder sb = new StringBuilder();
+      mapFn.expandToCommandLine(object, sb::append);
+      sortedStrings.add(sb.toString());
+    }
+
+    // Sort for deterministic order
+    java.util.Collections.sort(sortedStrings);
+
+    // Add sorted strings to fingerprint
+    for (String str : sortedStrings) {
+      fingerprint.addString(str);
+    }
+  }
+
   public void clear() {
     mapFnToDigestMap = createMap();
     seenMapFns.clear();
@@ -117,7 +177,7 @@ public class NestedSetFingerprintCache {
       throws CommandLineExpansionException, InterruptedException {
     if (children instanceof Object[]) {
       if (!digestMap.readDigest(children, fingerprint)) {
-        Fingerprint childrenFingerprint = new Fingerprint();
+        Fingerprint childrenFingerprint = fingerprint.newInstance();
         for (Object child : (Object[]) children) {
           addToFingerprint(mapFn, childrenFingerprint, digestMap, child);
         }
