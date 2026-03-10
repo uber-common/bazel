@@ -191,7 +191,18 @@ public final class PathMappers {
         != OutputPathsMode.STRIP) {
       return PathMapper.NOOP;
     }
-    return StrippingPathMapper.tryCreate(action, isStarlarkAction).orElse(PathMapper.NOOP);
+    boolean isPlatformIndependent = platformIndependentMnemonics.contains(action.getMnemonic());
+
+    // For platform-independent actions, disable path mapping entirely
+    // Path mapping creates complex dependencies and param file issues
+    // We only use platform-independent mnemonics for action key normalization
+    if (isPlatformIndependent) {
+      return PathMapper.NOOP;
+    }
+
+    // Only legacy SUPPORTED_MNEMONICS actions use path mapping
+    return StrippingPathMapper.tryCreate(action, isStarlarkAction, false)
+        .orElse(PathMapper.NOOP);
   }
 
   /**

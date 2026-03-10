@@ -84,18 +84,22 @@ public final class StrippingPathMapper implements PathMapper {
   private final PathFragment outputRoot;
   private final String mnemonic;
   private final boolean isStarlarkAction;
+  private final boolean isPlatformIndependent; // Always false, kept for compatibility
   private final boolean isJavaAction;
   private final ExceptionlessMapFn<Object> structuredArgStripper;
   private final StringStripper argStripper;
   private final ArtifactRoot outputArtifactRoot;
   private final MappedArtifactRoot strippedOutputArtifactRoot;
 
-  private StrippingPathMapper(Artifact primaryOutput, String mnemonic, boolean isStarlarkAction) {
+  private StrippingPathMapper(
+      Artifact primaryOutput, String mnemonic, boolean isStarlarkAction,
+      boolean isPlatformIndependent) {
     // This is expected to always be "(bazel|blaze)-out".
     this.outputRoot = primaryOutput.getExecPath().subFragment(0, 1);
     this.mnemonic = mnemonic;
     this.isStarlarkAction = isStarlarkAction;
-    this.argStripper = new StringStripper(outputRoot.getPathString());
+    this.isPlatformIndependent = isPlatformIndependent;
+    this.argStripper = new StringStripper(outputRoot.getPathString(), isPlatformIndependent);
     this.structuredArgStripper =
         (object, args) -> {
           if (object instanceof String str) {
@@ -121,11 +125,18 @@ public final class StrippingPathMapper implements PathMapper {
    * Creates a new {@link PathMapper} that strips config prefixes if the particular action instance
    * supports it.
    *
+   * <p>Only used by legacy SUPPORTED_MNEMONICS actions (Android actions).
+   * Platform-independent actions (--experimental_platform_independent_mnemonics) don't use
+   * path mapping to avoid param file and dependency issues.
+   *
    * @param action the action to potentially strip paths from
    * @param isStarlarkAction whether the action is a Starlark action
+   * @param isPlatformIndependent kept for compatibility, always false for actions using this
    * @return a {@link StrippingPathMapper} if the action supports it, else {@link Optional#empty()}.
    */
-  static Optional<PathMapper> tryCreate(AbstractAction action, boolean isStarlarkAction) {
+  static Optional<PathMapper> tryCreate(
+      AbstractAction action, boolean isStarlarkAction, boolean isPlatformIndependent) {
+    // Platform-independent should always be false now
     PathFragment outputRoot = action.getPrimaryOutput().getExecPath().subFragment(0, 1);
     // Additional artifacts to map are not part of the action's inputs, but may still lead to
     // path collisions after stripping. It is thus important to include them in this check.
@@ -135,7 +146,8 @@ public final class StrippingPathMapper implements PathMapper {
         outputRoot)) {
       return Optional.of(
           new StrippingPathMapper(
-              action.getPrimaryOutput(), action.getMnemonic(), isStarlarkAction));
+              action.getPrimaryOutput(), action.getMnemonic(), isStarlarkAction,
+              isPlatformIndependent));
     }
     return Optional.empty();
   }
@@ -143,7 +155,7 @@ public final class StrippingPathMapper implements PathMapper {
   @Override
   public String getMappedExecPathString(ActionInput artifact) {
     if (isSupportedInputType(artifact) && isOutputPath(artifact, outputRoot)) {
-      return strip(artifact.getExecPath()).getPathString();
+      return strip(artifact.getExecPath(), isPlatformIndependent).getPathString();
     } else {
       return artifact.getExecPathString();
     }
@@ -151,7 +163,7 @@ public final class StrippingPathMapper implements PathMapper {
 
   @Override
   public PathFragment map(PathFragment execPath) {
-    return isOutputPath(execPath, outputRoot) ? strip(execPath) : execPath;
+    return isOutputPath(execPath, outputRoot) ? strip(execPath, isPlatformIndependent) : execPath;
   }
 
   @Override
@@ -225,7 +237,9 @@ public final class StrippingPathMapper implements PathMapper {
     private final Pattern pattern;
     private final String outputRoot;
 
-    public StringStripper(String outputRoot) {
+    public StringStripper(String outputRoot, boolean isPlatformIndependent) {
+      // isPlatformIndependent parameter kept for compatibility but unused
+      // Platform-independent actions don't use StrippingPathMapper anymore
       this.outputRoot = outputRoot;
       this.pattern = stripPathsPattern(outputRoot);
     }
@@ -250,6 +264,8 @@ public final class StrippingPathMapper implements PathMapper {
     }
 
     public String strip(String str) {
+      // Platform-independent actions don't use StrippingPathMapper anymore,
+      // so this only needs to handle legacy SUPPORTED_MNEMONICS actions
       return pattern.matcher(str).replaceAll(outputRoot + "/" + FIXED_CONFIG_SEGMENT + "/");
     }
   }
@@ -306,8 +322,12 @@ public final class StrippingPathMapper implements PathMapper {
 
   /*
    * Strips the configuration prefix from an output artifact's exec path.
+   *
+   * <p>Only used by legacy SUPPORTED_MNEMONICS actions.
+   * Platform-independent actions don't use path mapping.
    */
-  private static PathFragment strip(PathFragment execPath) {
+  private static PathFragment strip(PathFragment execPath, boolean isPlatformIndependent) {
+    // Platform-independent should always be false now, but keep parameter for compatibility
     return execPath
         .subFragment(0, 1)
         // Keep the config segment, but replace it with a fixed string to improve cacheability while
