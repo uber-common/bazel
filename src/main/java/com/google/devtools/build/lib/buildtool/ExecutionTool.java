@@ -227,6 +227,9 @@ public class ExecutionTool {
     ExecutionOptions executionOptions = request.getOptions(ExecutionOptions.class);
     com.google.devtools.build.lib.actions.ActionKeyCacher.setPlatformIndependentMnemonics(
         executionOptions.experimentalPlatformIndependentMnemonics);
+    // Configure platform-independent mnemonics for path mapping
+    com.google.devtools.build.lib.analysis.actions.PathMappers.setPlatformIndependentMnemonics(
+        executionOptions.experimentalPlatformIndependentMnemonics);
 
     return new BlazeExecutor(
         runtime.getFileSystem(),

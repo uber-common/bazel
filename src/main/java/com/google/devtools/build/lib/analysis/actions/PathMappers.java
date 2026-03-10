@@ -42,6 +42,27 @@ public final class PathMappers {
   private static final PathFragment BLAZE_OUT = PathFragment.create("blaze-out");
 
   /**
+   * List of mnemonics that should use platform-independent path mapping.
+   *
+   * <p>Set via {@link #setPlatformIndependentMnemonics} during build initialization from the
+   * --experimental_platform_independent_mnemonics flag.
+   */
+  private static volatile ImmutableSet<String> platformIndependentMnemonics = ImmutableSet.of();
+
+  /**
+   * Sets the list of action mnemonics that should use platform-independent path mapping.
+   *
+   * <p>This is called during build initialization from the execution framework, based on the
+   * --experimental_platform_independent_mnemonics flag.
+   *
+   * @param mnemonics List of mnemonics to treat as platform-independent (e.g., "Javac",
+   *     "KotlinCompile")
+   */
+  public static void setPlatformIndependentMnemonics(java.util.List<String> mnemonics) {
+    platformIndependentMnemonics = ImmutableSet.copyOf(mnemonics);
+  }
+
+  /**
    * A special instance for use in {@link AbstractAction#computeKey} when path mapping is generally
    * enabled for an action.
    *
@@ -196,9 +217,13 @@ public final class PathMappers {
       // Path mapping requires sandboxed or remote execution.
       return OutputPathsMode.OFF;
     }
-    if (outputPathsMode == OutputPathsMode.STRIP
-        && (SUPPORTED_MNEMONICS.contains(mnemonic)
-            || executionInfo.containsKey(ExecutionRequirements.SUPPORTS_PATH_MAPPING))) {
+    // Enable path stripping if either:
+    // 1. --experimental_output_paths=strip is set AND the mnemonic is supported, OR
+    // 2. --experimental_platform_independent_mnemonics includes this mnemonic
+    if ((outputPathsMode == OutputPathsMode.STRIP
+            && (SUPPORTED_MNEMONICS.contains(mnemonic)
+                || executionInfo.containsKey(ExecutionRequirements.SUPPORTS_PATH_MAPPING)))
+        || platformIndependentMnemonics.contains(mnemonic)) {
       return OutputPathsMode.STRIP;
     }
     return OutputPathsMode.OFF;
