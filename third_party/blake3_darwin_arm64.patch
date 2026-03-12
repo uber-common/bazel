@@ -1,0 +1,24 @@
+--- BUILD.bazel.orig	2024-01-01 00:00:00.000000000 +0000
++++ BUILD.bazel	2024-01-01 00:00:01.000000000 +0000
+@@ -24,8 +24,6 @@
+         "@bazel_tools//src/conditions:windows_arm64": [
+             "c/blake3_neon.c",
+         ],
+-        "@bazel_tools//src/conditions:darwin_arm64": [
+-            "c/blake3_neon.c",
+-        ],
++        "@bazel_tools//src/conditions:darwin_arm64": [],
+         "//conditions:default": [],
+     }),
+@@ -42,8 +40,10 @@
+             "-DBLAKE3_USE_NEON=1",
+         ],
+         "@bazel_tools//src/conditions:darwin_arm64": [
+-            "-DBLAKE3_USE_NEON=1",
++            "-DBLAKE3_NO_NEON",
++            "-DBLAKE3_NO_AVX2",
++            "-DBLAKE3_NO_AVX512",
++            "-DBLAKE3_NO_SSE2",
++            "-DBLAKE3_NO_SSE41",
+         ],
+         "//conditions:default": [

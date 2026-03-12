@@ -25,6 +25,10 @@ build:remote --config=ubuntu2004
 
 build:macos --macos_minimum_os=10.11
 
+# Workaround for Clang 17 fdopen issue on macOS
+build:macos --copt=-Dfdopen=fdopen
+build:macos --host_copt=-Dfdopen=fdopen
+
 # On Windows, we need pywin32 pip package, which doesn't work with the Python hermetic toolchain.
 # See https://github.com/bazelbuild/rules_python/issues/1356
 # Therefore, use the local detected Python toolchain on Windows.

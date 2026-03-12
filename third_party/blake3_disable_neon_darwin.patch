@@ -1,0 +1,24 @@
+--- BUILD.bazel	2026-03-30 20:35:00
++++ BUILD.bazel	2026-03-30 20:35:02
+@@ -25,9 +25,7 @@
+         "@bazel_tools//src/conditions:windows_arm64": [
+             "c/blake3_neon.c",
+         ],
+-        "@bazel_tools//src/conditions:darwin_arm64": [
+-            "c/blake3_neon.c",
+-        ],
++        "@bazel_tools//src/conditions:darwin_arm64": [],
+         "//conditions:default": [],
+     }),
+     hdrs = [
+@@ -44,7 +42,9 @@
+             "-DBLAKE3_USE_NEON=1",
+         ],
+         "@bazel_tools//src/conditions:darwin_arm64": [
+-            "-DBLAKE3_USE_NEON=1",
++            # Explicitly disable NEON: blake3_impl.h auto-enables NEON on __aarch64__
++            # unless BLAKE3_USE_NEON is set to 0 (BLAKE3_NO_NEON is not recognized).
++            "-DBLAKE3_USE_NEON=0",
+         ],
+         "//conditions:default": [
+             "-DBLAKE3_NO_SSE2",

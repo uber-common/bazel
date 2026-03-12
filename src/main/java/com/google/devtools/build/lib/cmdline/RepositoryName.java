@@ -363,9 +363,10 @@ public final class RepositoryName {
     if (this == object) {
       return true;
     }
-    if (!(object instanceof RepositoryName other)) {
+    if (!(object instanceof RepositoryName)) {
       return false;
     }
+    RepositoryName other = (RepositoryName) object;
     return OsPathPolicy.getFilePathOs().equals(name, other.name)
         && Objects.equals(ownerRepoIfNotVisible, other.ownerRepoIfNotVisible)
         && Objects.equals(didYouMeanSuffix, other.didYouMeanSuffix);
