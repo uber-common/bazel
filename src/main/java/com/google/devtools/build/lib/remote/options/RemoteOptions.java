@@ -87,6 +87,19 @@ public final class RemoteOptions extends CommonRemoteOptions {
   public String remoteExecutor;
 
   @Option(
+      name = "experimental_test_content_key",
+      defaultValue = "false",
+      documentationCategory = OptionDocumentationCategory.REMOTE,
+      effectTags = {OptionEffectTag.UNKNOWN},
+      help =
+          "If enabled, TestRunner actions include a per-test content key in the remote cache"
+              + " salt. The content key (produced by //rules/test:compute_test_key_aspect) hashes"
+              + " only the class bytecodes transitively used by the test. Combined with jar-omission"
+              + " scrubbing rules, this makes remote cache hits insensitive to unused dependency"
+              + " changes, avoiding unnecessary test re-executions.")
+  public boolean testContentKey;
+
+  @Option(
       name = "experimental_remote_execution_keepalive",
       defaultValue = "false",
       documentationCategory = OptionDocumentationCategory.REMOTE,

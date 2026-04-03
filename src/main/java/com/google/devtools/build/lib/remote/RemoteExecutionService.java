@@ -66,6 +66,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.devtools.build.lib.actions.ActionInput;
 import com.google.devtools.build.lib.actions.Artifact;
+import com.google.devtools.build.lib.cmdline.Label;
 import com.google.devtools.build.lib.actions.ArtifactPathResolver;
 import com.google.devtools.build.lib.actions.EnvironmentalExecException;
 import com.google.devtools.build.lib.actions.ExecException;
@@ -515,7 +516,8 @@ public class RemoteExecutionService {
   }
 
   @Nullable
-  private static ByteString buildSalt(Spawn spawn, @Nullable SpawnScrubber spawnScrubber) {
+  private ByteString buildSalt(
+      Spawn spawn, @Nullable SpawnScrubber spawnScrubber, @Nullable String contentKey) {
     CacheSalt.Builder saltBuilder =
         CacheSalt.newBuilder().setMayBeExecutedRemotely(Spawns.mayBeExecutedRemotely(spawn));
 
@@ -525,12 +527,56 @@ public class RemoteExecutionService {
       saltBuilder.setWorkspace(workspace);
     }
 
-    if (spawnScrubber != null) {
-      saltBuilder.setScrubSalt(
-          CacheSalt.ScrubSalt.newBuilder().setSalt(spawnScrubber.getSalt()).build());
+    String scrubSalt = spawnScrubber != null ? spawnScrubber.getSalt() : "";
+
+    if (contentKey != null) {
+      scrubSalt = scrubSalt + ":ck=" + contentKey;
+    }
+
+    if (!scrubSalt.isEmpty()) {
+      saltBuilder.setScrubSalt(CacheSalt.ScrubSalt.newBuilder().setSalt(scrubSalt).build());
     }
 
     return saltBuilder.build().toByteString();
+  }
+
+  /**
+   * Reads the content key file for a TestRunner spawn. Derives the path from the spawn's output
+   * paths: a test log at {@code bazel-out/<cfg>/testlogs/<pkg>/<name>/test.log} implies the
+   * content key at {@code bazel-out/<cfg>/bin/<pkg>/<name>.content_key}.
+   *
+   * <p>Returns null if the file cannot be found or read (e.g. aspect not enabled).
+   */
+  @Nullable
+  private String readContentKey(Spawn spawn) {
+    Label label = spawn.getTargetLabel();
+    if (label == null) {
+      return null;
+    }
+    String relativeContentKeyPath =
+        label.getPackageName() + "/" + label.getName() + ".content_key";
+
+    for (ActionInput output : spawn.getOutputFiles()) {
+      String path = output.getExecPathString();
+      int idx = path.indexOf("/testlogs/");
+      if (idx >= 0) {
+        // e.g. bazel-out/k8-fastbuild/testlogs/foo/bar/baz/test.log
+        // → bazel-out/k8-fastbuild/bin/foo/bar/baz.content_key
+        String configPrefix = path.substring(0, idx); // "bazel-out/k8-fastbuild"
+        Path keyFile =
+            execRoot.getRelative(configPrefix + "/bin/" + relativeContentKeyPath);
+        if (keyFile.exists()) {
+          try {
+            return new String(keyFile.getInputStream().readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8).trim();
+          } catch (java.io.IOException e) {
+            // Non-fatal: fall back to normal cache key.
+          }
+        }
+        break;
+      }
+    }
+    return null;
   }
 
   /**
@@ -591,6 +637,20 @@ public class RemoteExecutionService {
           RemotePathResolver.createMapped(baseRemotePathResolver, execRoot, spawn.getPathMapper());
       ToolSignature toolSignature = getToolSignature(spawn, context);
       SpawnScrubber spawnScrubber = scrubber != null ? scrubber.forSpawn(spawn) : null;
+
+      // For TestRunner actions with --experimental_test_content_key: inject jar omission
+      // programmatically when the content key is present. This keeps jar-omission in sync with
+      // key injection without requiring an xplat.cfg entry — when the key is absent (aspect not
+      // run, file not downloaded, stale files from a disabled flag, etc.), jars remain in the
+      // Merkle tree and serve as the cache discriminator (safe fallback, no false hits).
+      String contentKeyForSalt = null;
+      if (remoteOptions.testContentKey && "TestRunner".equals(spawn.getMnemonic())) {
+        contentKeyForSalt = readContentKey(spawn);
+        if (contentKeyForSalt != null && spawnScrubber != null) {
+          spawnScrubber = spawnScrubber.withJarOmission();
+        }
+      }
+
       final MerkleTree merkleTree =
           buildInputMerkleTree(spawn, context, toolSignature, spawnScrubber, remotePathResolver);
 
@@ -620,7 +680,7 @@ public class RemoteExecutionService {
               platform,
               context.getTimeout(),
               Spawns.mayBeCachedRemotely(spawn),
-              buildSalt(spawn, spawnScrubber));
+              buildSalt(spawn, spawnScrubber, contentKeyForSalt));
 
       ActionKey actionKey = digestUtil.computeActionKey(action);
 
