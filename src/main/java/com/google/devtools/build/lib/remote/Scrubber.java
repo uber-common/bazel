@@ -138,6 +138,35 @@ public class Scrubber {
       this.salt = ruleProto.getTransform().getSalt();
     }
 
+    private SpawnScrubber(SpawnScrubber base, ImmutableList<Pattern> extraOmittedInputPatterns) {
+      this.mnemonicPattern = base.mnemonicPattern;
+      this.labelPattern = base.labelPattern;
+      this.kindPattern = base.kindPattern;
+      this.matchTools = base.matchTools;
+      this.omittedInputPatterns =
+          ImmutableList.<Pattern>builder()
+              .addAll(base.omittedInputPatterns)
+              .addAll(extraOmittedInputPatterns)
+              .build();
+      this.omittedInputPatternsExternal = base.omittedInputPatternsExternal;
+      this.argReplacements = base.argReplacements;
+      this.omittedEnvVars = base.omittedEnvVars;
+      this.salt = base.salt;
+    }
+
+    /** Returns a new SpawnScrubber identical to this one but with first-party .jar inputs omitted.
+     *
+     * <p>External/maven jars (under .../bin/external/) are intentionally kept in the Merkle tree
+     * so that version bumps are detected naturally without needing the content key to cover them.
+     * First-party jars are omitted because the content key already captures exactly which
+     * first-party class bytecodes the test uses.
+     */
+    public SpawnScrubber withJarOmission() {
+      return new SpawnScrubber(
+          this,
+          ImmutableList.of(Pattern.compile(".*/bin/(?!external/).*[.]jar$")));
+    }
+
     private String emptyToAll(String s) {
       return s.isEmpty() ? ".*" : s;
     }
