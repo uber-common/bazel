@@ -522,16 +522,15 @@ public abstract class FileArtifactValue implements SkyValue, HasDigest {
 
     @Override
     protected boolean couldBeModifiedByMetadata(FileArtifactValue o) {
-      switch (o) {
-        case RegularFileArtifactValue lastKnown -> {
-          return size != lastKnown.size || !Objects.equals(proxy, lastKnown.proxy);
-        }
-        case RemoteFileArtifactValueWithMaterializationData lastKnown -> {
-          return size != lastKnown.getSize() || !Objects.equals(proxy, lastKnown.proxy);
-        }
-        default -> {
-          return true;
-        }
+      if (o instanceof RegularFileArtifactValue) {
+        RegularFileArtifactValue lastKnown = (RegularFileArtifactValue) o;
+        return size != lastKnown.size || !Objects.equals(proxy, lastKnown.proxy);
+      } else if (o instanceof RemoteFileArtifactValueWithMaterializationData) {
+        RemoteFileArtifactValueWithMaterializationData lastKnown =
+            (RemoteFileArtifactValueWithMaterializationData) o;
+        return size != lastKnown.getSize() || !Objects.equals(proxy, lastKnown.proxy);
+      } else {
+        return true;
       }
     }
   }
@@ -741,9 +740,11 @@ public abstract class FileArtifactValue implements SkyValue, HasDigest {
       if (this == o) {
         return true;
       }
-      if (!(o instanceof RemoteFileArtifactValueWithMaterializationData that)) {
+      if (!(o instanceof RemoteFileArtifactValueWithMaterializationData)) {
         return false;
       }
+      RemoteFileArtifactValueWithMaterializationData that =
+          (RemoteFileArtifactValueWithMaterializationData) o;
 
       return Arrays.equals(getDigest(), that.getDigest())
           && getSize() == that.getSize()

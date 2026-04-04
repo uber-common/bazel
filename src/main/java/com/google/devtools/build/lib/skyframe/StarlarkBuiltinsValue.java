@@ -181,7 +181,7 @@ public final class StarlarkBuiltinsValue implements SkyValue {
 
     @Override
     public boolean equals(Object other) {
-      return other instanceof Key key && this.withAutoloads == key.withAutoloads;
+      return other instanceof Key && this.withAutoloads == ((Key) other).withAutoloads;
     }
 
     @Override

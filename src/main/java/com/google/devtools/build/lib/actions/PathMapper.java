@@ -230,9 +230,10 @@ public interface PathMapper {
       // exec paths of non-mapped roots, that is, of instances of ArtifactRoot. Thus, it is correct
       // for both equals implementations to return false if the other object is not an instance of
       // the respective class.
-      if (!(obj instanceof MappedArtifactRoot other)) {
+      if (!(obj instanceof MappedArtifactRoot)) {
         return false;
       }
+      MappedArtifactRoot other = (MappedArtifactRoot) obj;
       return mappedRootExecPath.equals(other.mappedRootExecPath);
     }
 

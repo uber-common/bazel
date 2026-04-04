@@ -85,7 +85,8 @@ public class DotBazelFileSyntaxChecker extends NodeVisitor {
   // Reject f(*args) and f(**kwargs) calls.
   private void rejectStarArgs(CallExpression call) {
     for (Argument arg : call.getArguments()) {
-      if (arg instanceof Argument.StarStar starStar) {
+      if (arg instanceof Argument.StarStar) {
+        Argument.StarStar starStar = (Argument.StarStar) arg;
         if (!allowLiteralStarStarArgs) {
           error(
               arg.getStartLocation(),

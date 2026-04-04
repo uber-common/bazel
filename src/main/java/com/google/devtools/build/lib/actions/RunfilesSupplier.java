@@ -89,15 +89,44 @@ public interface RunfilesSupplier extends StarlarkValue {
    *     at their legacy locations.
    * @param isMappingCached Whether this runfiles tree is likely to be used by multiple spawns.
    */
-  record RunfilesTree(
-      PathFragment getExecPath,
-      NestedSet<Artifact> getArtifactsAtCanonicalLocationsForLogging,
-      Iterable<PathFragment> getEmptyFilenamesForLogging,
-      NestedSet<SymlinkEntry> getSymlinksForLogging,
-      NestedSet<SymlinkEntry> getRootSymlinksForLogging,
-      @Nullable Artifact getRepoMappingManifestForLogging,
-      boolean isLegacyExternalRunfiles,
-      boolean isMappingCached) {}
+  final class RunfilesTree {
+    private final PathFragment getExecPath;
+    private final NestedSet<Artifact> getArtifactsAtCanonicalLocationsForLogging;
+    private final Iterable<PathFragment> getEmptyFilenamesForLogging;
+    private final NestedSet<SymlinkEntry> getSymlinksForLogging;
+    private final NestedSet<SymlinkEntry> getRootSymlinksForLogging;
+    @Nullable private final Artifact getRepoMappingManifestForLogging;
+    private final boolean isLegacyExternalRunfiles;
+    private final boolean isMappingCached;
+
+    public RunfilesTree(
+        PathFragment getExecPath,
+        NestedSet<Artifact> getArtifactsAtCanonicalLocationsForLogging,
+        Iterable<PathFragment> getEmptyFilenamesForLogging,
+        NestedSet<SymlinkEntry> getSymlinksForLogging,
+        NestedSet<SymlinkEntry> getRootSymlinksForLogging,
+        @Nullable Artifact getRepoMappingManifestForLogging,
+        boolean isLegacyExternalRunfiles,
+        boolean isMappingCached) {
+      this.getExecPath = getExecPath;
+      this.getArtifactsAtCanonicalLocationsForLogging = getArtifactsAtCanonicalLocationsForLogging;
+      this.getEmptyFilenamesForLogging = getEmptyFilenamesForLogging;
+      this.getSymlinksForLogging = getSymlinksForLogging;
+      this.getRootSymlinksForLogging = getRootSymlinksForLogging;
+      this.getRepoMappingManifestForLogging = getRepoMappingManifestForLogging;
+      this.isLegacyExternalRunfiles = isLegacyExternalRunfiles;
+      this.isMappingCached = isMappingCached;
+    }
+
+    public PathFragment getExecPath() { return getExecPath; }
+    public NestedSet<Artifact> getArtifactsAtCanonicalLocationsForLogging() { return getArtifactsAtCanonicalLocationsForLogging; }
+    public Iterable<PathFragment> getEmptyFilenamesForLogging() { return getEmptyFilenamesForLogging; }
+    public NestedSet<SymlinkEntry> getSymlinksForLogging() { return getSymlinksForLogging; }
+    public NestedSet<SymlinkEntry> getRootSymlinksForLogging() { return getRootSymlinksForLogging; }
+    @Nullable public Artifact getRepoMappingManifestForLogging() { return getRepoMappingManifestForLogging; }
+    public boolean isLegacyExternalRunfiles() { return isLegacyExternalRunfiles; }
+    public boolean isMappingCached() { return isMappingCached; }
+  }
 
   /**
    * A map from runfiles middleman artifacts to the {@link RunfilesTree} they represent.

@@ -97,9 +97,10 @@ public final class SelectorValue implements StarlarkValue, HasBinary {
     if (this == o) {
       return true;
     }
-    if (!(o instanceof SelectorValue that)) {
+    if (!(o instanceof SelectorValue)) {
       return false;
     }
+    SelectorValue that = (SelectorValue) o;
     // TODO(bazel-team): We probably have some inconsistencies here. 1) We're not checking the
     // order of the dictionary, which is relevant to matching semantics. 2) We're checking the
     // type, which depends on the concrete type of the first entry's value, which could be a
