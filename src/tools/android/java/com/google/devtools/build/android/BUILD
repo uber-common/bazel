@@ -26,6 +26,7 @@ java_binary(
     runtime_deps = [
         ":android_builder_lib",
         "//src/main/java/com/google/devtools/build/lib/worker:work_request_handlers",
+        "//third_party:auto_value_lib",  # Required for AutoValueProcessor in DexFileSplitter compilation
         "//src/tools/android/java/com/google/devtools/build/android/desugar/dependencies",
         "//src/tools/android/java/com/google/devtools/build/android/desugar/io",
         "//src/tools/android/java/com/google/devtools/build/android/desugar/langmodel",
