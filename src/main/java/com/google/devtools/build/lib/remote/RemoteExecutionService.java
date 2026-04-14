@@ -201,6 +201,7 @@ public class RemoteExecutionService {
   private final Set<Digest> knownMissingCasDigests;
 
   private Boolean useOutputPaths;
+  private ImmutableMap<String, String> mnemonicCacheSalts = ImmutableMap.of();
 
   public RemoteExecutionService(
       Executor executor,
@@ -343,6 +344,11 @@ public class RemoteExecutionService {
     boolean allowDiskCache = useDiskCache() && Spawns.mayBeCached(spawn);
 
     return CachePolicy.create(allowRemoteCache, allowDiskCache);
+  }
+
+  /** Sets the per-mnemonic cache salts for targeted cache invalidation. */
+  public void setMnemonicCacheSalts(ImmutableMap<String, String> mnemonicCacheSalts) {
+    this.mnemonicCacheSalts = mnemonicCacheSalts;
   }
 
   /** Returns {@code true} if the spawn may be executed remotely. */
@@ -506,7 +512,7 @@ public class RemoteExecutionService {
   }
 
   @Nullable
-  private static ByteString buildSalt(Spawn spawn, @Nullable SpawnScrubber spawnScrubber) {
+  private static ByteString buildSalt(Spawn spawn, @Nullable SpawnScrubber spawnScrubber, ImmutableMap<String, String> mnemonicCacheSalts) {
     CacheSalt.Builder saltBuilder =
         CacheSalt.newBuilder().setMayBeExecutedRemotely(Spawns.mayBeExecutedRemotely(spawn));
 
@@ -519,6 +525,12 @@ public class RemoteExecutionService {
     if (spawnScrubber != null) {
       saltBuilder.setScrubSalt(
           CacheSalt.ScrubSalt.newBuilder().setSalt(spawnScrubber.getSalt()).build());
+    }
+
+    // Add mnemonic-specific salt for targeted cache invalidation.
+    String mnemonicSalt = mnemonicCacheSalts.get(spawn.getMnemonic());
+    if (mnemonicSalt != null) {
+      saltBuilder.setMnemonicSalt(mnemonicSalt);
     }
 
     return saltBuilder.build().toByteString();
@@ -672,7 +684,7 @@ public class RemoteExecutionService {
               platform,
               context.getTimeout(),
               Spawns.mayBeCachedRemotely(spawn),
-              buildSalt(spawn, spawnScrubber));
+              buildSalt(spawn, spawnScrubber, mnemonicCacheSalts));
 
       ActionKey actionKey = digestUtil.computeActionKey(action);
 
