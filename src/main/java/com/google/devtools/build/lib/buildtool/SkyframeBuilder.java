@@ -18,6 +18,7 @@ import static com.google.devtools.build.lib.skyframe.CoverageReportValue.COVERAG
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Range;
 import com.google.common.collect.Sets;
@@ -72,6 +73,7 @@ public class SkyframeBuilder implements Builder {
   private final ActionOutputDirectoryHelper actionOutputDirectoryHelper;
   private final ActionCacheChecker actionCacheChecker;
   private final BugReporter bugReporter;
+  private final ImmutableMap<String, String> mnemonicCacheSalts;
 
   @VisibleForTesting
   public SkyframeBuilder(
@@ -83,6 +85,28 @@ public class SkyframeBuilder implements Builder {
       ActionInputPrefetcher actionInputPrefetcher,
       ActionOutputDirectoryHelper actionOutputDirectoryHelper,
       BugReporter bugReporter) {
+    this(
+        skyframeExecutor,
+        resourceManager,
+        actionCacheChecker,
+        modifiedOutputFiles,
+        fileCache,
+        actionInputPrefetcher,
+        actionOutputDirectoryHelper,
+        bugReporter,
+        ImmutableMap.of());
+  }
+
+  public SkyframeBuilder(
+      SkyframeExecutor skyframeExecutor,
+      ResourceManager resourceManager,
+      ActionCacheChecker actionCacheChecker,
+      ModifiedFileSet modifiedOutputFiles,
+      InputMetadataProvider fileCache,
+      ActionInputPrefetcher actionInputPrefetcher,
+      ActionOutputDirectoryHelper actionOutputDirectoryHelper,
+      BugReporter bugReporter,
+      ImmutableMap<String, String> mnemonicCacheSalts) {
     this.resourceManager = resourceManager;
     this.skyframeExecutor = skyframeExecutor;
     this.actionCacheChecker = actionCacheChecker;
@@ -91,6 +115,7 @@ public class SkyframeBuilder implements Builder {
     this.actionInputPrefetcher = actionInputPrefetcher;
     this.actionOutputDirectoryHelper = actionOutputDirectoryHelper;
     this.bugReporter = bugReporter;
+    this.mnemonicCacheSalts = mnemonicCacheSalts;
   }
 
   @Override
@@ -115,7 +140,7 @@ public class SkyframeBuilder implements Builder {
     skyframeExecutor.detectModifiedOutputFiles(
         modifiedOutputFiles, lastExecutionTimeRange, remoteArtifactChecker, fsvcThreads);
     try (SilentCloseable c = Profiler.instance().profile("configureActionExecutor")) {
-      skyframeExecutor.configureActionExecutor(fileCache, actionInputPrefetcher);
+      skyframeExecutor.configureActionExecutor(fileCache, actionInputPrefetcher, mnemonicCacheSalts);
     }
     // Note that executionProgressReceiver accesses builtTargets concurrently (after wrapping in a
     // synchronized collection), so unsynchronized access to this variable is unsafe while it runs.

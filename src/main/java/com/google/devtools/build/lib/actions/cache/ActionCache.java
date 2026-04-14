@@ -176,8 +176,17 @@ public interface ActionCache {
         Map<String, String> usedClientEnv,
         boolean discoversInputs,
         OutputPermissions outputPermissions) {
+      this(key, usedClientEnv, discoversInputs, outputPermissions, null);
+    }
+
+    public Entry(
+        String key,
+        Map<String, String> usedClientEnv,
+        boolean discoversInputs,
+        OutputPermissions outputPermissions,
+        @Nullable String mnemonicSalt) {
       actionKey = key;
-      this.actionPropertiesDigest = digestActionProperties(usedClientEnv, outputPermissions);
+      this.actionPropertiesDigest = digestActionProperties(usedClientEnv, outputPermissions, mnemonicSalt);
       files = discoversInputs ? new ArrayList<>() : null;
       mdMap = new HashMap<>();
       outputFileMetadata = new HashMap<>();
@@ -206,6 +215,11 @@ public interface ActionCache {
      */
     private static byte[] digestActionProperties(
         Map<String, String> clientEnv, OutputPermissions outputPermissions) {
+      return digestActionProperties(clientEnv, outputPermissions, null);
+    }
+
+    private static byte[] digestActionProperties(
+        Map<String, String> clientEnv, OutputPermissions outputPermissions, @Nullable String mnemonicSalt) {
       byte[] result = EMPTY_CLIENT_ENV_DIGEST;
       Fingerprint fp = new Fingerprint();
       for (Map.Entry<String, String> entry : clientEnv.entrySet()) {
@@ -219,6 +233,10 @@ public interface ActionCache {
       if (outputPermissions != OutputPermissions.READONLY) {
         fp.addInt(outputPermissions.getPermissionsMode());
         result = DigestUtils.combineUnordered(result, fp.digestAndReset());
+      }
+      if (mnemonicSalt != null) {
+        fp.addString(mnemonicSalt);
+        result = DigestUtils.xor(result, fp.digestAndReset());
       }
       return result;
     }
@@ -323,9 +341,9 @@ public interface ActionCache {
 
     /** Determines whether this entry has the same action properties as the one given. */
     public boolean sameActionProperties(
-        Map<String, String> clientEnv, OutputPermissions outputPermissions) {
+        Map<String, String> clientEnv, OutputPermissions outputPermissions, @Nullable String mnemonicSalt) {
       return Arrays.equals(
-          digestActionProperties(clientEnv, outputPermissions), actionPropertiesDigest);
+          digestActionProperties(clientEnv, outputPermissions, mnemonicSalt), actionPropertiesDigest);
     }
 
     /**
