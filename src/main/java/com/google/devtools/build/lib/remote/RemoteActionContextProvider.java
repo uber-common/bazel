@@ -194,6 +194,12 @@ final class RemoteActionContextProvider {
               outputService,
               knownMissingCasDigests);
       env.getEventBus().register(remoteExecutionService);
+      ExecutionOptions remoteExecExecutionOptions =
+          env.getOptions().getOptions(ExecutionOptions.class);
+      if (remoteExecExecutionOptions != null) {
+        remoteExecutionService.setMnemonicCacheSalts(
+            remoteExecExecutionOptions.getMnemonicCacheSalts());
+      }
     }
 
     return remoteExecutionService;

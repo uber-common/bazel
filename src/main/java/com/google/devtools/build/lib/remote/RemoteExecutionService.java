@@ -199,6 +199,8 @@ public class RemoteExecutionService {
   @Nullable private final Scrubber scrubber;
   private final Set<Digest> knownMissingCasDigests;
 
+  private ImmutableMap<String, String> mnemonicCacheSalts = ImmutableMap.of();
+
   public RemoteExecutionService(
       Executor executor,
       Reporter reporter,
@@ -353,6 +355,11 @@ public class RemoteExecutionService {
     }
 
     return CachePolicy.create(allowRemoteCache, allowDiskCache);
+  }
+
+  /** Sets the per-mnemonic cache salts for targeted cache invalidation. */
+  public void setMnemonicCacheSalts(ImmutableMap<String, String> mnemonicCacheSalts) {
+    this.mnemonicCacheSalts = mnemonicCacheSalts;
   }
 
   /** Returns {@code true} if the spawn may be executed remotely. */
@@ -535,6 +542,12 @@ public class RemoteExecutionService {
 
     if (!scrubSalt.isEmpty()) {
       saltBuilder.setScrubSalt(CacheSalt.ScrubSalt.newBuilder().setSalt(scrubSalt).build());
+    }
+
+    // Add mnemonic-specific salt for targeted cache invalidation.
+    String mnemonicSalt = mnemonicCacheSalts.get(spawn.getMnemonic());
+    if (mnemonicSalt != null) {
+      saltBuilder.setMnemonicSalt(mnemonicSalt);
     }
 
     return saltBuilder.build().toByteString();

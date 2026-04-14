@@ -211,6 +211,7 @@ public final class SkyframeActionExecutor {
   private boolean freeDiscoveredInputsAfterExecution;
   private InputMetadataProvider perBuildFileCache;
   private ActionInputPrefetcher actionInputPrefetcher;
+  private ImmutableMap<String, String> mnemonicCacheSalts = ImmutableMap.of();
   /** These variables are nulled out between executions. */
   @Nullable private ProgressSupplier progressSupplier;
 
@@ -691,7 +692,8 @@ public final class SkyframeActionExecutor {
               outputMetadataStore,
               artifactExpander,
               remoteDefaultProperties,
-              remoteArtifactChecker);
+              remoteArtifactChecker,
+              mnemonicCacheSalts);
 
       if (token == null) {
         boolean eventPosted = false;
@@ -793,7 +795,8 @@ public final class SkyframeActionExecutor {
           clientEnv,
           getOutputPermissions(),
           remoteDefaultProperties,
-          false /* isDelayedUpdate */);
+          false /* isDelayedUpdate */,
+          mnemonicCacheSalts);
     } catch (IOException e) {
       // Skyframe has already done all the filesystem access needed for outputs and swallows
       // IOExceptions for inputs. So an IOException is impossible here.
@@ -956,10 +959,19 @@ public final class SkyframeActionExecutor {
   public void configure(
       InputMetadataProvider fileCache,
       ActionInputPrefetcher actionInputPrefetcher,
-      DiscoveredModulesPruner discoveredModulesPruner) {
+      DiscoveredModulesPruner discoveredModulesPruner,
+      ImmutableMap<String, String> mnemonicCacheSalts) {
     this.perBuildFileCache = fileCache;
     this.actionInputPrefetcher = actionInputPrefetcher;
     this.discoveredModulesPruner = discoveredModulesPruner;
+    this.mnemonicCacheSalts = mnemonicCacheSalts;
+  }
+
+  public void configure(
+      InputMetadataProvider fileCache,
+      ActionInputPrefetcher actionInputPrefetcher,
+      DiscoveredModulesPruner discoveredModulesPruner) {
+    configure(fileCache, actionInputPrefetcher, discoveredModulesPruner, ImmutableMap.of());
   }
 
   /**
