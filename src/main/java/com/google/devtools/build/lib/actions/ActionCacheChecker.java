@@ -559,7 +559,8 @@ public class ActionCacheChecker {
       OutputMetadataStore outputMetadataStore,
       ArtifactExpander artifactExpander,
       Map<String, String> remoteDefaultPlatformProperties,
-      @Nullable RemoteArtifactChecker remoteArtifactChecker)
+      @Nullable RemoteArtifactChecker remoteArtifactChecker,
+      ImmutableMap<String, String> mnemonicCacheSalts)
       throws InterruptedException {
     // TODO(bazel-team): (2010) For RunfilesAction/SymlinkAction and similar actions that
     // produce only symlinks we should not check whether inputs are valid at all - all that matters
@@ -618,7 +619,8 @@ public class ActionCacheChecker {
         outputPermissions,
         remoteDefaultPlatformProperties,
         cachedOutputMetadata,
-        remoteArtifactChecker)) {
+        remoteArtifactChecker,
+        mnemonicCacheSalts.get(action.getMnemonic()))) {
       if (entry != null) {
         removeCacheEntry(action);
       }
@@ -638,6 +640,34 @@ public class ActionCacheChecker {
     return null;
   }
 
+  /** Backward-compat overload for callers that don't pass mnemonicCacheSalts. */
+  @Nullable
+  public Token getTokenIfNeedToExecute(
+      Action action,
+      List<Artifact> resolvedCacheArtifacts,
+      Map<String, String> clientEnv,
+      OutputPermissions outputPermissions,
+      EventHandler handler,
+      InputMetadataProvider inputMetadataProvider,
+      OutputMetadataStore outputMetadataStore,
+      ArtifactExpander artifactExpander,
+      Map<String, String> remoteDefaultPlatformProperties,
+      @Nullable RemoteArtifactChecker remoteArtifactChecker)
+      throws InterruptedException {
+    return getTokenIfNeedToExecute(
+        action,
+        resolvedCacheArtifacts,
+        clientEnv,
+        outputPermissions,
+        handler,
+        inputMetadataProvider,
+        outputMetadataStore,
+        artifactExpander,
+        remoteDefaultPlatformProperties,
+        remoteArtifactChecker,
+        ImmutableMap.of());
+  }
+
   private boolean mustExecute(
       Action action,
       @Nullable ActionCache.Entry entry,
@@ -651,7 +681,8 @@ public class ActionCacheChecker {
       OutputPermissions outputPermissions,
       Map<String, String> remoteDefaultPlatformProperties,
       @Nullable CachedOutputMetadata cachedOutputMetadata,
-      @Nullable RemoteArtifactChecker remoteArtifactChecker)
+      @Nullable RemoteArtifactChecker remoteArtifactChecker,
+      @Nullable String mnemonicSalt)
       throws InterruptedException {
     // Unconditional execution can be applied only for actions that are allowed to be executed.
     if (unconditionalExecution(action)) {
@@ -696,7 +727,7 @@ public class ActionCacheChecker {
 
     Map<String, String> usedEnvironment =
         computeUsedEnv(action, clientEnv, remoteDefaultPlatformProperties);
-    if (!entry.sameActionProperties(usedEnvironment, outputPermissions)) {
+    if (!entry.sameActionProperties(usedEnvironment, outputPermissions, mnemonicSalt)) {
       reportClientEnv(handler, action, usedEnvironment);
       actionCache.accountMiss(MissReason.DIFFERENT_ENVIRONMENT);
       return true;
@@ -771,7 +802,8 @@ public class ActionCacheChecker {
       Map<String, String> clientEnv,
       OutputPermissions outputPermissions,
       Map<String, String> remoteDefaultPlatformProperties,
-      boolean isDelayedUpdate)
+      boolean isDelayedUpdate,
+      ImmutableMap<String, String> mnemonicCacheSalts)
       throws IOException, InterruptedException {
     checkState(cacheConfig.enabled(), "cache unexpectedly disabled, action: %s", action);
     Preconditions.checkArgument(token != null, "token unexpectedly null, action: %s", action);
@@ -797,7 +829,8 @@ public class ActionCacheChecker {
 
     ActionCache.Entry entry =
         new ActionCache.Entry(
-            actionKey, usedEnvironment, action.discoversInputs(), outputPermissions);
+            actionKey, usedEnvironment, action.discoversInputs(), outputPermissions,
+            mnemonicCacheSalts.get(action.getMnemonic()));
     for (Artifact output : action.getOutputs()) {
       // Remove old records from the cache if they used different key.
       String execPath = output.getExecPathString();
@@ -864,7 +897,8 @@ public class ActionCacheChecker {
                 clientEnv,
                 outputPermissions,
                 remoteDefaultPlatformProperties,
-                true /* isDelayedUpdate */
+                true /* isDelayedUpdate */,
+                mnemonicCacheSalts
         );
       }
     }
@@ -879,6 +913,55 @@ public class ActionCacheChecker {
         }
       }
     }
+  }
+
+  /** Backward-compat overload for callers that don't pass mnemonicCacheSalts. */
+  public void updateActionCache(
+      Action action,
+      Token token,
+      InputMetadataProvider inputMetadataProvider,
+      OutputMetadataStore outputMetadataStore,
+      ArtifactExpander artifactExpander,
+      Map<String, String> clientEnv,
+      OutputPermissions outputPermissions,
+      Map<String, String> remoteDefaultPlatformProperties,
+      boolean isDelayedUpdate)
+      throws IOException, InterruptedException {
+    updateActionCache(
+        action,
+        token,
+        inputMetadataProvider,
+        outputMetadataStore,
+        artifactExpander,
+        clientEnv,
+        outputPermissions,
+        remoteDefaultPlatformProperties,
+        isDelayedUpdate,
+        ImmutableMap.of());
+  }
+
+  /** Backward-compat overload for callers that don't pass isDelayedUpdate or mnemonicCacheSalts. */
+  public void updateActionCache(
+      Action action,
+      Token token,
+      InputMetadataProvider inputMetadataProvider,
+      OutputMetadataStore outputMetadataStore,
+      ArtifactExpander artifactExpander,
+      Map<String, String> clientEnv,
+      OutputPermissions outputPermissions,
+      Map<String, String> remoteDefaultPlatformProperties)
+      throws IOException, InterruptedException {
+    updateActionCache(
+        action,
+        token,
+        inputMetadataProvider,
+        outputMetadataStore,
+        artifactExpander,
+        clientEnv,
+        outputPermissions,
+        remoteDefaultPlatformProperties,
+        /* isDelayedUpdate= */ false,
+        ImmutableMap.of());
   }
 
   @Nullable

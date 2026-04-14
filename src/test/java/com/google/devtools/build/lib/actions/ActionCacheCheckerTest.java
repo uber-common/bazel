@@ -1752,4 +1752,116 @@ public class ActionCacheCheckerTest {
       return super.execute(actionExecutionContext);
     }
   }
+
+  // ---- Helpers and tests for --mnemonic_cache_salt feature ----
+
+  /**
+   * Runs an action through the cache lifecycle with the given mnemonic salt map. Returns true if
+   * the action needed to execute (cache miss), false if it was a cache hit.
+   */
+  private boolean runActionWithMnemonicSalts(
+      Action action, ImmutableMap<String, String> mnemonicCacheSalts) throws Exception {
+    FakeInputMetadataHandler metadataHandler = new FakeInputMetadataHandler();
+    Token token =
+        cacheChecker.getTokenIfNeedToExecute(
+            action,
+            /* resolvedCacheArtifacts= */ null,
+            /* clientEnv= */ ImmutableMap.of(),
+            OutputPermissions.READONLY,
+            /* handler= */ null,
+            metadataHandler,
+            metadataHandler,
+            /* artifactExpander= */ null,
+            /* remoteDefaultPlatformProperties= */ ImmutableMap.of(),
+            RemoteArtifactChecker.TRUST_ALL,
+            mnemonicCacheSalts);
+
+    if (token != null) {
+      for (Artifact artifact : action.getOutputs()) {
+        Path path = artifact.getPath();
+        filesToDelete.add(path);
+        Path parent = path.getParentDirectory();
+        if (parent != null) {
+          parent.createDirectoryAndParents();
+        }
+      }
+      ActionExecutionContext context = mock(ActionExecutionContext.class);
+      when(context.getOutputMetadataStore()).thenReturn(metadataHandler);
+      action.execute(context);
+      cacheChecker.updateActionCache(
+          action,
+          token,
+          metadataHandler,
+          metadataHandler,
+          /* artifactExpander= */ null,
+          /* clientEnv= */ ImmutableMap.of(),
+          OutputPermissions.READONLY,
+          /* remoteDefaultPlatformProperties= */ ImmutableMap.of(),
+          /* isDelayedUpdate= */ false,
+          mnemonicCacheSalts);
+    }
+    return token != null;
+  }
+
+  @Test
+  public void testMnemonicCacheSalt_firstRunIsAlwaysCacheMiss() throws Exception {
+    Action action = new WriteEmptyOutputAction();
+    boolean executed = runActionWithMnemonicSalts(action, ImmutableMap.of("Null", "V1"));
+    assertThat(executed).isTrue();
+  }
+
+  @Test
+  public void testMnemonicCacheSalt_secondRunWithSameSaltIsCacheHit() throws Exception {
+    Action action = new WriteEmptyOutputAction();
+    ImmutableMap<String, String> salts = ImmutableMap.of("Null", "V1");
+    runActionWithMnemonicSalts(action, salts);
+    boolean executedAgain = runActionWithMnemonicSalts(action, salts);
+    assertThat(executedAgain).isFalse();
+  }
+
+  @Test
+  public void testMnemonicCacheSalt_changingSaltCausesCacheMiss() throws Exception {
+    Action action = new WriteEmptyOutputAction();
+    runActionWithMnemonicSalts(action, ImmutableMap.of("Null", "V1"));
+    boolean executedAfterSaltChange = runActionWithMnemonicSalts(action, ImmutableMap.of("Null", "V2"));
+    assertThat(executedAfterSaltChange).isTrue();
+  }
+
+  @Test
+  public void testMnemonicCacheSalt_removingSaltCausesCacheMiss() throws Exception {
+    Action action = new WriteEmptyOutputAction();
+    runActionWithMnemonicSalts(action, ImmutableMap.of("Null", "V1"));
+    // Remove the salt entirely: different digest → cache miss
+    boolean executedWithoutSalt = runActionWithMnemonicSalts(action, ImmutableMap.of());
+    assertThat(executedWithoutSalt).isTrue();
+  }
+
+  @Test
+  public void testMnemonicCacheSalt_addingSaltCausesCacheMiss() throws Exception {
+    Action action = new WriteEmptyOutputAction();
+    // First run with no salt
+    runActionWithMnemonicSalts(action, ImmutableMap.of());
+    // Adding a salt should bust the cache
+    boolean executedAfterAddSalt = runActionWithMnemonicSalts(action, ImmutableMap.of("Null", "V1"));
+    assertThat(executedAfterAddSalt).isTrue();
+  }
+
+  @Test
+  public void testMnemonicCacheSalt_saltForDifferentMnemonicDoesNotAffectAction() throws Exception {
+    Action action = new WriteEmptyOutputAction(); // mnemonic is "Null"
+    runActionWithMnemonicSalts(action, ImmutableMap.of("Null", "V1"));
+    // A salt for "Javac" should not affect a "Null" mnemonic action
+    boolean executed = runActionWithMnemonicSalts(action, ImmutableMap.of("Null", "V1", "Javac", "X"));
+    assertThat(executed).isFalse();
+  }
+
+  @Test
+  public void testMnemonicCacheSalt_saltOnlyForDifferentMnemonicDoesNotCauseMiss() throws Exception {
+    Action action = new WriteEmptyOutputAction(); // mnemonic is "Null"
+    // Cache with no salt
+    runActionWithMnemonicSalts(action, ImmutableMap.of());
+    // Salt only for "Javac" should not affect "Null" mnemonic action
+    boolean executed = runActionWithMnemonicSalts(action, ImmutableMap.of("Javac", "V1"));
+    assertThat(executed).isFalse();
+  }
 }

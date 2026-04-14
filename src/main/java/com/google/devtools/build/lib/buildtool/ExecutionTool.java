@@ -340,8 +340,11 @@ public class ExecutionTool {
         remoteArtifactChecker,
         buildRequestOptions.fsvcThreads);
     try (SilentCloseable c = Profiler.instance().profile("configureActionExecutor")) {
+      ExecutionOptions executionOptions = request.getOptions(ExecutionOptions.class);
       skyframeExecutor.configureActionExecutor(
-          skyframeBuilder.getFileCache(), skyframeBuilder.getActionInputPrefetcher());
+          skyframeBuilder.getFileCache(),
+          skyframeBuilder.getActionInputPrefetcher(),
+          executionOptions != null ? executionOptions.getMnemonicCacheSalts() : ImmutableMap.of());
     }
 
     skyframeExecutor.deleteActionsIfRemoteOptionsChanged(request);
@@ -953,6 +956,9 @@ public class ExecutionTool {
       ModifiedFileSet modifiedOutputFiles,
       boolean shouldStoreRemoteOutputMetadataInActionCache) {
     BuildRequestOptions options = request.getBuildOptions();
+    ExecutionOptions executionOptions = request.getOptions(ExecutionOptions.class);
+    ImmutableMap<String, String> mnemonicCacheSalts =
+        executionOptions != null ? executionOptions.getMnemonicCacheSalts() : ImmutableMap.of();
 
     skyframeExecutor.setActionOutputRoot(env.getActionTempsDirectory());
 
@@ -986,7 +992,8 @@ public class ExecutionTool {
         env.getFileCache(),
         prefetcher,
         env.getOutputDirectoryHelper(),
-        env.getRuntime().getBugReporter());
+        env.getRuntime().getBugReporter(),
+        mnemonicCacheSalts);
   }
 
   @VisibleForTesting

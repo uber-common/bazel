@@ -205,4 +205,15 @@ public class DigestUtils {
     }
     return combineUnordered(rhs, lhs);
   }
+
+  public static byte[] xor(byte[] lhs, byte[] rhs) {
+    int n = rhs.length;
+    if (lhs.length >= n) {
+      for (int i = 0; i < n; i++) {
+        lhs[i] ^= rhs[i];
+      }
+      return lhs;
+    }
+    return xor(rhs, lhs);
+  }
 }
