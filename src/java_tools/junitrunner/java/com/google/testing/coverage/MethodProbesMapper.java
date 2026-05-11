@@ -14,19 +14,18 @@
 
 package com.google.testing.coverage;
 
-import static java.util.Comparator.comparing;
-
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import org.jacoco.core.internal.analysis.Instruction;
 import org.jacoco.core.internal.analysis.filter.IFilter;
 import org.jacoco.core.internal.analysis.filter.IFilterContext;
 import org.jacoco.core.internal.analysis.filter.IFilterOutput;
+import org.jacoco.core.internal.analysis.filter.Replacements;
 import org.jacoco.core.internal.flow.IFrame;
 import org.jacoco.core.internal.flow.LabelInfo;
 import org.jacoco.core.internal.flow.MethodProbesVisitor;
@@ -77,7 +76,7 @@ public class MethodProbesMapper extends MethodProbesVisitor implements IFilterOu
   private IFilterContext filterContext;
   private HashSet<AbstractInsnNode> ignored = new HashSet<>();
   private Map<AbstractInsnNode, AbstractInsnNode> unioned = new HashMap<>();
-  private Map<AbstractInsnNode, Set<AbstractInsnNode>> branchReplacements = new HashMap<>();
+  private Map<AbstractInsnNode, Replacements> branchReplacements = new HashMap<>();
 
   // Result
   private Map<Integer, BranchExp> lineToBranchExp = new TreeMap();
@@ -421,17 +420,18 @@ public class MethodProbesMapper extends MethodProbesVisitor implements IFilterOu
     }
 
     // Handle branch replacements
-    for (Map.Entry<AbstractInsnNode, Set<AbstractInsnNode>> entry : branchReplacements.entrySet()) {
-      // The replacement set is not ordered deterministically and we require it to be so to be able
-      // to merge multiple coverage reports later on. We use the order in which we encountered
-      // nodes to determine the order of branches for the new BranchExp
-      ArrayList<AbstractInsnNode> replacements = new ArrayList<>(entry.getValue());
-      replacements.sort(comparing(instructionNodeIndexMap::get));
+    for (Map.Entry<AbstractInsnNode, Replacements> entry : branchReplacements.entrySet()) {
       BranchExp newBranch = new BranchExp(new ArrayList<>());
-      // Merging of coverage reports down the line only makes sense now if replacements is iterated
-      // in a deterministic order, which is a false assumption.
-      for (AbstractInsnNode node : replacements) {
-        newBranch.add(insnToCovExp.get(instructionMap.get(node)));
+      // Each group in values() is one new branch; use the first contributing instruction's CovExp.
+      // Replacements uses a LinkedHashMap so iteration order matches filter insertion order.
+      for (Collection<Replacements.InstructionBranch> group : entry.getValue().values()) {
+        for (Replacements.InstructionBranch ib : group) {
+          CovExp exp = insnToCovExp.get(instructionMap.get(ib.instruction));
+          if (exp != null) {
+            newBranch.add(exp);
+            break;
+          }
+        }
       }
       insnToCovExp.put(instructionMap.get(entry.getKey()), newBranch);
     }
@@ -488,7 +488,7 @@ public class MethodProbesMapper extends MethodProbesVisitor implements IFilterOu
   }
 
   @Override
-  public void replaceBranches(AbstractInsnNode source, Set<AbstractInsnNode> newTargets) {
+  public void replaceBranches(AbstractInsnNode source, Replacements newTargets) {
     branchReplacements.put(source, newTargets);
   }
 
