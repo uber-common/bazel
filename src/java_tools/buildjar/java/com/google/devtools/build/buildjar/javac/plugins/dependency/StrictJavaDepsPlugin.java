@@ -355,8 +355,6 @@ public final class StrictJavaDepsPlugin extends BlazeJavaCompilerPlugin {
         throw new RuntimeException("Failure to compute hash for " + fileObject, ex);
       }
     }
-      }
-    }
 
     /**
      * Marks the provided dependency as a direct/explicit dependency. Additionally, if
