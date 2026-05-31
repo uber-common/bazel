@@ -82,7 +82,6 @@ pkg_tar(
     srcs = [
         "BUILD",
         "WORKSPACE",
-        ":desugar_jdk_libs.jar",
         ":version.txt",
         "//src/java_tools/import_deps_checker/java/com/google/devtools/build/importdeps:ImportDepsChecker_deploy.jar",
     ],
