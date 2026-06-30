@@ -112,6 +112,7 @@ public class Scrubber {
     private final ImmutableMap<Pattern, String> argReplacements;
     private final ImmutableList<String> omittedEnvVars;
     private final String salt;
+    private final boolean scrubParamFiles;
     private final boolean debug = false;
 
     private SpawnScrubber(Config.Rule ruleProto) {
@@ -136,6 +137,30 @@ public class Scrubber {
           transformProto.getArgReplacementsList().stream()
               .collect(toImmutableMap(r -> Pattern.compile(r.getSource()), r -> r.getTarget()));
       this.salt = ruleProto.getTransform().getSalt();
+      this.scrubParamFiles = false;
+    }
+
+    private SpawnScrubber(SpawnScrubber base, boolean scrubParamFiles) {
+      this.mnemonicPattern = base.mnemonicPattern;
+      this.labelPattern = base.labelPattern;
+      this.kindPattern = base.kindPattern;
+      this.matchTools = base.matchTools;
+      this.omittedInputPatterns = base.omittedInputPatterns;
+      this.omittedInputPatternsExternal = base.omittedInputPatternsExternal;
+      this.argReplacements = base.argReplacements;
+      this.omittedEnvVars = base.omittedEnvVars;
+      this.salt = base.salt;
+      this.scrubParamFiles = scrubParamFiles;
+    }
+
+    /** Returns a new SpawnScrubber identical to this one but with param file scrubbing enabled. */
+    public SpawnScrubber withParamFileScrubbing() {
+      return new SpawnScrubber(this, /* scrubParamFiles= */ true);
+    }
+
+    /** Whether arg_replacements should be applied to params file content when hashing. */
+    public boolean shouldScrubParamFiles() {
+      return scrubParamFiles;
     }
 
     private String emptyToAll(String s) {
