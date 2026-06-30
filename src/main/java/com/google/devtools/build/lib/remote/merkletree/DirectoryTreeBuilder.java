@@ -15,12 +15,14 @@ package com.google.devtools.build.lib.remote.merkletree;
 
 import build.bazel.remote.execution.v2.Digest;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.devtools.build.lib.actions.ActionInput;
 import com.google.devtools.build.lib.actions.ActionInputHelper;
 import com.google.devtools.build.lib.actions.Artifact.DerivedArtifact;
 import com.google.devtools.build.lib.actions.Artifact.SpecialArtifact;
 import com.google.devtools.build.lib.actions.ArtifactPathResolver;
+import com.google.devtools.build.lib.actions.CommandLines.ParamFileActionInput;
 import com.google.devtools.build.lib.actions.FileArtifactValue;
 import com.google.devtools.build.lib.actions.InputMetadataProvider;
 import com.google.devtools.build.lib.actions.cache.VirtualActionInput;
@@ -181,6 +183,19 @@ class DirectoryTreeBuilder {
         (input, path, currDir) -> {
           if (input instanceof VirtualActionInput) {
             VirtualActionInput virtualActionInput = (VirtualActionInput) input;
+            if (spawnScrubber != null && spawnScrubber.shouldScrubParamFiles() && virtualActionInput instanceof ParamFileActionInput) {
+              ParamFileActionInput paramFile = (ParamFileActionInput) virtualActionInput;
+              ImmutableList<String> scrubbedArgs =
+                  paramFile.getArguments().stream()
+                      .map(spawnScrubber::transformArgument)
+                      .collect(ImmutableList.toImmutableList());
+              virtualActionInput =
+                  new ParamFileActionInput(
+                      paramFile.getExecPath(),
+                      scrubbedArgs,
+                      paramFile.getType(),
+                      paramFile.getCharset());
+            }
             Digest d = digestUtil.compute(virtualActionInput);
             boolean childAdded =
                 currDir.addChild(

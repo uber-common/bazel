@@ -276,6 +276,14 @@ public abstract class CommandLines {
     public ImmutableList<String> getArguments() {
       return ImmutableList.copyOf(arguments);
     }
+
+    public ParameterFileType getType() {
+      return type;
+    }
+
+    public Charset getCharset() {
+      return charset;
+    }
   }
 
   /**
