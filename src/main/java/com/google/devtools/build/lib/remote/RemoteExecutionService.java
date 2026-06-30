@@ -663,6 +663,10 @@ public class RemoteExecutionService {
           RemotePathResolver.createMapped(baseRemotePathResolver, execRoot, spawn.getPathMapper());
       ToolSignature toolSignature = getToolSignature(spawn, context);
       SpawnScrubber spawnScrubber = scrubber != null ? scrubber.forSpawn(spawn) : null;
+      if (spawnScrubber != null && remoteOptions.scrubParamFilesArgReplacements) {
+        spawnScrubber = spawnScrubber.withParamFileScrubbing();
+      }
+
       final MerkleTree merkleTree =
           buildInputMerkleTree(spawn, context, toolSignature, spawnScrubber, remotePathResolver);
 
@@ -2030,6 +2034,9 @@ public class RemoteExecutionService {
         SpawnExecutionContext context = action.getSpawnExecutionContext();
         ToolSignature toolSignature = getToolSignature(spawn, context);
         SpawnScrubber spawnScrubber = scrubber != null ? scrubber.forSpawn(spawn) : null;
+        if (spawnScrubber != null && remoteOptions.scrubParamFilesArgReplacements) {
+          spawnScrubber = spawnScrubber.withParamFileScrubbing();
+        }
         merkleTree =
             buildInputMerkleTree(
                 spawn, context, toolSignature, spawnScrubber, action.getRemotePathResolver());
