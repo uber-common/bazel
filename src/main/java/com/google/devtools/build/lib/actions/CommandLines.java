@@ -251,6 +251,14 @@ public abstract sealed class CommandLines {
     public Iterable<String> getArguments() {
       return arguments;
     }
+
+    public ParameterFileType getType() {
+      return type;
+    }
+
+    public Charset getCharset() {
+      return charset;
+    }
   }
 
   /**
