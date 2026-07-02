@@ -18,6 +18,7 @@ import static java.nio.charset.StandardCharsets.ISO_8859_1;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.flogger.GoogleLogger;
 import com.google.devtools.build.lib.actions.FileArtifactValue.RemoteFileArtifactValue;
@@ -253,7 +254,35 @@ public class CompactPersistentActionCache implements ActionCache {
       }
       misses.put(reason, new AtomicInteger(0));
     }
+    deleteUnrecognizedFiles(cacheRoot);
     return new CompactPersistentActionCache(indexer, map, Maps.immutableEnumMap(misses));
+  }
+
+  /**
+   * Deletes unrecognized files from the action cache on-disk directory.
+   *
+   * <p>This works around an incrementality bug when building a runfiles tree while alternating
+   * between Bazel versions. Specifically, because the runfiles output manifest is a symlink to the
+   * input manifest (and therefore always appears to have the contents of the latter), one can get a
+   * spurious cache hit for a stale runfiles tree if the tree was updated in an intervening build
+   * without the action cache being updated accordingly.
+   *
+   * <p>Backported from https://github.com/bazelbuild/bazel/pull/27525 (Bazel 9.0.0).
+   */
+  private static void deleteUnrecognizedFiles(Path cacheRoot) throws IOException {
+    Path indexFile = cacheRoot.getChild("filename_index_v" + VERSION + ".blaze");
+    Path indexJournalFile = cacheRoot.getChild("filename_index_v" + VERSION + ".journal");
+    ImmutableSet<Path> knownFiles =
+        ImmutableSet.of(
+            cacheFile(cacheRoot),
+            journalFile(cacheRoot),
+            indexFile,
+            indexJournalFile);
+    for (Path child : cacheRoot.getDirectoryEntries()) {
+      if (!knownFiles.contains(child)) {
+        child.delete();
+      }
+    }
   }
 
   private static CompactPersistentActionCache logAndThrowOrRecurse(
