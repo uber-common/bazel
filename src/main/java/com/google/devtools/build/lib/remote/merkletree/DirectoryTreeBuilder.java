@@ -16,6 +16,7 @@ package com.google.devtools.build.lib.remote.merkletree;
 import build.bazel.remote.execution.v2.Digest;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Streams;
 import com.google.devtools.build.lib.actions.ActionInput;
 import com.google.devtools.build.lib.actions.ActionInputHelper;
 import com.google.devtools.build.lib.actions.Artifact.DerivedArtifact;
@@ -164,15 +165,14 @@ class DirectoryTreeBuilder {
             if (spawnScrubber != null && virtualActionInput instanceof ParamFileActionInput) {
               ParamFileActionInput paramFile = (ParamFileActionInput) virtualActionInput;
               ImmutableList<String> scrubbedArgs =
-                  paramFile.getArguments().stream()
+                  Streams.stream(paramFile.getArguments())
                       .map(spawnScrubber::transformArgument)
                       .collect(ImmutableList.toImmutableList());
               virtualActionInput =
                   new ParamFileActionInput(
                       paramFile.getExecPath(),
                       scrubbedArgs,
-                      paramFile.getType(),
-                      paramFile.getCharset());
+                      paramFile.getType());
             }
             Digest d = digestUtil.compute(virtualActionInput);
             boolean childAdded =

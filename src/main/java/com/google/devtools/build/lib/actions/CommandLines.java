@@ -255,10 +255,6 @@ public abstract sealed class CommandLines {
     public ParameterFileType getType() {
       return type;
     }
-
-    public Charset getCharset() {
-      return charset;
-    }
   }
 
   /**
