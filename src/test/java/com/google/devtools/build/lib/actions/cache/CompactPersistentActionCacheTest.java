@@ -451,6 +451,15 @@ public class CompactPersistentActionCacheTest {
                 Optional.of(materializationExecPath)));
   }
 
+  @Test
+  public void testDeleteUnrecognizedFiles() throws Exception {
+    Path unrecognizedFile = dataRoot.getChild("unrecognized_file");
+    FileSystemUtils.writeContentAsLatin1(unrecognizedFile, "content");
+    assertThat(unrecognizedFile.exists()).isTrue();
+    CompactPersistentActionCache.create(dataRoot, clock, NullEventHandler.INSTANCE);
+    assertThat(unrecognizedFile.exists()).isFalse();
+  }
+
   private static void assertKeyEquals(ActionCache cache1, ActionCache cache2, String key) {
     Object entry = cache1.get(key);
     assertThat(entry).isNotNull();
