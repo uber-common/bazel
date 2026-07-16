@@ -270,6 +270,9 @@ public class CompactPersistentActionCache implements ActionCache {
    * <p>Backported from https://github.com/bazelbuild/bazel/pull/27525 (Bazel 9.0.0).
    */
   private static void deleteUnrecognizedFiles(Path cacheRoot) throws IOException {
+    if (!cacheRoot.exists()) {
+      return;
+    }
     Path indexFile = cacheRoot.getChild("filename_index_v" + VERSION + ".blaze");
     Path indexJournalFile = cacheRoot.getChild("filename_index_v" + VERSION + ".journal");
     ImmutableSet<Path> knownFiles =
