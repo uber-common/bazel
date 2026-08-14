@@ -60,6 +60,9 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.eventbus.Subscribe;
+import com.google.common.hash.HashCode;
+import com.google.common.hash.Hasher;
+import com.google.common.hash.Hashing;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -137,6 +140,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -553,12 +557,13 @@ public class RemoteExecutionService {
       new Semaphore(Runtime.getRuntime().availableProcessors(), true);
 
   @Nullable
-  private ToolSignature getToolSignature(Spawn spawn, SpawnExecutionContext context)
+  private ToolSignature getToolSignature(
+      Spawn spawn, SpawnExecutionContext context, @Nullable SpawnScrubber spawnScrubber)
       throws IOException, ExecException, InterruptedException {
     return remoteOptions.markToolInputs
             && Spawns.supportsWorkers(spawn)
             && !spawn.getToolFiles().isEmpty()
-        ? computePersistentWorkerSignature(spawn, context)
+        ? computePersistentWorkerSignature(spawn, context, spawnScrubber)
         : null;
   }
 
@@ -651,11 +656,11 @@ public class RemoteExecutionService {
       // from the unmapped location locally.
       RemotePathResolver remotePathResolver =
           RemotePathResolver.createMapped(baseRemotePathResolver, execRoot, spawn.getPathMapper());
-      ToolSignature toolSignature = getToolSignature(spawn, context);
       SpawnScrubber spawnScrubber = scrubber != null ? scrubber.forSpawn(spawn) : null;
       if (spawnScrubber != null && remoteOptions.scrubParamFilesArgReplacements) {
         spawnScrubber = spawnScrubber.withParamFileScrubbing();
       }
+      ToolSignature toolSignature = getToolSignature(spawn, context, spawnScrubber);
 
       final MerkleTree merkleTree =
           buildInputMerkleTree(spawn, context, toolSignature, spawnScrubber, remotePathResolver);
@@ -716,15 +721,33 @@ public class RemoteExecutionService {
   }
 
   @Nullable
-  private ToolSignature computePersistentWorkerSignature(Spawn spawn, SpawnExecutionContext context)
+  private ToolSignature computePersistentWorkerSignature(
+      Spawn spawn, SpawnExecutionContext context, @Nullable SpawnScrubber spawnScrubber)
       throws IOException, ExecException, InterruptedException {
     WorkerParser workerParser =
         new WorkerParser(
             execRoot, Options.getDefaults(WorkerOptions.class), LocalEnvProvider.NOOP, null);
     WorkerKey workerKey = workerParser.compute(spawn, context).getWorkerKey();
     Fingerprint fingerprint = new Fingerprint();
-    fingerprint.addBytes(workerKey.getWorkerFilesCombinedHash().asBytes());
-    fingerprint.addIterableStrings(workerKey.getArgs());
+    if (spawnScrubber != null) {
+      Hasher hasher = Hashing.sha256().newHasher();
+      for (Map.Entry<PathFragment, byte[]> entry :
+          workerKey.getWorkerFilesWithDigests().entrySet()) {
+        if (!spawnScrubber.shouldOmitInput(entry.getKey(), spawn)) {
+          hasher.putString(
+              spawnScrubber.transformArgument(entry.getKey().getPathString()),
+              Charset.defaultCharset());
+          hasher.putBytes(entry.getValue());
+        }
+      }
+      fingerprint.addBytes(hasher.hash().asBytes());
+      for (String arg : workerKey.getArgs()) {
+        fingerprint.addString(spawnScrubber.transformArgument(arg));
+      }
+    } else {
+      fingerprint.addBytes(workerKey.getWorkerFilesCombinedHash().asBytes());
+      fingerprint.addIterableStrings(workerKey.getArgs());
+    }
     fingerprint.addStringMap(workerKey.getEnv());
     return new ToolSignature(
         fingerprint.hexDigestAndReset(), workerKey.getWorkerFilesWithDigests().keySet());
@@ -1908,11 +1931,11 @@ public class RemoteExecutionService {
         // Recompute the input root.
         Spawn spawn = action.getSpawn();
         SpawnExecutionContext context = action.getSpawnExecutionContext();
-        ToolSignature toolSignature = getToolSignature(spawn, context);
         SpawnScrubber spawnScrubber = scrubber != null ? scrubber.forSpawn(spawn) : null;
         if (spawnScrubber != null && remoteOptions.scrubParamFilesArgReplacements) {
           spawnScrubber = spawnScrubber.withParamFileScrubbing();
         }
+        ToolSignature toolSignature = getToolSignature(spawn, context, spawnScrubber);
         merkleTree =
             buildInputMerkleTree(
                 spawn, context, toolSignature, spawnScrubber, action.getRemotePathResolver());
