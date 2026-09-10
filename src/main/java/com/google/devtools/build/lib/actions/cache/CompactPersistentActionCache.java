@@ -271,6 +271,9 @@ public class CompactPersistentActionCache implements ActionCache {
   }
 
   private static void deleteUnrecognizedFiles(Path cacheRoot) throws IOException {
+    if (!cacheRoot.exists()) {
+      return;
+    }
     ImmutableSet<Path> knownFiles =
         ImmutableSet.of(
             cacheFile(cacheRoot),
