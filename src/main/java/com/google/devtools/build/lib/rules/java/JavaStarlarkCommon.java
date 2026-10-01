@@ -267,7 +267,11 @@ public class JavaStarlarkCommon
         Depset.cast(javaBuilderJvmFlags, String.class, "javabuilder_jvm_flags"));
     compilationHelper.enableJspecify(enableJSpecify);
     compilationHelper.enableDirectClasspath(enableDirectClasspath);
-    compilationHelper.enableInstrumentation(enableInstrumentation);
+    // Param.valueWhenDisabled was removed upstream in 8.3.0, so the flag is applied here instead.
+    compilationHelper.enableInstrumentation(
+        enableInstrumentation
+            && !ctx.getStarlarkSemantics()
+                .getBool(BuildLanguageOptions.INCOMPATIBLE_DISABLE_JAVA_COMMON_INSTRUMENTATION));
     compilationHelper.createCompileAction(outputs);
   }
 
