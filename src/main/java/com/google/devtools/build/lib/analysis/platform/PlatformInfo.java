@@ -171,7 +171,7 @@ public class PlatformInfo extends NativeInfo
             .collect(toImmutableList()));
     fp.addStrings(allowedToolchainTypes.stream().map(Label::toString).collect(toImmutableList()));
     fp.addBoolean(checkToolchainTypes);
-    fp.addNullableString(missingToolchainErrorMessage);
+    // missingToolchainErrorMessage is omitted: it doesn't affect execution and keeps keys stable.
   }
 
   @Override
