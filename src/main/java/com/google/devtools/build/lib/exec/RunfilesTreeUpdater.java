@@ -18,6 +18,8 @@ import static java.nio.charset.StandardCharsets.ISO_8859_1;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.Striped;
+import com.google.devtools.build.lib.actions.Artifact;
 import com.google.devtools.build.lib.actions.ExecException;
 import com.google.devtools.build.lib.actions.RunfilesTree;
 import com.google.devtools.build.lib.analysis.RunfilesSupport;
@@ -33,19 +35,24 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
 import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * Utility used in local execution to create a runfiles tree if {@code --nobuild_runfile_links} has
- * been specified.
+ * been specified, and to restore entries missing from a runfiles tree created during the build.
  *
  * <p>It is safe to call {@link #updateRunfiles} concurrently.
  */
 @ThreadSafe
 public class RunfilesTreeUpdater {
+  /** Serializes repairs of the same runfiles tree across all instances. */
+  private static final Striped<Lock> REPAIR_LOCKS = Striped.lock(64);
+
   private final Path execRoot;
   private final BinTools binTools;
   private final XattrProvider xattrProvider;
@@ -78,9 +85,6 @@ public class RunfilesTreeUpdater {
       throws ExecException, IOException, InterruptedException {
     for (RunfilesTree tree : runfilesTrees) {
       PathFragment runfilesDir = tree.getExecPath();
-      if (tree.isBuildRunfileLinks()) {
-        continue;
-      }
 
       var freshFuture = new CompletableFuture<Void>();
       CompletableFuture<Void> priorFuture = updatedTrees.putIfAbsent(runfilesDir, freshFuture);
@@ -123,6 +127,10 @@ public class RunfilesTreeUpdater {
     }
     Path outputManifest =
         execRoot.getRelative(RunfilesSupport.outputManifestExecPath(tree.getExecPath()));
+    if (tree.isBuildRunfileLinks()) {
+      repairRunfilesTreeIfIncomplete(tree, runfilesDir, inputManifest, outputManifest, env, outErr);
+      return;
+    }
     try {
       // Avoid rebuilding the runfiles directory if the manifest in it matches the input manifest,
       // implying the symlinks exist and are already up to date. If the output manifest is a
@@ -139,7 +147,8 @@ public class RunfilesTreeUpdater {
               DigestUtils.getDigestWithManualFallback(outputManifest, xattrProvider),
               DigestUtils.getDigestWithManualFallback(inputManifest, xattrProvider))
           && (OS.getCurrent() != OS.WINDOWS
-              || isRunfilesDirectoryPopulated(runfilesDir, outputManifest))) {
+              || isRunfilesDirectoryPopulated(runfilesDir, outputManifest))
+          && isRunfilesTreeComplete(runfilesDir, tree.getMapping())) {
         return;
       }
     } catch (IOException e) {
@@ -167,6 +176,77 @@ public class RunfilesTreeUpdater {
         outputManifest.createSymbolicLink(inputManifest);
       }
     }
+  }
+
+  /**
+   * Restores entries missing from a runfiles tree that was created by a {@code SymlinkTreeAction}.
+   *
+   * <p>The output manifest is the only output of that action, so the action cache does not notice
+   * symlinks that were deleted from the tree out-of-band (e.g. by a disk cleaner), not even with
+   * {@code --experimental_check_output_files} or after a server restart. A spawn reading such a
+   * symlink would fail.
+   */
+  private void repairRunfilesTreeIfIncomplete(
+      RunfilesTree tree,
+      Path runfilesDir,
+      Path inputManifest,
+      Path outputManifest,
+      ImmutableMap<String, String> env,
+      OutErr outErr)
+      throws IOException, ExecException, InterruptedException {
+    if (tree.getSymlinksMode() == SKIP) {
+      return;
+    }
+    Map<PathFragment, Artifact> mapping = tree.getMapping();
+    if (isRunfilesTreeComplete(runfilesDir, mapping)) {
+      return;
+    }
+
+    // Other RunfilesTreeUpdater instances (e.g. the worker and standalone ones) may be repairing
+    // the same tree concurrently.
+    Lock lock = REPAIR_LOCKS.get(runfilesDir);
+    lock.lock();
+    try {
+      if (isRunfilesTreeComplete(runfilesDir, mapping)) {
+        return;
+      }
+      outErr.printErrLn(
+          String.format(
+              "Runfiles tree %s is missing entries, recreating it.", tree.getExecPath()));
+      SymlinkTreeHelper helper =
+          new SymlinkTreeHelper(
+              execRoot,
+              inputManifest,
+              outputManifest,
+              runfilesDir,
+              /* filesetTree= */ false,
+              tree.getWorkspaceName());
+      switch (tree.getSymlinksMode()) {
+        case SKIP -> throw new IllegalStateException("SKIP mode trees have no entries to repair");
+        case EXTERNAL -> helper.createSymlinksUsingCommand(binTools, env, outErr);
+        case INTERNAL -> {
+          // This deletes the output manifest, as it is not part of the mapping. Recreate it the
+          // same way as SymlinkTreeStrategy does.
+          helper.createRunfilesSymlinksDirectly(mapping);
+          outputManifest.delete();
+          outputManifest.createSymbolicLink(inputManifest);
+        }
+      }
+    } finally {
+      lock.unlock();
+    }
+  }
+
+  private static boolean isRunfilesTreeComplete(
+      Path runfilesDir, Map<PathFragment, Artifact> mapping) {
+    for (PathFragment runfile : mapping.keySet()) {
+      // Don't follow symlinks: unresolved symlinks may legitimately dangle, and a missing target
+      // is caught as a missing input before the spawn runs.
+      if (!runfilesDir.getRelative(runfile).exists(Symlinks.NOFOLLOW)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private static boolean isRunfilesDirectoryPopulated(Path runfilesDir, Path outputManifest) {
