@@ -16,6 +16,7 @@ package com.google.devtools.build.lib.worker;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.devtools.build.lib.worker.WorkerTestUtils.createWorkerKey;
+import static org.junit.Assume.assumeTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
@@ -620,6 +621,37 @@ public final class WorkerLifecycleManagerTest {
     assertThat(workerPool.getNumActive(key)).isEqualTo(0);
     // Status is only set to killed after the last worker proxy is destroyed.
     assertThat(w2.getStatus().get()).isEqualTo(Status.KILLED_DUE_TO_MEMORY_PRESSURE);
+  }
+
+  @Test
+  public void evictWorkers_idleMultiplexProxyWithoutShrinking_doesNotShrinkPool() throws Exception {
+    WorkerPool workerPool =
+        workerPoolSupplier.get(factoryMock, emptyEntryList(), entryList(DUMMY_MNEMONIC, 2));
+    // WorkerPoolImplLegacy shrinks the pool whenever a worker pending eviction is returned.
+    assumeTrue(workerPool instanceof WorkerPoolImpl);
+    WorkerKey key =
+        createWorkerKey(DUMMY_MNEMONIC, fileSystem, /* multiplex= */ true, /* sandboxed= */ false);
+    Worker w1 = workerPool.borrowObject(key);
+    Worker w2 = workerPool.borrowObject(key);
+
+    workerPool.returnObject(key, w1);
+    ImmutableList<WorkerProcessMetrics> workerMetrics =
+        ImmutableList.of(
+            createMultiplexWorkerMetric(
+                ImmutableList.of(w1, w2), PROCESS_ID_1, /* memoryInKb= */ 4000));
+    WorkerOptions options = new WorkerOptions();
+    options.totalWorkerMemoryLimitMb = 1;
+    WorkerLifecycleManager manager = new WorkerLifecycleManager(workerPool, options);
+
+    manager.evictWorkers(workerMetrics);
+
+    // Evicting the idle w1 also dooms the busy w2, since they share a WorkerProcessStatus.
+    assertThat(w2.getStatus().get()).isEqualTo(Status.PENDING_KILL_DUE_TO_MEMORY_PRESSURE);
+
+    workerPool.returnObject(key, w2);
+    assertThat(w2.getStatus().get()).isEqualTo(Status.KILLED_DUE_TO_MEMORY_PRESSURE);
+    // Without --experimental_shrink_worker_pool the pool keeps its size.
+    assertThat(workerPool.getMaxTotalPerKey(key)).isEqualTo(2);
   }
 
   private static final Instant DEFAULT_INSTANT = BlazeClock.instance().now();

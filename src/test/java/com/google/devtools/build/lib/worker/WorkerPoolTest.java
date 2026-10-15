@@ -100,6 +100,8 @@ public class WorkerPoolTest {
                     new WorkerPoolImpl(
                         factory,
                         new WorkerPoolConfig(
+                            /* useNewWorkerPool= */ true,
+                            /* shrinkWorkerPool= */ true,
                             /* workerMaxInstances= */ ImmutableList.of(
                                 Maps.immutableEntry("mnem", 2)),
                             /* workerMaxMultiplexInstances= */ ImmutableList.of(
