@@ -66,6 +66,7 @@ public class WorkerPoolImpl implements WorkerPool {
   private static final int DEFAULT_MAX_MULTIPLEX_WORKERS = 8;
 
   private final WorkerFactory factory;
+  private final boolean shrinkWorkerPool;
 
   private final ImmutableMap<String, Integer> singleplexMaxInstances;
   private final ImmutableMap<String, Integer> multiplexMaxInstances;
@@ -73,6 +74,7 @@ public class WorkerPoolImpl implements WorkerPool {
 
   public WorkerPoolImpl(WorkerFactory factory, WorkerPoolConfig config) {
     this.factory = factory;
+    this.shrinkWorkerPool = config.getShrinkWorkerPool();
     this.singleplexMaxInstances =
         getMaxInstances(config.getWorkerMaxInstances(), DEFAULT_MAX_SINGLEPLEX_WORKERS);
     this.multiplexMaxInstances =
@@ -333,7 +335,11 @@ public class WorkerPoolImpl implements WorkerPool {
 
     private synchronized void returnWorker(WorkerKey key, Worker worker) {
       if (!factory.validateWorker(key, worker)) {
-        invalidateWorker(worker, true);
+        // Shrink only with --experimental_shrink_worker_pool, which marks busy workers to be
+        // invalidated here. Without it a returned worker can still be pending eviction because an
+        // idle proxy of the same multiplexer was evicted (all proxies share the multiplexer's
+        // status), and evicting idle workers must not shrink the pool.
+        invalidateWorker(worker, /* shouldShrinkPool= */ shrinkWorkerPool);
         return;
       }
 
