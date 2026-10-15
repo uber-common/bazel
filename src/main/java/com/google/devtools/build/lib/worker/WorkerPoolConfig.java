@@ -25,14 +25,17 @@ import java.util.Objects;
  */
 public class WorkerPoolConfig {
   private final boolean useNewWorkerPool;
+  private final boolean shrinkWorkerPool;
   private final List<Entry<String, Integer>> workerMaxInstances;
   private final List<Entry<String, Integer>> workerMaxMultiplexInstances;
 
   public WorkerPoolConfig(
       boolean useNewWorkerPool,
+      boolean shrinkWorkerPool,
       List<Entry<String, Integer>> workerMaxInstances,
       List<Entry<String, Integer>> workerMaxMultiplexInstances) {
     this.useNewWorkerPool = useNewWorkerPool;
+    this.shrinkWorkerPool = shrinkWorkerPool;
     this.workerMaxInstances = workerMaxInstances;
     this.workerMaxMultiplexInstances = workerMaxMultiplexInstances;
   }
@@ -43,8 +46,13 @@ public class WorkerPoolConfig {
       List<Entry<String, Integer>> workerMaxMultiplexInstances) {
     this(
         /* useNewWorkerPool= */ false,
+        /* shrinkWorkerPool= */ false,
         workerMaxInstances,
         workerMaxMultiplexInstances);
+  }
+
+  public boolean getShrinkWorkerPool() {
+    return shrinkWorkerPool;
   }
 
   public List<Entry<String, Integer>> getWorkerMaxInstances() {
@@ -64,12 +72,14 @@ public class WorkerPoolConfig {
       return false;
     }
     return useNewWorkerPool == that.useNewWorkerPool
+        && shrinkWorkerPool == that.shrinkWorkerPool
         && workerMaxInstances.equals(that.workerMaxInstances)
         && workerMaxMultiplexInstances.equals(that.workerMaxMultiplexInstances);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(useNewWorkerPool, workerMaxInstances, workerMaxMultiplexInstances);
+    return Objects.hash(
+        useNewWorkerPool, shrinkWorkerPool, workerMaxInstances, workerMaxMultiplexInstances);
   }
 }

@@ -176,6 +176,7 @@ public class WorkerModule extends BlazeModule {
     WorkerPoolConfig newConfig =
         new WorkerPoolConfig(
             options.useNewWorkerPool,
+            options.shrinkWorkerPool,
             options.workerMaxInstances,
             options.workerMaxMultiplexInstances);
 
