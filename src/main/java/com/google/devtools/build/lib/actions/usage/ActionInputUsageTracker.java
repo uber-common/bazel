@@ -94,14 +94,23 @@ public class ActionInputUsageTracker {
     }
 
     public class DelayedCachedActionData {
-        public Action action;
-        public Token token;
-        public OutputMetadataStore outputMetadataStore;
+        public final Action action;
+        public final Token token;
+        public final InputMetadataProvider inputMetadataProvider;
+        public final OutputMetadataStore outputMetadataStore;
+        public final ArtifactExpander artifactExpander;
 
-        public DelayedCachedActionData(Action action, Token token, OutputMetadataStore outputMetadataStore) {
+        public DelayedCachedActionData(
+                Action action,
+                Token token,
+                InputMetadataProvider inputMetadataProvider,
+                OutputMetadataStore outputMetadataStore,
+                ArtifactExpander artifactExpander) {
             this.action = action;
             this.token = token;
+            this.inputMetadataProvider = inputMetadataProvider;
             this.outputMetadataStore = outputMetadataStore;
+            this.artifactExpander = artifactExpander;
         }
     }
 
@@ -282,13 +291,23 @@ public class ActionInputUsageTracker {
      * avoidance, without affecting remote or create risks of cache poisoning.
      */
     @Nullable
-    public DelayedCachedActionData onUpdateActionCacheComplete(Action action, Token token, OutputMetadataStore outputMetadataStore) {
+    public DelayedCachedActionData onUpdateActionCacheComplete(
+            Action action,
+            Token token,
+            InputMetadataProvider inputMetadataProvider,
+            OutputMetadataStore outputMetadataStore,
+            ArtifactExpander artifactExpander) {
         switch (action.getMnemonic()) {
             case "KotlinCompile":
                 String key = getKey(action).replace("KotlinCompile", "KotlinKsp");
                 return delayedCachedActionsData.remove(key);
             case "KotlinKsp":
-                delayedCachedActionsData.put(getKey(action), new DelayedCachedActionData(action, token, outputMetadataStore));
+                // Keep KSP's action-scoped metadata. KotlinCompile's provider does not contain
+                // every KSP tool input, even though it produces the jdeps used by this update.
+                delayedCachedActionsData.put(
+                        getKey(action),
+                        new DelayedCachedActionData(
+                                action, token, inputMetadataProvider, outputMetadataStore, artifactExpander));
                 return null;
             default:
                 return null;
