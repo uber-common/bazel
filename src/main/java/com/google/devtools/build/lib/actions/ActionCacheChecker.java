@@ -886,14 +886,16 @@ public class ActionCacheChecker {
     actionCache.put(key, entry);
 
     if (!isDelayedUpdate) {
-      DelayedCachedActionData delayedActionData = actionInputUsageTracker.onUpdateActionCacheComplete(action, token, outputMetadataStore);
+      DelayedCachedActionData delayedActionData =
+          actionInputUsageTracker.onUpdateActionCacheComplete(
+              action, token, inputMetadataProvider, outputMetadataStore, artifactExpander);
       if (delayedActionData != null) {
         updateActionCache(
                 delayedActionData.action,
                 delayedActionData.token,
-                inputMetadataProvider,
+                delayedActionData.inputMetadataProvider,
                 delayedActionData.outputMetadataStore,
-                artifactExpander,
+                delayedActionData.artifactExpander,
                 clientEnv,
                 outputPermissions,
                 remoteDefaultPlatformProperties,
