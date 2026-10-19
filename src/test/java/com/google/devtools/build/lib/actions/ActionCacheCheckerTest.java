@@ -118,13 +118,19 @@ public class ActionCacheCheckerTest {
   }
 
   private ActionCacheChecker createActionCacheChecker(boolean storeOutputMetadata) {
+    return createActionCacheChecker(
+        storeOutputMetadata,
+        new ActionInputUsageTracker(
+            ArtifactPathResolver.IDENTITY,
+            BuildRequestOptions.ActionInputUsageTrackerMode.DISABLED));
+  }
+
+  private ActionCacheChecker createActionCacheChecker(
+      boolean storeOutputMetadata, ActionInputUsageTracker inputUsageTracker) {
     return new ActionCacheChecker(
         cache,
         new FakeArtifactResolverBase(),
-        new ActionInputUsageTracker(
-            ArtifactPathResolver.IDENTITY,
-            BuildRequestOptions.ActionInputUsageTrackerMode.DISABLED
-        ),
+        inputUsageTracker,
         new ActionKeyContext(),
         action -> true,
         ActionCacheChecker.CacheConfig.builder()
@@ -306,6 +312,105 @@ public class ActionCacheCheckerTest {
   @Test
   public void testCached() throws Exception {
     doTestCached(new WriteEmptyOutputAction(), MissReason.NOT_CACHED);
+  }
+
+  @Test
+  public void delayedKspCacheUpdatePreservesKspInputMetadata() throws Exception {
+    DelayedKspCacheFixture fixture = new DelayedKspCacheFixture("ksp2_invoker.jar");
+    runAction(fixture.kspAction, fixture.kspInputs, fixture.kspOutputs);
+    byte[] directDigest =
+        cache.get(fixture.kspAction.getPrimaryOutput().getExecPathString()).getFileDigest();
+
+    // KotlinCompile's input map does not contain KSP's tools. Its completion must not replace
+    // their metadata with null when rewriting the earlier KSP cache entry.
+    runAction(fixture.kotlinAction, fixture.kotlinInputs, fixture.kotlinOutputs);
+
+    assertThat(cache.get(fixture.kspAction.getPrimaryOutput().getExecPathString()).getFileDigest())
+        .isEqualTo(directDigest);
+    assertThat(fixture.getKspToken()).isNull();
+    assertStatistics(1, new MissDetailsBuilder().set(MissReason.NOT_CACHED, 2).build());
+  }
+
+  @Test
+  public void delayedKspCacheUpdateStillInvalidatesChangedTool(
+      @TestParameter({"ksp2_invoker.jar", "symbol-processing.jar"}) String toolName)
+      throws Exception {
+    DelayedKspCacheFixture fixture = new DelayedKspCacheFixture(toolName);
+    runAction(fixture.kspAction, fixture.kspInputs, fixture.kspOutputs);
+    runAction(fixture.kotlinAction, fixture.kotlinInputs, fixture.kotlinOutputs);
+
+    // Establish that the deferred entry is healthy first: otherwise a null-stamped tool could
+    // make the mutation check pass for the wrong reason.
+    assertThat(fixture.getKspToken()).isNull();
+
+    writeContentAsLatin1(fixture.tool.getPath(), "changed KSP tool or processor");
+
+    assertThat(fixture.getKspToken()).isNotNull();
+    assertStatistics(
+        1,
+        new MissDetailsBuilder()
+            .set(MissReason.NOT_CACHED, 2)
+            .set(MissReason.DIFFERENT_FILES, 1)
+            .build());
+  }
+
+  /** Two same-owner actions with genuinely disjoint action-scoped input metadata providers. */
+  private final class DelayedKspCacheFixture {
+    private final Artifact tool;
+    private final Action kspAction;
+    private final Action kotlinAction;
+    private final InputMetadataProvider kspInputs = mock(InputMetadataProvider.class);
+    private final InputMetadataProvider kotlinInputs = mock(InputMetadataProvider.class);
+    private final OutputMetadataStore kspOutputs = new FakeInputMetadataHandler();
+    private final OutputMetadataStore kotlinOutputs = new FakeInputMetadataHandler();
+
+    private DelayedKspCacheFixture(String toolName) throws Exception {
+      cacheChecker =
+          createActionCacheChecker(
+              /* storeOutputMetadata= */ false,
+              new ActionInputUsageTracker(
+                  ArtifactPathResolver.IDENTITY,
+                  BuildRequestOptions.ActionInputUsageTrackerMode.UNUSED_CLASSES_AND_RESOURCES,
+                  /* useRDotTxt= */ true,
+                  /* useKotlinJdeps= */ true,
+                  /* useKotlinJdepsForKsp= */ true));
+      tool = createArtifact(artifactRoot, "external/ksp/" + toolName);
+      writeContentAsLatin1(tool.getPath(), "original KSP tool or processor");
+      when(kspInputs.getInputMetadata(tool))
+          .thenAnswer(unused -> FileArtifactValue.createForTesting(tool));
+      assertThat(kotlinInputs.getInputMetadata(tool)).isNull();
+
+      kspAction =
+          new WriteEmptyOutputAction(
+              ImmutableList.of(tool), createArtifact(artifactRoot, "ksp-output.jar")) {
+            @Override
+            public String getMnemonic() {
+              return "KotlinKsp";
+            }
+          };
+      kotlinAction =
+          new WriteEmptyOutputAction(createArtifact(artifactRoot, "kotlin-output.jar")) {
+            @Override
+            public String getMnemonic() {
+              return "KotlinCompile";
+            }
+          };
+    }
+
+    @Nullable
+    private Token getKspToken() throws InterruptedException {
+      return cacheChecker.getTokenIfNeedToExecute(
+          kspAction,
+          /* resolvedCacheArtifacts= */ null,
+          ImmutableMap.of(),
+          OutputPermissions.READONLY,
+          /* handler= */ null,
+          kspInputs,
+          kspOutputs,
+          /* artifactExpander= */ null,
+          ImmutableMap.of(),
+          RemoteArtifactChecker.TRUST_ALL);
+    }
   }
 
   @Test
@@ -1698,6 +1803,10 @@ public class ActionCacheCheckerTest {
 
     WriteEmptyOutputAction(Artifact... outputs) {
       super(outputs);
+    }
+
+    WriteEmptyOutputAction(ImmutableList<Artifact> inputs, Artifact... outputs) {
+      super(inputs, outputs);
     }
 
     @Override
