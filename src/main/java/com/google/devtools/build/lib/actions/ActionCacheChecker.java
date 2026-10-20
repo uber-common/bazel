@@ -253,8 +253,8 @@ public class ActionCacheChecker {
         continue;
       } else if (trackingInfo.tracksUsedResources()) {
         // Make any Android resource used in code part of cache key computation
-        trackingInfo.getUsedResources().forEach(usedResource -> {
-          mdMap.put(usedResource, null);
+        trackingInfo.getUsedResourceMetadata().forEach((resource, metadata) -> {
+          mdMap.put(artifact.getExecPathString() + "!" + resource, metadata);
         });
       } else if (trackingInfo.tracksUsedClasses()) {
         // A subset of input artifact is used, include individual used classes for action cache key computation
@@ -872,8 +872,8 @@ public class ActionCacheChecker {
           /* excludeFromDigest= */ trackingInfo.isUnused() || trackingInfo.tracksUsedClasses() || trackingInfo.tracksUsedResources());
 
       if (trackingInfo.tracksUsedResources()) {
-        trackingInfo.getUsedResources().forEach(usedResource -> {
-          entry.addHash(usedResource, null);
+        trackingInfo.getUsedResourceMetadata().forEach((resource, metadata) -> {
+          entry.addHash(input.getExecPathString() + "!" + resource, metadata);
         });
       } else if (trackingInfo.tracksUsedClasses()) {
         // A subset of input artifact is used, include individual used classes to action cache key computation

@@ -15,6 +15,8 @@ package com.google.devtools.build.lib.actions.usage;
 
 import javax.annotation.Nullable;
 import java.util.Set;
+import java.util.Map;
+import com.google.devtools.build.lib.actions.FileArtifactValue;
 
 /**
  * Class holding tracking info for a given action/input artifact pair.
@@ -26,9 +28,9 @@ public class TrackingInfo {
     @Nullable
     private Set<ClassUsageInfo> usedClasses;
 
-    private Set<String> usedResources;
+    private Map<String, FileArtifactValue> usedResources;
 
-    public TrackingInfo(boolean isUnused, Set<ClassUsageInfo> usedClasses, Set<String> usedResources) {
+    public TrackingInfo(boolean isUnused, Set<ClassUsageInfo> usedClasses, Map<String, FileArtifactValue> usedResources) {
         this.isUnused = isUnused;
         this.usedClasses = usedClasses;
         this.usedResources = usedResources;
@@ -49,7 +51,11 @@ public class TrackingInfo {
         return usedClasses;
     }
 
-    public Set<String> getUsedResources() {
+    public Map<String, FileArtifactValue> getUsedResourceMetadata() {
         return usedResources;
+    }
+
+    public Set<String> getUsedResources() {
+        return usedResources.keySet();
     }
 }
