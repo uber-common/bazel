@@ -238,7 +238,7 @@ public class ActionInputUsageTracker {
         boolean isUnused = supportsInputTracking(action) && isUnusedInput(action, artifact);
 
         Set<ClassUsageInfo> usedClasses = null;
-        UsageInfo usageInfo = null;
+        UsageInfo usageInfo = getUsageInfo(action);
         if (supportsClassTracking(action) && canArtifactTrackUsedClasses(artifact)) {
             usageInfo = getUsageInfo(action);
             if (usageInfo != null &&
@@ -257,24 +257,45 @@ public class ActionInputUsageTracker {
             }
         }
 
-        Set<String> usedResources = null;
-        if (supportsResourceTracking(action) && canArtifactTrackUsedResources(action, artifact)) {
-            if (usageInfo != null && usageInfo.usedResources != null) {
-                usedResources = usageInfo.usedResources;
-                if (includeDependencyHash && usedResources.size() > 0) {
-                    try {
-                        final AndroidResourceChecker resourceChecker = AndroidResourceCheckerFactory.create(pathResolver, artifact, useRDotTxt);
-                        usedResources = usedResources.stream()
-                                .filter(resId -> {
-                                    resId = resId.replace(ANDROID_RESOURCES_NAMESPACE, "");
-                                    boolean isTracked = !isResourceValid(resId) || resourceChecker == null || resourceChecker.resourceExists(resId);
-                                    return isTracked;
-                                }).collect(Collectors.toCollection(LinkedHashSet::new));
-                    } catch (Exception e) {
-                        System.err.println("ActionInputUsageTracker: Failure computing res hash");
-                        usedResources = null;
+        Map<String, FileArtifactValue> usedResources = null;
+        if (supportsResourceTracking(action) && canArtifactTrackUsedResources(action, artifact)
+                && usageInfo != null && !usageInfo.usedResources.isEmpty()
+                // Resource tracking and class tracking are independent compiler options.
+                // Without class provenance, a field list cannot cover other used R classes.
+                && !usageInfo.usedClassesMap.getOrDefault(
+                        artifact.getExecPathString(), Collections.emptySet()).isEmpty()) {
+            try {
+                // R.txt contains symbol names but cannot tell final/inlined constants from
+                // runtime-loaded IDs. Read ConstantValue attributes from the actual input jar.
+                // No mtime-based memoization: same-mtime jar replacements must be noticed.
+                Set<String> localResources = usageInfo.usedResources.stream()
+                        // Framework R is a separate SDK input, never a field in the local R jar.
+                        .filter(resource -> !resource.startsWith("android.R."))
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+                usedResources = localResources.isEmpty() ? null : AndroidResourceMetadata.read(
+                        pathResolver.toPath(artifact), localResources);
+                if (usedResources != null && !includeDependencyHash
+                        && !usedResources.keySet().containsAll(localResources)) {
+                    // Never store incomplete provenance after compilation. During validation,
+                    // missing fields instead remove fingerprint entries and force a miss.
+                    usedResources = null;
+                }
+                if (usedResources != null) {
+                    // A field list must not erase unrelated used classes in the same jar,
+                    // e.g. R.drawable::class alongside a field from R.string.
+                    for (ClassUsageInfo usedClass : usageInfo.usedClassesMap.getOrDefault(
+                            artifact.getExecPathString(), Collections.emptySet())) {
+                        if (!AndroidResourceMetadata.coversClass(usedResources, usedClass)) {
+                            FileArtifactValue metadata = includeDependencyHash
+                                    ? getHashFromJarEntryFromCache(artifact, usedClass.getInternalPath())
+                                    : usedClass.getCompileTimeFileArtifactValue();
+                            usedResources.put("class:" + usedClass.getInternalPath(), metadata);
+                        }
                     }
                 }
+            } catch (Exception e) {
+                // Missing, malformed or unsupported metadata must retain class/full-jar hashing.
+                usedResources = null;
             }
         }
 
@@ -369,6 +390,11 @@ public class ActionInputUsageTracker {
      * Returns possibly cached sha256 of the jar entry corresponding to provided path.
      */
     private PreComputedMetadataValue getHashFromJarEntryFromCache(Artifact artifact, String path) {
+        // Resource IDs can change without changing the jar's mtime. This is also the
+        // conservative fallback when compiler resource tracking is off or unavailable.
+        if (isRArtifact(artifact)) {
+            return new PreComputedMetadataValue(getHashFromJarEntry(artifact, path));
+        }
         String key = artifact.getExecPathString();
         JarEntryHash jarEntryHash = jarEntryHashCache.computeIfAbsent(key, k -> new JarEntryHash(artifact));
         if (jarEntryHash.lastModified() != artifact.getPath().getPathFile().lastModified()) {
@@ -406,6 +432,12 @@ public class ActionInputUsageTracker {
         }
 
         UsageInfo usageInfo = getUsageInfo(action);
+        if (supportsResourceTracking(action) && isLocalRArtifact(action, input)
+                && (usageInfo == null || usageInfo.usedResources.isEmpty())) {
+            // Empty lists also represent disabled/unsupported compiler tracking, not proof
+            // that a local R jar is unused (in particular for inlined final IDs).
+            return false;
+        }
         return usageInfo != null && usageInfo.unusedArtifactPaths.contains(artifactExecPath);
     }
 

@@ -31,6 +31,13 @@ import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.devtools.build.lib.view.proto.Deps;
+import com.google.devtools.build.lib.vfs.JavaIoFileSystem;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 import com.google.devtools.build.lib.actions.ActionCacheChecker.Token;
 import com.google.devtools.build.lib.actions.Artifact.ArchivedTreeArtifact;
 import com.google.devtools.build.lib.actions.Artifact.SpecialArtifact;
@@ -51,6 +58,7 @@ import com.google.devtools.build.lib.actions.util.ActionsTestUtil.FakeInputMetad
 import com.google.devtools.build.lib.actions.util.ActionsTestUtil.MissDetailsBuilder;
 import com.google.devtools.build.lib.actions.util.ActionsTestUtil.NullAction;
 import com.google.devtools.build.lib.buildtool.BuildRequestOptions;
+import com.google.devtools.build.lib.buildtool.BuildRequestOptions.ActionInputUsageTrackerMode;
 import com.google.devtools.build.lib.clock.Clock;
 import com.google.devtools.build.lib.collect.nestedset.NestedSet;
 import com.google.devtools.build.lib.collect.nestedset.NestedSetBuilder;
@@ -352,6 +360,249 @@ public class ActionCacheCheckerTest {
             .set(MissReason.NOT_CACHED, 2)
             .set(MissReason.DIFFERENT_FILES, 1)
             .build());
+  }
+
+  @Test
+  public void resourceTrackingInvalidatesRenumberedFinalId(@TestParameter boolean useRtxt,
+      @TestParameter({"UNUSED_RESOURCES", "UNUSED_CLASSES_AND_RESOURCES"})
+          ActionInputUsageTrackerMode mode)
+      throws Exception {
+    ResourceCacheFixture fixture = new ResourceCacheFixture(useRtxt, true, mode);
+    fixture.seedAndAssertHit();
+    fixture.writeJar(2, 10, true, false);
+    assertThat(fixture.getToken()).isNotNull();
+  }
+
+  @Test
+  public void resourceTrackingAvoidsUnusedSiblingChanges(@TestParameter boolean useRtxt,
+      @TestParameter({"UNUSED_RESOURCES", "UNUSED_CLASSES_AND_RESOURCES"})
+          ActionInputUsageTrackerMode mode)
+      throws Exception {
+    ResourceCacheFixture fixture = new ResourceCacheFixture(useRtxt, true, mode);
+    fixture.seedAndAssertHit();
+    fixture.writeJar(1, 10, true, true);
+    assertThat(fixture.getToken()).isNull();
+  }
+
+  @Test
+  public void resourceTrackingAvoidsNonFinalRuntimeValueChanges(@TestParameter boolean useRtxt,
+      @TestParameter({"UNUSED_RESOURCES", "UNUSED_CLASSES_AND_RESOURCES"})
+          ActionInputUsageTrackerMode mode)
+      throws Exception {
+    ResourceCacheFixture fixture = new ResourceCacheFixture(useRtxt, true, mode);
+    fixture.seedAndAssertHit();
+    fixture.writeJar(1, 20, true, false);
+    assertThat(fixture.getToken()).isNull();
+  }
+
+  @Test
+  public void resourceTrackingInvalidatesRemovedUsedField(@TestParameter boolean useRtxt,
+      @TestParameter({"UNUSED_RESOURCES", "UNUSED_CLASSES_AND_RESOURCES"})
+          ActionInputUsageTrackerMode mode)
+      throws Exception {
+    ResourceCacheFixture fixture = new ResourceCacheFixture(useRtxt, true, mode);
+    fixture.seedAndAssertHit();
+    fixture.writeJar(1, 10, false, false);
+    assertThat(fixture.getToken()).isNotNull();
+  }
+
+  @Test
+  public void resourceTrackingEmptyMetadataFallsBackToJarDigest(@TestParameter boolean useRtxt,
+      @TestParameter({"UNUSED_RESOURCES", "UNUSED_CLASSES_AND_RESOURCES"})
+          ActionInputUsageTrackerMode mode)
+      throws Exception {
+    ResourceCacheFixture fixture = new ResourceCacheFixture(useRtxt, false, mode);
+    fixture.seedAndAssertHit();
+    fixture.writeJar(2, 10, true, false);
+    assertThat(fixture.getToken()).isNotNull();
+  }
+
+  @Test
+  public void resourceTrackingRetainsUncoveredClassHash() throws Exception {
+    ResourceCacheFixture fixture = new ResourceCacheFixture(false, true);
+    fixture.seedAndAssertHit();
+    fixture.extraVersion = 2;
+    fixture.writeJar(1, 10, true, false);
+    assertThat(fixture.getToken()).isNotNull();
+  }
+
+  @Test
+  public void resourceTrackingInvalidatesOwnerAccessChange() throws Exception {
+    ResourceCacheFixture fixture = new ResourceCacheFixture(false, true);
+    fixture.seedAndAssertHit();
+    fixture.classAccess = 0;
+    fixture.writeJar(1, 10, true, false);
+    assertThat(fixture.getToken()).isNotNull();
+  }
+
+  @Test
+  public void resourceTrackingAcceptsUnqualifiedJavaNames() throws Exception {
+    ResourceCacheFixture fixture = new ResourceCacheFixture(true, true);
+    fixture.writeJdeps(Set.of("R.string.constant", "R.string.mutable"));
+    fixture.seedAndAssertHit();
+    fixture.writeJar(2, 10, true, false);
+    assertThat(fixture.getToken()).isNotNull();
+  }
+
+  @Test
+  public void resourceTrackingScopesFrameworkReferencesToSdk() throws Exception {
+    ResourceCacheFixture fixture = new ResourceCacheFixture(true, true);
+    fixture.writeJdeps(Set.of("com.uber.R.string.constant", "com.uber.R.string.mutable",
+        "android.R.attr.textColor"));
+    fixture.seedAndAssertHit();
+    fixture.writeJar(1, 20, true, true);
+    assertThat(fixture.getToken()).isNull();
+    fixture.writeJar(2, 20, true, true);
+    assertThat(fixture.getToken()).isNotNull();
+  }
+
+  @Test
+  public void resourceTrackingMalformedJarFallsBackSafely() throws Exception {
+    ResourceCacheFixture fixture = new ResourceCacheFixture(false, true);
+    fixture.seedAndAssertHit();
+    writeContentAsLatin1(fixture.resourceJar.getPath(), "not a jar");
+    assertThat(fixture.getToken()).isNotNull();
+  }
+
+  @Test
+  public void resourceTrackingMissingClassMetadataFallsBackToJarDigest(
+      @TestParameter({"UNUSED_RESOURCES", "UNUSED_CLASSES_AND_RESOURCES"})
+          ActionInputUsageTrackerMode mode) throws Exception {
+    ResourceCacheFixture fixture = new ResourceCacheFixture(false, true, mode);
+    fixture.writeJdeps(Set.of("com.uber.R.string.constant", "com.uber.R.string.mutable"), false);
+    fixture.seedAndAssertHit();
+    // Resource recording can be on while class recording is off. Do not erase the
+    // dependency on another R class merely because only field uses are listed.
+    fixture.extraVersion = 2;
+    fixture.writeJar(1, 10, true, false);
+    assertThat(fixture.getToken()).isNotNull();
+  }
+
+  /** Real jar/jdeps inputs exercising both cache PUT and GET, not a mocked resource checker. */
+  private final class ResourceCacheFixture {
+    private final Artifact resourceJar;
+    private final Artifact jdeps;
+    private final Action action;
+    private final FakeInputMetadataHandler metadata = new FakeInputMetadataHandler();
+    private int extraVersion = 1;
+    private int classAccess = Opcodes.ACC_PUBLIC;
+
+    ResourceCacheFixture(boolean useRtxt, boolean recordsResources) throws Exception {
+      this(useRtxt, recordsResources, ActionInputUsageTrackerMode.UNUSED_CLASSES_AND_RESOURCES);
+    }
+
+    ResourceCacheFixture(boolean useRtxt, boolean recordsResources, ActionInputUsageTrackerMode mode)
+        throws Exception {
+      Path root = new JavaIoFileSystem(digestHashFunction).getPath(
+          java.nio.file.Files.createTempDirectory("bazel-resource-tracking-test").toString());
+      filesToDelete.add(root);
+      ArtifactRoot resourceRoot = ArtifactRoot.asDerivedRoot(root, RootType.Output, "bin");
+      resourceJar = createArtifact(resourceRoot, "null/action/owner_resources.jar");
+      jdeps = createArtifact(resourceRoot, "null/action/owner.jdeps");
+      Artifact output = createArtifact(resourceRoot, "null/action/compiled.jar");
+      action = new WriteEmptyOutputAction(ImmutableList.of(resourceJar), output, jdeps) {
+        @Override
+        public String getMnemonic() {
+          return "Javac";
+        }
+      };
+      cacheChecker = createActionCacheChecker(false, new ActionInputUsageTracker(
+          ArtifactPathResolver.IDENTITY, mode, useRtxt, true, true));
+      writeJar(1, 10, true, false);
+      writeJdeps(recordsResources
+          ? Set.of("com.uber.R.string.constant", "com.uber.R.string.mutable") : Set.of());
+    }
+
+    void writeJdeps(Set<String> resources) throws Exception {
+      writeJdeps(resources, true);
+    }
+
+    void writeJdeps(Set<String> resources, boolean includeClasses) throws Exception {
+      Deps.Dependency.Builder dep = Deps.Dependency.newBuilder()
+          .setPath(resourceJar.getExecPathString()).setKind(Deps.Dependency.Kind.EXPLICIT);
+      try (java.util.jar.JarFile jar = new java.util.jar.JarFile(resourceJar.getPath().getPathFile())) {
+        for (String type : includeClasses ? Set.of("string", "drawable") : Set.<String>of()) {
+          String entry = "com/uber/R$" + type + ".class";
+          byte[] hash;
+          try (java.io.InputStream in = jar.getInputStream(jar.getEntry(entry))) {
+            hash = DigestHashFunction.SHA256.getHashFunction().hashBytes(in.readAllBytes()).asBytes();
+          }
+          dep.addUsedClasses(Deps.UsedClass.newBuilder()
+              .setFullyQualifiedName("com.uber.R$" + type).setJarInternalPath(entry)
+              .setHash(com.google.protobuf.ByteString.copyFrom(hash)));
+        }
+      }
+      Deps.Dependencies deps = Deps.Dependencies.newBuilder()
+          .setRuleLabel(action.getOwner().getLabel().toString()).setSuccess(true)
+          .addDependency(dep).addAllUsedResources(resources).build();
+      jdeps.getPath().getParentDirectory().createDirectoryAndParents();
+      try (java.io.OutputStream out = jdeps.getPath().getOutputStream()) {
+        deps.writeTo(out);
+      }
+    }
+
+    void seedAndAssertHit() throws Exception {
+      runAction(action, metadata, metadata);
+      assertThat(getToken()).isNull();
+    }
+
+    Token getToken() throws Exception {
+      return cacheChecker.getTokenIfNeedToExecute(action, null, ImmutableMap.of(),
+          OutputPermissions.READONLY, null, metadata, metadata, null, ImmutableMap.of(),
+          RemoteArtifactChecker.TRUST_ALL);
+    }
+
+    void writeJar(int constant, int mutable, boolean includeUsedField, boolean addUnused)
+        throws Exception {
+      Path jar = resourceJar.getPath();
+      jar.getParentDirectory().createDirectoryAndParents();
+      long mtime = jar.exists() ? jar.getLastModifiedTime() : 1000;
+      ClassWriter writer = new ClassWriter(0);
+      writer.visit(Opcodes.V1_8, classAccess, "com/uber/R$string", null, "java/lang/Object", null);
+      writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
+          "constant", "I", null, constant).visitEnd();
+      if (includeUsedField) {
+        writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
+            "mutable", "I", null, null).visitEnd();
+      }
+      if (addUnused) {
+        writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
+            "unused", "I", null, 123).visitEnd();
+      }
+      MethodVisitor clinit = writer.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+      clinit.visitCode();
+      if (includeUsedField) {
+        clinit.visitLdcInsn(mutable);
+        clinit.visitFieldInsn(Opcodes.PUTSTATIC, "com/uber/R$string", "mutable", "I");
+      }
+      clinit.visitInsn(Opcodes.RETURN);
+      clinit.visitMaxs(1, 0);
+      clinit.visitEnd();
+      writer.visitEnd();
+      ClassWriter extra = new ClassWriter(0);
+      extra.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC, "com/uber/R$drawable", null,
+          "java/lang/Object", null);
+      extra.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
+          "other", "I", null, extraVersion).visitEnd();
+      extra.visitEnd();
+      Path replacement = jar.getParentDirectory().getChild("replacement.jar");
+      try (ZipOutputStream zip = new ZipOutputStream(replacement.getOutputStream())) {
+        zip.putNextEntry(new ZipEntry("com/uber/R$string.class"));
+        zip.write(writer.toByteArray());
+        zip.closeEntry();
+        zip.putNextEntry(new ZipEntry("com/uber/R$drawable.class"));
+        zip.write(extra.toByteArray());
+        zip.closeEntry();
+      }
+      // No sleeps: atomically replace the jar while preserving its timestamp.
+      replacement.setLastModifiedTime(mtime);
+      replacement.renameTo(jar);
+      Path rtxt = jar.getParentDirectory().getRelative("src_release_symbols/R.txt");
+      rtxt.getParentDirectory().createDirectoryAndParents();
+      writeContentAsLatin1(rtxt, "int string constant " + constant + "\n"
+          + (includeUsedField ? "int string mutable " + mutable + "\n" : "")
+          + (addUnused ? "int string unused 123\n" : ""));
+    }
   }
 
   /** Two same-owner actions with genuinely disjoint action-scoped input metadata providers. */
