@@ -507,6 +507,40 @@ public class ActionCacheCheckerTest {
     assertThat(fixture.getToken()).isNotNull();
   }
 
+  @Test
+  public void resourceTrackingPreservesProvenUnusedJarAvoidance(
+      @TestParameter({"UNUSED_CLASSES", "UNUSED_RESOURCES", "UNUSED_CLASSES_AND_RESOURCES"})
+          ActionInputUsageTrackerMode mode) throws Exception {
+    ResourceCacheFixture fixture = new ResourceCacheFixture(false, false, mode);
+    // A successful dependency report with no reference to this jar proves it unused.
+    // This is distinct from an EXPLICIT R dependency with resource tracking disabled.
+    try (java.io.OutputStream out = fixture.jdeps.getPath().getOutputStream()) {
+      Deps.Dependencies.newBuilder()
+          .setRuleLabel(fixture.action.getOwner().getLabel().toString())
+          .setSuccess(true).build().writeTo(out);
+    }
+    fixture.seedAndAssertHit();
+    fixture.writeJar(2, 20, true, true);
+    assertThat(fixture.getToken()).isNull();
+  }
+
+  @Test
+  public void resourceTrackingWithoutUsageInfoKeepsJarRequired(
+      @TestParameter({"UNUSED_RESOURCES", "UNUSED_CLASSES_AND_RESOURCES"})
+          ActionInputUsageTrackerMode mode) throws Exception {
+    ResourceCacheFixture fixture = new ResourceCacheFixture(false, false, mode);
+    cacheChecker = createActionCacheChecker(false, new ActionInputUsageTracker(
+        ArtifactPathResolver.IDENTITY, mode, true, true, true) {
+      @Override
+      public void refreshInputTrackingInfo(Action action) {
+        // Simulate a fresh command with no available dependency provenance.
+      }
+    });
+    fixture.seedAndAssertHit();
+    fixture.writeJar(2, 20, true, true);
+    assertThat(fixture.getToken()).isNotNull();
+  }
+
   /** Real jar/jdeps inputs exercising both cache PUT and GET, not a mocked resource checker. */
   private final class ResourceCacheFixture {
     private final Artifact resourceJar;

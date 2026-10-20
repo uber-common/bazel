@@ -434,12 +434,8 @@ public class ActionInputUsageTracker {
         }
 
         UsageInfo usageInfo = getUsageInfo(action);
-        if (supportsResourceTracking(action) && isLocalRArtifact(action, input)
-                && (usageInfo == null || usageInfo.usedResources.isEmpty())) {
-            // Empty lists also represent disabled/unsupported compiler tracking, not proof
-            // that a local R jar is unused (in particular for inlined final IDs).
-            return false;
-        }
+        // Resource-detail absence does not override the independent dependency-path proof
+        // that a jar is unused. An explicit dependency still falls back to class/full-jar hashing.
         return usageInfo != null && usageInfo.unusedArtifactPaths.contains(artifactExecPath);
     }
 
