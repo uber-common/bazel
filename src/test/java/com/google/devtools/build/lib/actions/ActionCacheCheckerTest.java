@@ -478,6 +478,35 @@ public class ActionCacheCheckerTest {
     assertThat(fixture.getToken()).isNotNull();
   }
 
+  @Test
+  public void resourceTrackingIncompletePackageMetadataUsesStableFallback(
+      @TestParameter({"UNUSED_RESOURCES", "UNUSED_CLASSES_AND_RESOURCES"})
+          ActionInputUsageTrackerMode mode) throws Exception {
+    ResourceCacheFixture fixture = new ResourceCacheFixture(false, true, mode);
+    // The global jdeps list may include R fields from another dependency's package.
+    // This local R jar must choose the same conservative representation on PUT and GET.
+    fixture.writeJdeps(Set.of("com.uber.R.string.constant", "com.uber.R.string.mutable",
+        "com.external.R.string.other"));
+    fixture.seedAndAssertHit();
+    assertThat(fixture.getToken()).isNull();
+    fixture.writeJar(2, 10, true, false);
+    assertThat(fixture.getToken()).isNotNull();
+  }
+
+  @Test
+  public void resourceTrackingArraysUseRuntimeDataButTrackFinalIndexes(
+      @TestParameter({"UNUSED_RESOURCES", "UNUSED_CLASSES_AND_RESOURCES"})
+          ActionInputUsageTrackerMode mode) throws Exception {
+    ResourceCacheFixture fixture = new ResourceCacheFixture(false, true, mode);
+    // Model a styleable array and its inlined index in the same generated R class.
+    fixture.writeJdeps(Set.of("com.uber.R.string.array", "com.uber.R.string.constant"));
+    fixture.seedAndAssertHit();
+    fixture.writeJar(1, 20, true, false);
+    assertThat(fixture.getToken()).isNull();
+    fixture.writeJar(2, 20, true, false);
+    assertThat(fixture.getToken()).isNotNull();
+  }
+
   /** Real jar/jdeps inputs exercising both cache PUT and GET, not a mocked resource checker. */
   private final class ResourceCacheFixture {
     private final Artifact resourceJar;
@@ -561,6 +590,8 @@ public class ActionCacheCheckerTest {
       writer.visit(Opcodes.V1_8, classAccess, "com/uber/R$string", null, "java/lang/Object", null);
       writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
           "constant", "I", null, constant).visitEnd();
+      writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL,
+          "array", "[I", null, null).visitEnd();
       if (includeUsedField) {
         writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC,
             "mutable", "I", null, null).visitEnd();
@@ -571,12 +602,19 @@ public class ActionCacheCheckerTest {
       }
       MethodVisitor clinit = writer.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
       clinit.visitCode();
+      clinit.visitInsn(Opcodes.ICONST_1);
+      clinit.visitIntInsn(Opcodes.NEWARRAY, Opcodes.T_INT);
+      clinit.visitInsn(Opcodes.DUP);
+      clinit.visitInsn(Opcodes.ICONST_0);
+      clinit.visitLdcInsn(mutable);
+      clinit.visitInsn(Opcodes.IASTORE);
+      clinit.visitFieldInsn(Opcodes.PUTSTATIC, "com/uber/R$string", "array", "[I");
       if (includeUsedField) {
         clinit.visitLdcInsn(mutable);
         clinit.visitFieldInsn(Opcodes.PUTSTATIC, "com/uber/R$string", "mutable", "I");
       }
       clinit.visitInsn(Opcodes.RETURN);
-      clinit.visitMaxs(1, 0);
+      clinit.visitMaxs(4, 0);
       clinit.visitEnd();
       writer.visitEnd();
       ClassWriter extra = new ClassWriter(0);

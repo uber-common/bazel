@@ -274,10 +274,12 @@ public class ActionInputUsageTracker {
                         .collect(Collectors.toCollection(LinkedHashSet::new));
                 usedResources = localResources.isEmpty() ? null : AndroidResourceMetadata.read(
                         pathResolver.toPath(artifact), localResources);
-                if (usedResources != null && !includeDependencyHash
-                        && !usedResources.keySet().containsAll(localResources)) {
-                    // Never store incomplete provenance after compilation. During validation,
-                    // missing fields instead remove fingerprint entries and force a miss.
+                if (usedResources != null && !usedResources.keySet().containsAll(localResources)) {
+                    // Use the same conservative representation on cache PUT and GET. The
+                    // global resource list can include another dependency's R package;
+                    // partial field metadata must not cause a miss on every unchanged build.
+                    // A genuinely removed used field still invalidates the previous resource
+                    // entry, since the class/full-jar representation has different keys.
                     usedResources = null;
                 }
                 if (usedResources != null) {
