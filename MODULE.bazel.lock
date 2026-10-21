@@ -1,5 +1,5 @@
 {
-  "lockFileVersion": 18,
+  "lockFileVersion": 16,
   "registryFileHashes": {
     "https://bcr.bazel.build/bazel_registry.json": "8a28e4aff06ee60aed2a8c281907fb8bcbf3b753c91fb5a5c57da3215d5b3497",
     "https://bcr.bazel.build/modules/abseil-cpp/20210324.2/MODULE.bazel": "7cd0312e064fde87c8d1cd79ba06c876bd23630c83466e9500321be55c96ace2",
@@ -655,9 +655,9 @@
     "@@rules_jvm_external+//:extensions.bzl%maven": {
       "general": {
         "bzlTransitiveDigest": "eFWAf0xs060wNpmZkersPexZt4+6p4VdZCCQb2swjng=",
-        "usagesDigest": "m7b7PU15lgmnuaZPVDcdmq1/hfnSxL76ocJfj1Yi2Ew=",
+        "usagesDigest": "LtGWGqbPGvQttCGVGYb6GfLO9YnmDTUpUpQS+JxXhlo=",
         "recordedFileInputs": {
-          "@@//maven_install.json": "79f7e328f45e3971adc42ac6c6f712114cd974499e522d882ee07076b1b3a013",
+          "@@//maven_install.json": "1b89f482d14186f481709b738cd43c1e4253a922f253b71147b8d91316114e09",
           "@@rules_jvm_external+//rules_jvm_external_deps_install.json": "cafb5d2d8119391eb2b322ce3840d3352ea82d496bdb8cbd4b6779ec4d044dda",
           "@@stardoc+//maven_install.json": "25f3c138ca52c61e0e7a564fe21f5709261b33d78d35427b6c18d7aa202d973b"
         },
@@ -698,10 +698,10 @@
                 "{ \"group\": \"com.google.code.findbugs\", \"artifact\": \"jsr305\", \"version\": \"3.0.2\" }",
                 "{ \"group\": \"com.google.code.gson\", \"artifact\": \"gson\", \"version\": \"2.10.1\" }",
                 "{ \"group\": \"com.google.code.java-allocation-instrumenter\", \"artifact\": \"java-allocation-instrumenter\", \"version\": \"3.3.4\" }",
-                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_annotation\", \"version\": \"2.37.0\" }",
-                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_annotations\", \"version\": \"2.37.0\" }",
-                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_check_api\", \"version\": \"2.37.0\" }",
-                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_core\", \"version\": \"2.37.0\" }",
+                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_annotation\", \"version\": \"2.50.0\" }",
+                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_annotations\", \"version\": \"2.50.0\" }",
+                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_check_api\", \"version\": \"2.50.0\" }",
+                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_core\", \"version\": \"2.50.0\" }",
                 "{ \"group\": \"com.google.flogger\", \"artifact\": \"flogger\", \"version\": \"0.5.1\" }",
                 "{ \"group\": \"com.google.flogger\", \"artifact\": \"flogger-system-backend\", \"version\": \"0.5.1\" }",
                 "{ \"group\": \"com.google.flogger\", \"artifact\": \"google-extensions\", \"version\": \"0.5.1\" }",
@@ -1194,48 +1194,48 @@
               "downloaded_file_path": "v1/com/google/dagger/dagger-producers/2.22.1/dagger-producers-2.22.1.jar"
             }
           },
-          "com_google_errorprone_error_prone_annotation_2_37_0": {
+          "com_google_errorprone_error_prone_annotation_2_50_0": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_file",
             "attributes": {
-              "sha256": "06ebe7f108f515f4192980580a8d423df57ae0af3d4205069736ca053c1c3f88",
+              "sha256": "aa9b67a3aa3418b366e26594e1ae35d100ad3369cd1010ae7d4782d984ea9aaf",
               "urls": [
-                "https://repo1.maven.org/maven2/com/google/errorprone/error_prone_annotation/2.37.0/error_prone_annotation-2.37.0.jar",
-                "https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_annotation/2.37.0/error_prone_annotation-2.37.0.jar"
+                "https://repo1.maven.org/maven2/com/google/errorprone/error_prone_annotation/2.50.0/error_prone_annotation-2.50.0.jar",
+                "https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_annotation/2.50.0/error_prone_annotation-2.50.0.jar"
               ],
-              "downloaded_file_path": "v1/com/google/errorprone/error_prone_annotation/2.37.0/error_prone_annotation-2.37.0.jar"
+              "downloaded_file_path": "v1/com/google/errorprone/error_prone_annotation/2.50.0/error_prone_annotation-2.50.0.jar"
             }
           },
-          "com_google_errorprone_error_prone_annotations_2_37_0": {
+          "com_google_errorprone_error_prone_annotations_2_50_0": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_file",
             "attributes": {
-              "sha256": "d29a6263b48d46d4c7c28b64717a6d105b3e2a3e64256092f845e8e774fca6ba",
+              "sha256": "4667724877f1d37a689202da191e23efa7657c62eef93ccdac406eccfe5cdd0a",
               "urls": [
-                "https://repo1.maven.org/maven2/com/google/errorprone/error_prone_annotations/2.37.0/error_prone_annotations-2.37.0.jar",
-                "https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_annotations/2.37.0/error_prone_annotations-2.37.0.jar"
+                "https://repo1.maven.org/maven2/com/google/errorprone/error_prone_annotations/2.50.0/error_prone_annotations-2.50.0.jar",
+                "https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_annotations/2.50.0/error_prone_annotations-2.50.0.jar"
               ],
-              "downloaded_file_path": "v1/com/google/errorprone/error_prone_annotations/2.37.0/error_prone_annotations-2.37.0.jar"
+              "downloaded_file_path": "v1/com/google/errorprone/error_prone_annotations/2.50.0/error_prone_annotations-2.50.0.jar"
             }
           },
-          "com_google_errorprone_error_prone_check_api_2_37_0": {
+          "com_google_errorprone_error_prone_check_api_2_50_0": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_file",
             "attributes": {
-              "sha256": "1bc5968da69009afaca4dcbe4b68a9d1cc3289d5d399d5e369bde369f648c86c",
+              "sha256": "ee935a4f42ac409fb0a471affea938c3050c6887dbaadb106868936d83d8c8f1",
               "urls": [
-                "https://repo1.maven.org/maven2/com/google/errorprone/error_prone_check_api/2.37.0/error_prone_check_api-2.37.0.jar",
-                "https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_check_api/2.37.0/error_prone_check_api-2.37.0.jar"
+                "https://repo1.maven.org/maven2/com/google/errorprone/error_prone_check_api/2.50.0/error_prone_check_api-2.50.0.jar",
+                "https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_check_api/2.50.0/error_prone_check_api-2.50.0.jar"
               ],
-              "downloaded_file_path": "v1/com/google/errorprone/error_prone_check_api/2.37.0/error_prone_check_api-2.37.0.jar"
+              "downloaded_file_path": "v1/com/google/errorprone/error_prone_check_api/2.50.0/error_prone_check_api-2.50.0.jar"
             }
           },
-          "com_google_errorprone_error_prone_core_2_37_0": {
+          "com_google_errorprone_error_prone_core_2_50_0": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_file",
             "attributes": {
-              "sha256": "b6e5513fd8c09f4bfd5ff008e636b074ab14544f35d0516a210829af8a98005c",
+              "sha256": "40a88d3ea732fac3a57ae0e2b27f1729ce76cc41857bcd63d5845e79eae5f72e",
               "urls": [
-                "https://repo1.maven.org/maven2/com/google/errorprone/error_prone_core/2.37.0/error_prone_core-2.37.0.jar",
-                "https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_core/2.37.0/error_prone_core-2.37.0.jar"
+                "https://repo1.maven.org/maven2/com/google/errorprone/error_prone_core/2.50.0/error_prone_core-2.50.0.jar",
+                "https://repo.maven.apache.org/maven2/com/google/errorprone/error_prone_core/2.50.0/error_prone_core-2.50.0.jar"
               ],
-              "downloaded_file_path": "v1/com/google/errorprone/error_prone_core/2.37.0/error_prone_core-2.37.0.jar"
+              "downloaded_file_path": "v1/com/google/errorprone/error_prone_core/2.50.0/error_prone_core-2.50.0.jar"
             }
           },
           "com_google_flogger_flogger_0_5_1": {
@@ -1271,37 +1271,37 @@
               "downloaded_file_path": "v1/com/google/flogger/google-extensions/0.5.1/google-extensions-0.5.1.jar"
             }
           },
-          "com_google_googlejavaformat_google_java_format_1_24_0": {
+          "com_google_googlejavaformat_google_java_format_1_35_0": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_file",
             "attributes": {
-              "sha256": "9a4e0b9f4ec4d71a8a1d3641fd481118100fda2eeab712dbdfd4b2a06e9de4ce",
+              "sha256": "b2a52e363d51dd86b3b38d1a8dd51538541b42ff1048769684681c676550f043",
               "urls": [
-                "https://repo1.maven.org/maven2/com/google/googlejavaformat/google-java-format/1.24.0/google-java-format-1.24.0.jar",
-                "https://repo.maven.apache.org/maven2/com/google/googlejavaformat/google-java-format/1.24.0/google-java-format-1.24.0.jar"
+                "https://repo1.maven.org/maven2/com/google/googlejavaformat/google-java-format/1.35.0/google-java-format-1.35.0.jar",
+                "https://repo.maven.apache.org/maven2/com/google/googlejavaformat/google-java-format/1.35.0/google-java-format-1.35.0.jar"
               ],
-              "downloaded_file_path": "v1/com/google/googlejavaformat/google-java-format/1.24.0/google-java-format-1.24.0.jar"
+              "downloaded_file_path": "v1/com/google/googlejavaformat/google-java-format/1.35.0/google-java-format-1.35.0.jar"
             }
           },
-          "com_google_guava_failureaccess_1_0_2": {
+          "com_google_guava_failureaccess_1_0_3": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_file",
             "attributes": {
-              "sha256": "8a8f81cf9b359e3f6dfa691a1e776985c061ef2f223c9b2c80753e1b458e8064",
+              "sha256": "cbfc3906b19b8f55dd7cfd6dfe0aa4532e834250d7f080bd8d211a3e246b59cb",
               "urls": [
-                "https://repo1.maven.org/maven2/com/google/guava/failureaccess/1.0.2/failureaccess-1.0.2.jar",
-                "https://repo.maven.apache.org/maven2/com/google/guava/failureaccess/1.0.2/failureaccess-1.0.2.jar"
+                "https://repo1.maven.org/maven2/com/google/guava/failureaccess/1.0.3/failureaccess-1.0.3.jar",
+                "https://repo.maven.apache.org/maven2/com/google/guava/failureaccess/1.0.3/failureaccess-1.0.3.jar"
               ],
-              "downloaded_file_path": "v1/com/google/guava/failureaccess/1.0.2/failureaccess-1.0.2.jar"
+              "downloaded_file_path": "v1/com/google/guava/failureaccess/1.0.3/failureaccess-1.0.3.jar"
             }
           },
-          "com_google_guava_guava_33_2_1_jre": {
+          "com_google_guava_guava_33_5_0_jre": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_file",
             "attributes": {
-              "sha256": "452b2d9787b7d366fa8cf5ed9a1c40404542d05effa7a598da03bbbbb76d9f31",
+              "sha256": "1e301f0c52ac248b0b14fdc3d12283c77252d4d6f48521d572e7d8c4c2cc4ac7",
               "urls": [
-                "https://repo1.maven.org/maven2/com/google/guava/guava/33.2.1-jre/guava-33.2.1-jre.jar",
-                "https://repo.maven.apache.org/maven2/com/google/guava/guava/33.2.1-jre/guava-33.2.1-jre.jar"
+                "https://repo1.maven.org/maven2/com/google/guava/guava/33.5.0-jre/guava-33.5.0-jre.jar",
+                "https://repo.maven.apache.org/maven2/com/google/guava/guava/33.5.0-jre/guava-33.5.0-jre.jar"
               ],
-              "downloaded_file_path": "v1/com/google/guava/guava/33.2.1-jre/guava-33.2.1-jre.jar"
+              "downloaded_file_path": "v1/com/google/guava/guava/33.5.0-jre/guava-33.5.0-jre.jar"
             }
           },
           "com_google_guava_guava_testlib_33_2_1_jre": {
@@ -1359,15 +1359,15 @@
               "downloaded_file_path": "v1/com/google/http-client/google-http-client-gson/1.43.3/google-http-client-gson-1.43.3.jar"
             }
           },
-          "com_google_j2objc_j2objc_annotations_3_0_0": {
+          "com_google_j2objc_j2objc_annotations_3_1": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_file",
             "attributes": {
-              "sha256": "88241573467ddca44ffd4d74aa04c2bbfd11bf7c17e0c342c94c9de7a70a7c64",
+              "sha256": "84d3a150518485f8140ea99b8a985656749629f6433c92b80c75b36aba3b099b",
               "urls": [
-                "https://repo1.maven.org/maven2/com/google/j2objc/j2objc-annotations/3.0.0/j2objc-annotations-3.0.0.jar",
-                "https://repo.maven.apache.org/maven2/com/google/j2objc/j2objc-annotations/3.0.0/j2objc-annotations-3.0.0.jar"
+                "https://repo1.maven.org/maven2/com/google/j2objc/j2objc-annotations/3.1/j2objc-annotations-3.1.jar",
+                "https://repo.maven.apache.org/maven2/com/google/j2objc/j2objc-annotations/3.1/j2objc-annotations-3.1.jar"
               ],
-              "downloaded_file_path": "v1/com/google/j2objc/j2objc-annotations/3.0.0/j2objc-annotations-3.0.0.jar"
+              "downloaded_file_path": "v1/com/google/j2objc/j2objc-annotations/3.1/j2objc-annotations-3.1.jar"
             }
           },
           "com_google_jimfs_jimfs_1_2": {
@@ -1392,15 +1392,15 @@
               "downloaded_file_path": "v1/com/google/oauth-client/google-oauth-client/1.34.1/google-oauth-client-1.34.1.jar"
             }
           },
-          "com_google_protobuf_protobuf_java_3_25_5": {
+          "com_google_protobuf_protobuf_java_4_33_2": {
             "repoRuleId": "@@bazel_tools//tools/build_defs/repo:http.bzl%http_file",
             "attributes": {
-              "sha256": "8540247fad9e06baefa8fb45eb313802d019f485f14300e0f9d6b556ed88e753",
+              "sha256": "c5b582aa127fb62c5fc3077329d522dfb7930b4e9a625c08760b681b2ba5aab7",
               "urls": [
-                "https://repo1.maven.org/maven2/com/google/protobuf/protobuf-java/3.25.5/protobuf-java-3.25.5.jar",
-                "https://repo.maven.apache.org/maven2/com/google/protobuf/protobuf-java/3.25.5/protobuf-java-3.25.5.jar"
+                "https://repo1.maven.org/maven2/com/google/protobuf/protobuf-java/4.33.2/protobuf-java-4.33.2.jar",
+                "https://repo.maven.apache.org/maven2/com/google/protobuf/protobuf-java/4.33.2/protobuf-java-4.33.2.jar"
               ],
-              "downloaded_file_path": "v1/com/google/protobuf/protobuf-java/3.25.5/protobuf-java-3.25.5.jar"
+              "downloaded_file_path": "v1/com/google/protobuf/protobuf-java/4.33.2/protobuf-java-4.33.2.jar"
             }
           },
           "com_google_protobuf_protobuf_javalite_3_25_3": {
@@ -2812,10 +2812,10 @@
                 "{ \"group\": \"com.google.code.findbugs\", \"artifact\": \"jsr305\", \"version\": \"3.0.2\" }",
                 "{ \"group\": \"com.google.code.gson\", \"artifact\": \"gson\", \"version\": \"2.10.1\" }",
                 "{ \"group\": \"com.google.code.java-allocation-instrumenter\", \"artifact\": \"java-allocation-instrumenter\", \"version\": \"3.3.4\" }",
-                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_annotation\", \"version\": \"2.37.0\" }",
-                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_annotations\", \"version\": \"2.37.0\" }",
-                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_check_api\", \"version\": \"2.37.0\" }",
-                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_core\", \"version\": \"2.37.0\" }",
+                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_annotation\", \"version\": \"2.50.0\" }",
+                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_annotations\", \"version\": \"2.50.0\" }",
+                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_check_api\", \"version\": \"2.50.0\" }",
+                "{ \"group\": \"com.google.errorprone\", \"artifact\": \"error_prone_core\", \"version\": \"2.50.0\" }",
                 "{ \"group\": \"com.google.flogger\", \"artifact\": \"flogger\", \"version\": \"0.5.1\" }",
                 "{ \"group\": \"com.google.flogger\", \"artifact\": \"flogger-system-backend\", \"version\": \"0.5.1\" }",
                 "{ \"group\": \"com.google.flogger\", \"artifact\": \"google-extensions\", \"version\": \"0.5.1\" }",
@@ -4246,16 +4246,6 @@
           }
         },
         "recordedRepoMappingEntries": [
-          [
-            "grpc-java+",
-            "com_google_protobuf",
-            "protobuf+"
-          ],
-          [
-            "grpc-java+",
-            "io_grpc_grpc_java",
-            "grpc-java+"
-          ],
           [
             "rules_jvm_external+",
             "bazel_tools",
