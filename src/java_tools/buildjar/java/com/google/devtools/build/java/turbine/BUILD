@@ -75,6 +75,17 @@ native_image(
             "-march=x86-64-v2",
         ],
         "//conditions:default": [],
+    }) + select({
+        # GraalVM for JDK 21 defaults the image page size to the build host's page size, and the
+        # image refuses to start on a host with larger pages ("Failed to create the main Isolate.
+        # (code 24)", i.e. PAGE_SIZE_CHECK_FAILED). Linux aarch64 kernels use 4K, 16K or 64K pages,
+        # and an image built for 64K pages runs on all of them. GraalVM for JDK 23+ defaults to 64K.
+        "//src/conditions:linux_aarch64": [
+            "-H:+UnlockExperimentalVMOptions",
+            "-H:PageSize=65536",
+            "-H:-UnlockExperimentalVMOptions",
+        ],
+        "//conditions:default": [],
     }),
     main_class = _TURBINE_MAIN_CLASS,
     # This provides libz.a on Linux instead of the host system.
